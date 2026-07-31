@@ -126,8 +126,8 @@ local currentUIInstance = nil
 function e:ToggleUI()
 	if currentUIInstance and currentUIInstance.Main then
 		currentUIInstance.Main.Visible = not currentUIInstance.Main.Visible
-		-- Hide cursor when UI is closed, show it when UI is open
-		Mouse.Visible = currentUIInstance.Main.Visible
+		-- Show cursor when UI is open, hide when closed
+		UserInputService.MouseIconEnabled = currentUIInstance.Main.Visible
 	end
 end
 
@@ -152,7 +152,7 @@ function e:Notify(x, y)
                 D.MouseButton1Click:Connect(function()
                     PlayClick()
                     local E, F = pcall(C.Callback)
-                    A:Destroy()  -- FIX: Close notification
+                    A:Destroy()
                 end)
             end
         end
@@ -195,7 +195,7 @@ function e:CreateLibrary(G, H)
 	currentUIInstance = w
 	
 	w.Main.Visible = true
-	Mouse.Visible = true  -- show cursor when UI appears
+	UserInputService.MouseIconEnabled = true  -- show cursor when UI appears
 	
 	local J = w.Main.SideBar
 	local K = J.Buttons
