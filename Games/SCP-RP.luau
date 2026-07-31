@@ -30,77 +30,31 @@ local Config = {
     ModeratorDetector = false,
     -- UI
     UIToggleKey = "RightControl",
-    SilentAimWarningShown = false,
 }
 
-local CONFIG_FILE = "SCP-RP-Config.luau"
+local CONFIG_FILE = "SCP-RP-Config.json"
 
 -- Use Matrice global helpers
 local function SaveConfig()
-    -- Convert Config table to Lua code
-    local function TableToLua(tbl, indent)
-        indent = indent or ""
-        local result = "{\n"
-        local nextIndent = indent .. "    "
-        for k, v in pairs(tbl) do
-            if type(v) == "table" then
-                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. TableToLua(v, nextIndent) .. ",\n"
-            elseif type(v) == "string" then
-                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. string.format("%q", v) .. ",\n"
-            elseif type(v) == "number" then
-                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. tostring(v) .. ",\n"
-            elseif type(v) == "boolean" then
-                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. tostring(v) .. ",\n"
-            elseif type(v) == "Color3" then
-                result = result .. nextIndent .. "[" .. tostring(k) .. "] = Color3.fromRGB(" .. tostring(math.round(v.R * 255)) .. ", " .. tostring(math.round(v.G * 255)) .. ", " .. tostring(math.round(v.B * 255)) .. "),\n"
-            else
-                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. tostring(v) .. ",\n"
-            end
-        end
-        result = result .. indent .. "}"
-        return result
-    end
-    
-    local luaContent = "return " .. TableToLua(Config)
-    local ok, err = pcall(function()
-        writefile("Matrice/" .. CONFIG_FILE, luaContent)
-    end)
+    local ok, err = Matrice.SaveConfiguration(Config, CONFIG_FILE)
     if not ok then
         warn("Failed to save config:", err)
-        return false
     end
-    return true
 end
 
 local function LoadConfig()
-    local Path = "Matrice/" .. CONFIG_FILE
-    if not isfile(Path) then
-        return false
-    end
-    
-    local Content, ReadError = pcall(readfile, Path)
-    if not Content then
-        warn("Failed to read config:", ReadError)
-        return false
-    end
-    
-    local LoadSuccess, LoadedConfig = pcall(function()
-        return loadstring(Content, CONFIG_FILE)()
-    end)
-    
-    if not LoadSuccess then
-        warn("Failed to load config:", LoadedConfig)
-        return false
-    end
-    
-    if LoadedConfig then
-        for k, v in pairs(LoadedConfig) do
+    local data, err = Matrice.LoadConfiguration(CONFIG_FILE)
+    if data then
+        for k, v in pairs(data) do
             Config[k] = v
         end
         return true
+    else
+        if err and err ~= "Config file not found" then
+            warn("Failed to load config:", err)
+        end
+        return false
     end
-    
-    return false
 end
 
 local function ResetConfig()
@@ -122,19 +76,15 @@ local function ResetConfig()
         FOVColor = Color3.fromRGB(255, 255, 255),
         ModeratorDetector = false,
         UIToggleKey = "RightControl",
-        SilentAimWarningShown = false,
     }
-    local Path = "Matrice/" .. CONFIG_FILE
-    if isfile(Path) then
-        local ok, err = pcall(delfile, Path)
-        if not ok then
-            warn("Failed to delete config:", err)
-        end
+    local ok, err = Matrice.ResetConfiguration(CONFIG_FILE)
+    if not ok then
+        warn("Failed to reset config:", err)
     end
     SaveConfig()
     UI:Notify("Warning", {
         Title = "Config Reset",
-        Content = "Settings reset to defaults.",
+        Content = "Settings reset to defaults. Please reload the script.",
         Duration = 5,
         Image = "rbxassetid://4483362458",
     })
@@ -157,7 +107,6 @@ getgenv().FOVCircleEnabled = Config.FOVCircleEnabled
 getgenv().FOVRadius = Config.FOVRadius
 getgenv().FOVColor = Config.FOVColor
 getgenv().ModeratorDetector = Config.ModeratorDetector
-getgenv().SilentAimWarningShown = Config.SilentAimWarningShown
 
 LoadConfig()
 
@@ -210,6 +159,14 @@ HomeSection:CreateCard({
     }
 })
 
+HomeSection:CreateDivider()
+
+local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
+InfoSection:CreateParagraph({
+    Title = "About",
+    Description = "This script provides ESP, Silent Aim, and Moderator Detection for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Configuration save/load/reset\n• Customizable keybinds"
+})
+
 -- ===== Combat Tab =====
 local SilentAimSection = CombatTab:CreateSection("Silent Aim", "Normal")
 
@@ -223,7 +180,6 @@ FOVCircle.Visible = false
 local SilentAimRaycastParams = RaycastParams.new()
 SilentAimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
 SilentAimRaycastParams.IgnoreWater = true
-local SilentAimToggleRef = nil
 
 local HostileTeams = {
     ["Administrative Department"] = 1,
@@ -342,57 +298,11 @@ local function InstallSilentAimHook()
 end
 
 -- Silent Aim UI
-SilentAimToggleRef = SilentAimSection:CreateToggle("Normal", {
+SilentAimSection:CreateToggle("Normal", {
     Name = "Enable Silent Aim",
     Flag = "SilentAimEnabled",
     CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
-        if Value and not getgenv().SilentAimWarningShown then
-            Library:Notify({
-                Title = "⚠️ Silent Aim Warning",
-                Content = "While Matrice bypasses anti-cheat detections, using certain features such as silent aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.",
-                Duration = 67,
-                Image = "rbxassetid://4483362458",
-                Actions = {
-                    {
-                        Name = "I Understand - Enable",
-                        Callback = function()
-                            getgenv().SilentAimWarningShown = true
-                            Config.SilentAimWarningShown = true
-                            getgenv().SilentAimEnabled = true
-                            Config.SilentAimEnabled = true
-                            if not InstallSilentAimHook() then
-                                getgenv().SilentAimEnabled = false
-                                Config.SilentAimEnabled = false
-                            end
-                            SaveConfig()
-                            if SilentAimToggleRef then
-                                SilentAimToggleRef:SetToggle(true)
-                            end
-                        end
-                    },
-                    {
-                        Name = "Don't Enable",
-                        Callback = function()
-                            getgenv().SilentAimEnabled = false
-                            Config.SilentAimEnabled = false
-                            SaveConfig()
-                            if SilentAimToggleRef then
-                                SilentAimToggleRef:SetToggle(false)
-                            end
-                            UI:Notify("Normal", {
-                                Title = "Silent Aim Disabled",
-                                Content = "You chose not to enable Silent Aim. You can enable it later in the Combat tab.",
-                                Duration = 4,
-                                Image = "rbxassetid://4483362458",
-                            })
-                        end
-                    }
-                }
-            })
-            return
-        end
-        
         getgenv().SilentAimEnabled = Value
         Config.SilentAimEnabled = Value
         if Value and not InstallSilentAimHook() then
@@ -951,23 +861,9 @@ SettingsSection:CreateKeybind({
 
 SettingsSection:CreateDivider()
 
--- Save Configuration button
+-- Load Configuration
 SettingsSection:CreateButton({
-    Name = "💾 Save Configuration",
-    Callback = function()
-        SaveConfig()
-        UI:Notify("Normal", {
-            Title = "Config Saved",
-            Content = "Settings saved successfully.",
-            Duration = 3,
-            Image = "rbxassetid://4483362458",
-        })
-    end,
-})
-
--- Load Configuration button
-SettingsSection:CreateButton({
-    Name = "📂 Load Configuration",
+    Name = "Load Configuration",
     Callback = function()
         LoadConfig()
         -- Apply loaded config to globals
@@ -999,7 +895,7 @@ SettingsSection:CreateButton({
 
 -- Reset to Default
 SettingsSection:CreateButton({
-    Name = "🔄 Reset to Default",
+    Name = "Reset to Default",
     Callback = function()
         ResetConfig()
     end,
