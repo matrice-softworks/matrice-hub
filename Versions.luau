@@ -4,7 +4,7 @@ return {
 		Changelog = "[+] Complete rewrite of Matrice hub\n[+] New modular loader system",
 	},
 	Games = {
-		["5041144419"] = {
+		["1742264997"] = {
 			Info = {
 				Name = "SCP: Roleplay",
 				Enabled = true,
