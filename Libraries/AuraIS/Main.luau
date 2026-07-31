@@ -92,6 +92,9 @@ local e = {
 
 local f = tostring(math.random(1, 100)) .. tostring(math.random(1, 50)) .. tostring(math.random(1, 100))
 
+-- ====================================================================
+-- DRAG FUNCTION – v2 style (uses cached UserInputService)
+-- ====================================================================
 function e:DragFunc(g, h)
     h = h or g
     local i = false
@@ -189,6 +192,7 @@ function e:CreateLibrary(G, H)
 		w.Parent = CoreGui
 	end
 	
+	-- ===== FIX 1: Prevent UI from blocking first‑person camera =====
 	for _, obj in ipairs(w:GetDescendants()) do
 		pcall(function()
 			if obj:IsA("GuiObject") then
@@ -196,6 +200,24 @@ function e:CreateLibrary(G, H)
 			end
 		end)
 	end
+	
+	-- ===== FIX 2: Prevent scroll wheel from zooming the 3D camera when over the UI =====
+	UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+		if input.UserInputType == Enum.UserInputType.MouseWheel and not gameProcessedEvent then
+			local mousePos = UserInputService:GetMouseLocation()
+			local mainFrame = w.Main
+			if mainFrame and mainFrame.Visible then
+				local absPos = mainFrame.AbsolutePosition
+				local absSize = mainFrame.AbsoluteSize
+				if mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and
+				   mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y then
+					-- Block the camera zoom
+					input.Handled = true
+				end
+			end
+		end
+	end)
+	-- =================================================================
 	
 	currentUIInstance = w
 	
