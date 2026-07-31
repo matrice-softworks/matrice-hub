@@ -109,16 +109,41 @@ function Matrice.Asset(Name)
     return "rbxassetid://12974454446"
 end
 
--- ==== Configuration Helpers ====
+-- ==== Configuration Helpers (Lua format) ====
+-- Convert a Lua table to a Lua string representation
+local function TableToLua(tbl, indent)
+    indent = indent or ""
+    local result = "{\n"
+    local nextIndent = indent .. "    "
+    for k, v in pairs(tbl) do
+        local key = type(k) == "string" and string.format("[%q]", k) or "[" .. tostring(k) .. "]"
+        if type(v) == "table" then
+            result = result .. nextIndent .. key .. " = " .. TableToLua(v, nextIndent) .. ",\n"
+        elseif type(v) == "string" then
+            result = result .. nextIndent .. key .. " = " .. string.format("%q", v) .. ",\n"
+        elseif type(v) == "number" then
+            result = result .. nextIndent .. key .. " = " .. tostring(v) .. ",\n"
+        elseif type(v) == "boolean" then
+            result = result .. nextIndent .. key .. " = " .. tostring(v) .. ",\n"
+        elseif type(v) == "Color3" then
+            result = result .. nextIndent .. key .. " = Color3.fromRGB(" .. tostring(math.round(v.R * 255)) .. ", " .. tostring(math.round(v.G * 255)) .. ", " .. tostring(math.round(v.B * 255)) .. "),\n"
+        else
+            result = result .. nextIndent .. key .. " = " .. tostring(v) .. ",\n"
+        end
+    end
+    result = result .. indent .. "}"
+    return result
+end
+
 function Matrice.SaveConfiguration(Config, FilePath)
     local Success, Error = Matrice.Create("Matrice")
     if not Success then
         return false, "Failed to create Matrice folder: " .. tostring(Error)
     end
 
-    local json = game:GetService("HttpService"):JSONEncode(Config)
+    local LuaContent = "return " .. TableToLua(Config)
     local WriteSuccess, WriteError = pcall(function()
-        writefile("Matrice/" .. FilePath, json)
+        writefile("Matrice/" .. FilePath, LuaContent)
     end)
 
     if not WriteSuccess then
@@ -139,11 +164,11 @@ function Matrice.LoadConfiguration(FilePath)
         return nil, "Failed to read config: " .. tostring(Content)
     end
 
-    local DecodeSuccess, Data = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(Content)
+    local LoadSuccess, Data = pcall(function()
+        return loadstring(Content, FilePath)()
     end)
 
-    if not DecodeSuccess then
+    if not LoadSuccess then
         return nil, "Failed to parse config: " .. tostring(Data)
     end
 

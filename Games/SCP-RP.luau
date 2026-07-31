@@ -33,29 +33,74 @@ local Config = {
     SilentAimWarningShown = false,
 }
 
-local CONFIG_FILE = "SCP-RP-Config.json"
+local CONFIG_FILE = "SCP-RP-Config.luau"
 
 -- Use Matrice global helpers
 local function SaveConfig()
-    local ok, err = Matrice.SaveConfiguration(Config, CONFIG_FILE)
+    -- Convert Config table to Lua code
+    local function TableToLua(tbl, indent)
+        indent = indent or ""
+        local result = "{\n"
+        local nextIndent = indent .. "    "
+        for k, v in pairs(tbl) do
+            if type(v) == "table" then
+                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. TableToLua(v, nextIndent) .. ",\n"
+            elseif type(v) == "string" then
+                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. string.format("%q", v) .. ",\n"
+            elseif type(v) == "number" then
+                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. tostring(v) .. ",\n"
+            elseif type(v) == "boolean" then
+                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. tostring(v) .. ",\n"
+            elseif type(v) == "Color3" then
+                result = result .. nextIndent .. "[" .. tostring(k) .. "] = Color3.fromRGB(" .. tostring(math.round(v.R * 255)) .. ", " .. tostring(math.round(v.G * 255)) .. ", " .. tostring(math.round(v.B * 255)) .. "),\n"
+            else
+                result = result .. nextIndent .. "[" .. tostring(k) .. "] = " .. tostring(v) .. ",\n"
+            end
+        end
+        result = result .. indent .. "}"
+        return result
+    end
+    
+    local luaContent = "return " .. TableToLua(Config)
+    local ok, err = pcall(function()
+        writefile("Matrice/" .. CONFIG_FILE, luaContent)
+    end)
     if not ok then
         warn("Failed to save config:", err)
+        return false
     end
+    return true
 end
 
 local function LoadConfig()
-    local data, err = Matrice.LoadConfiguration(CONFIG_FILE)
-    if data then
-        for k, v in pairs(data) do
+    local Path = "Matrice/" .. CONFIG_FILE
+    if not isfile(Path) then
+        return false
+    end
+    
+    local Content, ReadError = pcall(readfile, Path)
+    if not Content then
+        warn("Failed to read config:", ReadError)
+        return false
+    end
+    
+    local LoadSuccess, LoadedConfig = pcall(function()
+        return loadstring(Content, CONFIG_FILE)()
+    end)
+    
+    if not LoadSuccess then
+        warn("Failed to load config:", LoadedConfig)
+        return false
+    end
+    
+    if LoadedConfig then
+        for k, v in pairs(LoadedConfig) do
             Config[k] = v
         end
         return true
-    else
-        if err and err ~= "Config file not found" then
-            warn("Failed to load config:", err)
-        end
-        return false
     end
+    
+    return false
 end
 
 local function ResetConfig()
@@ -79,14 +124,17 @@ local function ResetConfig()
         UIToggleKey = "RightControl",
         SilentAimWarningShown = false,
     }
-    local ok, err = Matrice.ResetConfiguration(CONFIG_FILE)
-    if not ok then
-        warn("Failed to reset config:", err)
+    local Path = "Matrice/" .. CONFIG_FILE
+    if isfile(Path) then
+        local ok, err = pcall(delfile, Path)
+        if not ok then
+            warn("Failed to delete config:", err)
+        end
     end
     SaveConfig()
     UI:Notify("Warning", {
         Title = "Config Reset",
-        Content = "Settings reset to defaults. Please reload the script.",
+        Content = "Settings reset to defaults.",
         Duration = 5,
         Image = "rbxassetid://4483362458",
     })
@@ -188,7 +236,7 @@ FOVCircle.Visible = false
 local SilentAimRaycastParams = RaycastParams.new()
 SilentAimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
 SilentAimRaycastParams.IgnoreWater = true
-local SilentAimToggleRef = nil -- Reference to the toggle for updating state
+local SilentAimToggleRef = nil
 
 local HostileTeams = {
     ["Administrative Department"] = 1,
@@ -313,7 +361,7 @@ SilentAimToggleRef = SilentAimSection:CreateToggle("Normal", {
     CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
         if Value and not getgenv().SilentAimWarningShown then
-            UI:Notify("Warning", {
+            Library:Notify({
                 Title = "⚠️ Silent Aim Warning",
                 Content = "While Matrice bypasses anti-cheat detections, using certain features such as silent aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.",
                 Duration = 67,
