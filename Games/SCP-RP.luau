@@ -204,7 +204,7 @@ end
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
     local camera = workspace.CurrentCamera
-    local cursor = UserInputService:GetMouseLocation()
+    local cursor = camera.ViewportSize / 2
     local closestPart, closestDistance = nil, getgenv().FOVRadius
 
     for _, player in ipairs(Players:GetPlayers()) do
@@ -298,7 +298,6 @@ local function InstallSilentAimHook()
     return true
 end
 
--- Function to show Silent Aim warning
 local function ShowSilentAimWarning(Callback)
     Library:Notify({
         Title = "Warning",
@@ -310,14 +309,12 @@ local function ShowSilentAimWarning(Callback)
                 Name = "I Understand",
                 Callback = function()
                     SilentAimWarningShown = true
-                    if Callback then Callback(true) end
                 end
             },
             Cancel = {
                 Name = "Cancel",
                 Callback = function()
                     SilentAimWarningShown = false
-                    if Callback then Callback(false) end
                 end
             }
         }
