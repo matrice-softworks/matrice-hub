@@ -93,32 +93,32 @@ local e = {
 local f = tostring(math.random(1, 100)) .. tostring(math.random(1, 50)) .. tostring(math.random(1, 100))
 
 function e:DragFunc(g, h)
-	h = h or g
-	local i = false
-	local j, k, l
-	g.InputBegan:Connect(function(m)
-		if m.UserInputType == Enum.UserInputType.MouseButton1 or m.UserInputType == Enum.UserInputType.Touch then
-			i = true
-			k = m.Position
-			l = h.Position
-			m.Changed:Connect(function()
-				if m.UserInputState == Enum.UserInputState.End then
-					i = false
-				end
-			end)
-		end
-	end)
-	g.InputChanged:Connect(function(m)
-		if m.UserInputType == Enum.UserInputType.MouseMovement or m.UserInputType == Enum.UserInputType.Touch then
-			j = m
-		end
-	end)
-	UserInputService.InputChanged:Connect(function(m)
-		if m == j and i then
-			local n = m.Position - k
-			h.Position = UDim2.new(l.X.Scale, l.X.Offset + n.X, l.Y.Scale, l.Y.Offset + n.Y)
-		end
-	end)
+    h = h or g
+    local i = false
+    local j, k, l
+    g.InputBegan:Connect(function(m)
+        if m.UserInputType == Enum.UserInputType.MouseButton1 or m.UserInputType == Enum.UserInputType.Touch then
+            i = true
+            k = m.Position
+            l = h.Position
+            m.Changed:Connect(function()
+                if m.UserInputState == Enum.UserInputState.End then
+                    i = false
+                end
+            end)
+        end
+    end)
+    g.InputChanged:Connect(function(m)
+        if m.UserInputType == Enum.UserInputType.MouseMovement or m.UserInputType == Enum.UserInputType.Touch then
+            j = m
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(m)
+        if m == j and i then
+            local n = m.Position - k
+            h.Position = UDim2.new(l.X.Scale, l.X.Offset + n.X, l.Y.Scale, l.Y.Offset + n.Y)
+        end
+    end)
 end
 
 local currentUIInstance = nil
@@ -126,48 +126,45 @@ local currentUIInstance = nil
 function e:ToggleUI()
 	if currentUIInstance and currentUIInstance.Main then
 		currentUIInstance.Main.Visible = not currentUIInstance.Main.Visible
-		-- Show cursor when UI is open, hide when closed
-		UserInputService.MouseIconEnabled = currentUIInstance.Main.Visible
 	end
 end
 
 function e:Notify(x, y)
-    if not currentUIInstance then return end
-    
-    task.spawn(function()
-        local z = y.Duration or b
-        local A = currentUIInstance.Notifications[x]:Clone()
-        A.Parent = currentUIInstance.Notifications
-        A.Name = y.Title or "Unknown Title"
-        A.Visible = true
-        A.Actions.ButtonTemplate.Visible = false
-        if y.Actions then
-            for B, C in next, y.Actions do
-                local D = A.Actions.ButtonTemplate:Clone()
-                D.Name = C.Name
-                D.Visible = true
-                D.Parent = A.Actions
-                D.Text = C.Name
-                D.Size = UDim2.new(0, D.TextBounds.X + 27, 1, 0)
-                D.MouseButton1Click:Connect(function()
-                    PlayClick()
-                    local E, F = pcall(C.Callback)
-                    A:Destroy()
-                end)
-            end
-        end
-        A.Title.Text = y.Title or "Unknown"
-        A.Description.Text = y.Content or "Unknown"
-        if y.Image then
-            A.Icon.Image = y.Image
-        end
-        while z >= 0 do
-            A.Duration.Text = z
-            task.wait(1)
-            z = z - 1
-        end
-        A:Destroy()
-    end)
+	if not currentUIInstance then return end
+	
+	task.spawn(function()
+		local z = y.Duration or b
+		local A = currentUIInstance.Notifications[x]:Clone()
+		A.Parent = currentUIInstance.Notifications
+		A.Name = y.Title or "Unknown Title"
+		A.Visible = true
+		A.Actions.ButtonTemplate.Visible = false
+		if y.Actions then
+			for B, C in next, y.Actions do
+				local D = A.Actions.ButtonTemplate:Clone()
+				D.Name = C.Name
+				D.Visible = true
+				D.Parent = A.Actions
+				D.Text = C.Name
+				D.Size = UDim2.new(0, D.TextBounds.X + 27, 1, 0)
+				D.MouseButton1Click:Connect(function()
+					PlayClick()
+					local E, F = pcall(C.Callback)
+				end)
+			end
+		end
+		A.Title.Text = y.Title or "Unknown"
+		A.Description.Text = y.Content or "Unknown"
+		if y.Image then
+			A.Icon.Image = y.Image
+		end
+		while z >= 0 do
+			A.Duration.Text = z
+			task.wait(1)
+			z = z - 1
+		end
+		A:Destroy()
+	end)
 end
 
 function e:CreateLibrary(G, H)
@@ -192,11 +189,17 @@ function e:CreateLibrary(G, H)
 		w.Parent = CoreGui
 	end
 	
+	for _, obj in ipairs(w:GetDescendants()) do
+		pcall(function()
+			if obj:IsA("GuiObject") then
+				obj.Modal = false
+			end
+		end)
+	end
+	
 	currentUIInstance = w
 	
 	w.Main.Visible = true
-	UserInputService.MouseIconEnabled = true  -- show cursor when UI appears
-	
 	local J = w.Main.SideBar
 	local K = J.Buttons
 	local L = w.Main.TabContainer
@@ -234,20 +237,24 @@ function e:CreateLibrary(G, H)
 	local M = {}
 	
 	function M:Notify(y, N, O, P)
+		if not currentUIInstance then return end
+		
 		task.spawn(function()
-			w.Main.Notifications.Visible = true
+			currentUIInstance.Main.Notifications.Visible = true
 			local z = typeof(y) == "table" and y.Duration or O or b
-			local A = w.Main.Notifications.Template
-			A.Parent = w.Notifications
+			local A = currentUIInstance.Main.Notifications.Template:Clone()
+			A.Parent = currentUIInstance.Main.Notifications
 			A.Duration.Text = z
-			A.Parent = w.Main.Notifications
 			A.Visible = true
-			for Q, R in next, (A.Actions:GetChildren()) do
+			
+			for Q, R in next, A.Actions:GetChildren() do
 				if R.Name ~= "ButtonTemplate" and not R:IsA("UIListLayout") then
 					R:Destroy()
 				end
 			end
+			
 			A.Actions.ButtonTemplate.Visible = false
+			
 			if typeof(y) == "table" and y.Actions or P then
 				for B, C in next, (typeof(y) == "table" and y.Actions or P) do
 					local D = A.Actions.ButtonTemplate:Clone()
@@ -257,23 +264,23 @@ function e:CreateLibrary(G, H)
 					D.Text = C.Name
 					D.Size = UDim2.new(0, D.TextBounds.X + 27, 1, 0)
 					D.MouseButton1Click:Connect(function()
+						PlayClick()
 						local E, F = pcall(C.Callback)
 					end)
 				end
 			end
+			
 			A.Title.Text = typeof(y) == "table" and y.Title or y or "Unknown"
 			A.Description.Text = typeof(y) == "table" and y.Content or N or "Unknown"
+			
 			while z >= 0 do
 				A.Duration.Text = z
 				task.wait(1)
 				z = z - 1
 			end
-			w.Main.Notifications.Visible = false
-			for Q, R in next, (A.Actions:GetChildren()) do
-				if R.Name ~= "ButtonTemplate" and not R:IsA("UIListLayout") then
-					R:Destroy()
-				end
-			end
+			
+			A:Destroy()
+			currentUIInstance.Main.Notifications.Visible = false
 		end)
 	end
 	
@@ -1155,15 +1162,17 @@ function e:CreateLibrary(G, H)
 		
 		return X
 	end
+	
 	if not isfile(Assets .. "0001.png") then
-	local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/0001.png")
-	if Success and Content then writefile(Assets .. "0001.png", Content) end
-end
+		local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/0001.png")
+		if Success and Content then writefile(Assets .. "0001.png", Content) end
+	end
 
-if not isfile(Assets .. "0002.png") then
-	local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/0002.png")
-	if Success and Content then writefile(Assets .. "0002.png", Content) end
-end
+	if not isfile(Assets .. "0002.png") then
+		local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/0002.png")
+		if Success and Content then writefile(Assets .. "0002.png", Content) end
+	end
+	
 	local adFrame = w.Main.Advertisement
 	if adFrame then
 		local advertisements = {
@@ -1229,4 +1238,5 @@ end
 	
 	return M
 end
+
 return e
