@@ -33,6 +33,7 @@ local Config = {
 }
 
 local CONFIG_FILE = "SCP-RP-Config.json"
+local SilentAimWarningShown = false
 
 -- Use Matrice global helpers
 local function SaveConfig()
@@ -297,12 +298,63 @@ local function InstallSilentAimHook()
     return true
 end
 
+-- Function to show Silent Aim warning
+local function ShowSilentAimWarning(Callback)
+    Library:Notify({
+        Title = "Warning",
+        Content = "While Matrice bypasses anti-cheat detections, using certain features such as Silent Aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.\n\nYou must wait 67 seconds before enabling this feature.",
+        Duration = 67,
+        Image = "rbxassetid://4483362458",
+        Actions = {
+            Understand = {
+                Name = "I Understand",
+                Callback = function()
+                    SilentAimWarningShown = true
+                    if Callback then Callback(true) end
+                end
+            },
+            Cancel = {
+                Name = "Cancel",
+                Callback = function()
+                    SilentAimWarningShown = false
+                    if Callback then Callback(false) end
+                end
+            }
+        }
+    })
+end
+
 -- Silent Aim UI
 SilentAimSection:CreateToggle("Normal", {
     Name = "Enable Silent Aim",
     Flag = "SilentAimEnabled",
     CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
+        if Value and not SilentAimWarningShown then
+            -- Show warning, temporarily disable the toggle
+            getgenv().SilentAimEnabled = false
+            Config.SilentAimEnabled = false
+            
+            ShowSilentAimWarning(function(Confirmed)
+                if Confirmed then
+                    getgenv().SilentAimEnabled = true
+                    Config.SilentAimEnabled = true
+                    if not InstallSilentAimHook() then
+                        getgenv().SilentAimEnabled = false
+                        Config.SilentAimEnabled = false
+                    end
+                    SaveConfig()
+                else
+                    getgenv().SilentAimEnabled = false
+                    Config.SilentAimEnabled = false
+                    SaveConfig()
+                end
+                -- Update the toggle UI to reflect the actual state
+                -- The toggle will need to be updated via its internal state
+            end)
+            return
+        end
+        
         getgenv().SilentAimEnabled = Value
         Config.SilentAimEnabled = Value
         if Value and not InstallSilentAimHook() then
