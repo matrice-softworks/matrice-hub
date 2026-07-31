@@ -311,7 +311,6 @@ SilentAimToggle = SilentAimSection:CreateToggle("Normal", {
             Library:Notify({
                 Title = "⚠️ Silent Aim Warning",
                 Content = "While Matrice bypasses anti-cheat detections, using certain features such as silent aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.",
-                Duration = 67,
                 Image = "rbxassetid://4483362458",
                 Actions = {
                     {
