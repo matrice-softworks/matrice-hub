@@ -233,21 +233,12 @@ function M:Notify(y, N, O, P)
     if not currentUIInstance then return end
     
     task.spawn(function()
-        local template = currentUIInstance.Main.Notifications.Template
-        template.Visible = false
-        
         currentUIInstance.Main.Notifications.Visible = true
         local z = typeof(y) == "table" and y.Duration or O or b
         local A = currentUIInstance.Main.Notifications.Template:Clone()
         A.Parent = currentUIInstance.Main.Notifications
+        A.Duration.Text = z
         A.Visible = true
-        
-        if not z or z == 0 then
-            A.Duration.Visible = false
-        else
-            A.Duration.Text = z
-            A.Duration.Visible = true
-        end
         
         for Q, R in next, A.Actions:GetChildren() do
             if R.Name ~= "ButtonTemplate" and not R:IsA("UIListLayout") then
@@ -257,9 +248,8 @@ function M:Notify(y, N, O, P)
         
         A.Actions.ButtonTemplate.Visible = false
         
-        local actions = typeof(y) == "table" and y.Actions or P
-        if actions then
-            for B, C in next, actions do
+        if typeof(y) == "table" and y.Actions or P then
+            for B, C in next, (typeof(y) == "table" and y.Actions or P) do
                 local D = A.Actions.ButtonTemplate:Clone()
                 D.Name = C.Name
                 D.Visible = true
@@ -269,11 +259,7 @@ function M:Notify(y, N, O, P)
                 D.MouseButton1Click:Connect(function()
                     PlayClick()
                     local E, F = pcall(C.Callback)
-                    A:Destroy()  -- Destroy notification on button click
-                    -- Hide notifications container if no more notifications
-                    if not currentUIInstance.Main.Notifications:FindFirstChildWhichIsA("Frame") then
-                        currentUIInstance.Main.Notifications.Visible = false
-                    end
+                    A:Destroy()  -- FIX: Close notification
                 end)
             end
         end
@@ -281,18 +267,14 @@ function M:Notify(y, N, O, P)
         A.Title.Text = typeof(y) == "table" and y.Title or y or "Unknown"
         A.Description.Text = typeof(y) == "table" and y.Content or N or "Unknown"
         
-        if z and z > 0 then
-            while z >= 0 do
-                A.Duration.Text = z
-                task.wait(1)
-                z = z - 1
-            end
+        while z >= 0 do
+            A.Duration.Text = z
+            task.wait(1)
+            z = z - 1
         end
         
         A:Destroy()
-        if not currentUIInstance.Main.Notifications:FindFirstChildWhichIsA("Frame") then
-            currentUIInstance.Main.Notifications.Visible = false
-        end
+        currentUIInstance.Main.Notifications.Visible = false
     end)
 end
 	
