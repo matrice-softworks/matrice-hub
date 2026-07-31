@@ -210,19 +210,6 @@ HomeSection:CreateCard({
     }
 })
 
-HomeSection:CreateDivider()
-
-local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
-InfoSection:CreateParagraph({
-    Title = "Matrice v" .. Matrice.Version,
-    Description = "<b>Matrice Hub</b> - Premium Roblox script hub\n\n" ..
-                  "<b>Game:</b> " .. Matrice.Game.Info.Name .. " v" .. Matrice.Game.Info.Version .. "\n\n" ..
-                  "<b>Changelog:</b>\n" ..
-                  Matrice.Game.Info.Changelog:gsub("\n", "\n• ") .. "\n\n" ..
-                  "<b>Matrice Changelog:</b>\n" ..
-                  Matrice.Version .. " - " .. Matrice.Changelog:gsub("\n", "\n• ")
-})
-
 -- ===== Combat Tab =====
 local SilentAimSection = CombatTab:CreateSection("Silent Aim", "Normal")
 
