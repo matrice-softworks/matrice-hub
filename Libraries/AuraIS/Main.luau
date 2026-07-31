@@ -130,41 +130,42 @@ function e:ToggleUI()
 end
 
 function e:Notify(x, y)
-	if not currentUIInstance then return end
-	
-	task.spawn(function()
-		local z = y.Duration or b
-		local A = currentUIInstance.Notifications[x]:Clone()
-		A.Parent = currentUIInstance.Notifications
-		A.Name = y.Title or "Unknown Title"
-		A.Visible = true
-		A.Actions.ButtonTemplate.Visible = false
-		if y.Actions then
-			for B, C in next, y.Actions do
-				local D = A.Actions.ButtonTemplate:Clone()
-				D.Name = C.Name
-				D.Visible = true
-				D.Parent = A.Actions
-				D.Text = C.Name
-				D.Size = UDim2.new(0, D.TextBounds.X + 27, 1, 0)
-				D.MouseButton1Click:Connect(function()
-					PlayClick()
-					local E, F = pcall(C.Callback)
-				end)
-			end
-		end
-		A.Title.Text = y.Title or "Unknown"
-		A.Description.Text = y.Content or "Unknown"
-		if y.Image then
-			A.Icon.Image = y.Image
-		end
-		while z >= 0 do
-			A.Duration.Text = z
-			task.wait(1)
-			z = z - 1
-		end
-		A:Destroy()
-	end)
+    if not currentUIInstance then return end
+    
+    task.spawn(function()
+        local z = y.Duration or b
+        local A = currentUIInstance.Notifications[x]:Clone()
+        A.Parent = currentUIInstance.Notifications
+        A.Name = y.Title or "Unknown Title"
+        A.Visible = true
+        A.Actions.ButtonTemplate.Visible = false
+        if y.Actions then
+            for B, C in next, y.Actions do
+                local D = A.Actions.ButtonTemplate:Clone()
+                D.Name = C.Name
+                D.Visible = true
+                D.Parent = A.Actions
+                D.Text = C.Name
+                D.Size = UDim2.new(0, D.TextBounds.X + 27, 1, 0)
+                D.MouseButton1Click:Connect(function()
+                    PlayClick()
+                    local E, F = pcall(C.Callback)
+                    A:Destroy()  -- FIX: Close notification
+                end)
+            end
+        end
+        A.Title.Text = y.Title or "Unknown"
+        A.Description.Text = y.Content or "Unknown"
+        if y.Image then
+            A.Icon.Image = y.Image
+        end
+        while z >= 0 do
+            A.Duration.Text = z
+            task.wait(1)
+            z = z - 1
+        end
+        A:Destroy()
+    end)
 end
 
 function e:CreateLibrary(G, H)
@@ -228,53 +229,54 @@ function e:CreateLibrary(G, H)
 	
 	local M = {}
 	
-	function M:Notify(y, N, O, P)
-		if not currentUIInstance then return end
-		
-		task.spawn(function()
-			currentUIInstance.Main.Notifications.Visible = true
-			local z = typeof(y) == "table" and y.Duration or O or b
-			local A = currentUIInstance.Main.Notifications.Template:Clone()
-			A.Parent = currentUIInstance.Main.Notifications
-			A.Duration.Text = z
-			A.Visible = true
-			
-			for Q, R in next, A.Actions:GetChildren() do
-				if R.Name ~= "ButtonTemplate" and not R:IsA("UIListLayout") then
-					R:Destroy()
-				end
-			end
-			
-			A.Actions.ButtonTemplate.Visible = false
-			
-			if typeof(y) == "table" and y.Actions or P then
-				for B, C in next, (typeof(y) == "table" and y.Actions or P) do
-					local D = A.Actions.ButtonTemplate:Clone()
-					D.Name = C.Name
-					D.Visible = true
-					D.Parent = A.Actions
-					D.Text = C.Name
-					D.Size = UDim2.new(0, D.TextBounds.X + 27, 1, 0)
-					D.MouseButton1Click:Connect(function()
-						PlayClick()
-						local E, F = pcall(C.Callback)
-					end)
-				end
-			end
-			
-			A.Title.Text = typeof(y) == "table" and y.Title or y or "Unknown"
-			A.Description.Text = typeof(y) == "table" and y.Content or N or "Unknown"
-			
-			while z >= 0 do
-				A.Duration.Text = z
-				task.wait(1)
-				z = z - 1
-			end
-			
-			A:Destroy()
-			currentUIInstance.Main.Notifications.Visible = false
-		end)
-	end
+function M:Notify(y, N, O, P)
+    if not currentUIInstance then return end
+    
+    task.spawn(function()
+        currentUIInstance.Main.Notifications.Visible = true
+        local z = typeof(y) == "table" and y.Duration or O or b
+        local A = currentUIInstance.Main.Notifications.Template:Clone()
+        A.Parent = currentUIInstance.Main.Notifications
+        A.Duration.Text = z
+        A.Visible = true
+        
+        for Q, R in next, A.Actions:GetChildren() do
+            if R.Name ~= "ButtonTemplate" and not R:IsA("UIListLayout") then
+                R:Destroy()
+            end
+        end
+        
+        A.Actions.ButtonTemplate.Visible = false
+        
+        if typeof(y) == "table" and y.Actions or P then
+            for B, C in next, (typeof(y) == "table" and y.Actions or P) do
+                local D = A.Actions.ButtonTemplate:Clone()
+                D.Name = C.Name
+                D.Visible = true
+                D.Parent = A.Actions
+                D.Text = C.Name
+                D.Size = UDim2.new(0, D.TextBounds.X + 27, 1, 0)
+                D.MouseButton1Click:Connect(function()
+                    PlayClick()
+                    local E, F = pcall(C.Callback)
+                    A:Destroy()  -- FIX: Close notification
+                end)
+            end
+        end
+        
+        A.Title.Text = typeof(y) == "table" and y.Title or y or "Unknown"
+        A.Description.Text = typeof(y) == "table" and y.Content or N or "Unknown"
+        
+        while z >= 0 do
+            A.Duration.Text = z
+            task.wait(1)
+            z = z - 1
+        end
+        
+        A:Destroy()
+        currentUIInstance.Main.Notifications.Visible = false
+    end)
+end
 	
 	local FirstTabCreated = false
 	local FirstTab = nil

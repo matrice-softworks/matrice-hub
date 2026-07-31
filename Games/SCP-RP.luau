@@ -132,7 +132,7 @@ HomeSection:CreateCard({
     SecondaryTitle = "Version v" .. Matrice.Version,
     Image = Matrice.Asset("Matrice"),
     Buttons = {
-        Discord = {
+        Button1 = {
             Name = "Join Discord",
             Callback = function()
                 setclipboard("https://discord.gg/tester")
@@ -144,7 +144,7 @@ HomeSection:CreateCard({
                 })
             end
         },
-        GitHub = {
+        Button2 = {
             Name = "Visit GitHub",
             Callback = function()
                 setclipboard("https://github.com/matrice-softworks/matrice-hub")
