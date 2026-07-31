@@ -302,7 +302,7 @@ local function ShowSilentAimWarning(Callback)
     Library:Notify({
         Title = "Warning",
         Content = "While Matrice bypasses anti-cheat detections, using certain features such as Silent Aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.\n\nYou must wait 67 seconds before enabling this feature.",
-        Duration = 67,
+        Duration = 10,
         Image = "rbxassetid://4483362458",
         Actions = {
             Understand = {
