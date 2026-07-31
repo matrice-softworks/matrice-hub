@@ -30,6 +30,7 @@ local Config = {
     ModeratorDetector = false,
     -- UI
     UIToggleKey = "RightControl",
+    SilentAimWarningShown = false,
 }
 
 local CONFIG_FILE = "SCP-RP-Config.json"
@@ -76,6 +77,7 @@ local function ResetConfig()
         FOVColor = Color3.fromRGB(255, 255, 255),
         ModeratorDetector = false,
         UIToggleKey = "RightControl",
+        SilentAimWarningShown = false,
     }
     local ok, err = Matrice.ResetConfiguration(CONFIG_FILE)
     if not ok then
@@ -107,6 +109,7 @@ getgenv().FOVCircleEnabled = Config.FOVCircleEnabled
 getgenv().FOVRadius = Config.FOVRadius
 getgenv().FOVColor = Config.FOVColor
 getgenv().ModeratorDetector = Config.ModeratorDetector
+getgenv().SilentAimWarningShown = Config.SilentAimWarningShown
 
 LoadConfig()
 
@@ -163,8 +166,13 @@ HomeSection:CreateDivider()
 
 local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
 InfoSection:CreateParagraph({
-    Title = "About",
-    Description = "This script provides ESP, Silent Aim, and Moderator Detection for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Configuration save/load/reset\n• Customizable keybinds"
+    Title = "Matrice v" .. Matrice.Version,
+    Description = "<b>Matrice Hub</b> - Premium Roblox script hub\n\n" ..
+                  "<b>Game:</b> " .. Matrice.Game.Info.Name .. " v" .. Matrice.Game.Info.Version .. "\n\n" ..
+                  "<b>Changelog:</b>\n" ..
+                  Matrice.Game.Info.Changelog:gsub("\n", "\n• ") .. "\n\n" ..
+                  "<b>Matrice Changelog:</b>\n" ..
+                  Matrice.Version .. " - " .. Matrice.Changelog:gsub("\n", "\n• ")
 })
 
 -- ===== Combat Tab =====
@@ -180,6 +188,7 @@ FOVCircle.Visible = false
 local SilentAimRaycastParams = RaycastParams.new()
 SilentAimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
 SilentAimRaycastParams.IgnoreWater = true
+local SilentAimToggleRef = nil -- Reference to the toggle for updating state
 
 local HostileTeams = {
     ["Administrative Department"] = 1,
@@ -298,11 +307,57 @@ local function InstallSilentAimHook()
 end
 
 -- Silent Aim UI
-SilentAimSection:CreateToggle("Normal", {
+SilentAimToggleRef = SilentAimSection:CreateToggle("Normal", {
     Name = "Enable Silent Aim",
     Flag = "SilentAimEnabled",
     CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
+        if Value and not getgenv().SilentAimWarningShown then
+            Library:Notify({
+                Title = "⚠️ Silent Aim Warning",
+                Content = "While Matrice bypasses anti-cheat detections, using certain features such as silent aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.",
+                Duration = 67,
+                Image = "rbxassetid://4483362458",
+                Actions = {
+                    {
+                        Name = "I Understand - Enable",
+                        Callback = function()
+                            getgenv().SilentAimWarningShown = true
+                            Config.SilentAimWarningShown = true
+                            getgenv().SilentAimEnabled = true
+                            Config.SilentAimEnabled = true
+                            if not InstallSilentAimHook() then
+                                getgenv().SilentAimEnabled = false
+                                Config.SilentAimEnabled = false
+                            end
+                            SaveConfig()
+                            if SilentAimToggleRef then
+                                SilentAimToggleRef:SetToggle(true)
+                            end
+                        end
+                    },
+                    {
+                        Name = "Don't Enable",
+                        Callback = function()
+                            getgenv().SilentAimEnabled = false
+                            Config.SilentAimEnabled = false
+                            SaveConfig()
+                            if SilentAimToggleRef then
+                                SilentAimToggleRef:SetToggle(false)
+                            end
+                            UI:Notify("Normal", {
+                                Title = "Silent Aim Disabled",
+                                Content = "You chose not to enable Silent Aim. You can enable it later in the Combat tab.",
+                                Duration = 4,
+                                Image = "rbxassetid://4483362458",
+                            })
+                        end
+                    }
+                }
+            })
+            return
+        end
+        
         getgenv().SilentAimEnabled = Value
         Config.SilentAimEnabled = Value
         if Value and not InstallSilentAimHook() then
@@ -861,14 +916,27 @@ SettingsSection:CreateKeybind({
 
 SettingsSection:CreateDivider()
 
--- Load Configuration
+-- Save Configuration button
 SettingsSection:CreateButton({
-    Name = "Load Configuration",
+    Name = "💾 Save Configuration",
+    Callback = function()
+        SaveConfig()
+        UI:Notify("Normal", {
+            Title = "Config Saved",
+            Content = "Settings saved successfully.",
+            Duration = 3,
+            Image = "rbxassetid://4483362458",
+        })
+    end,
+})
+
+-- Load Configuration button
+SettingsSection:CreateButton({
+    Name = "📂 Load Configuration",
     Callback = function()
         LoadConfig()
         -- Apply loaded config to globals
-        getgenv().ESPEnabled = Config.ESPEnabled
-        getgenv().HighlightEnabled = Config.HighlightEnabled
+        getgenv().ESPEnabled = Config.ESPEnabled        getgenv().HighlightEnabled = Config.HighlightEnabled
         getgenv().BoxEnabled = Config.BoxEnabled
         getgenv().SkeletonEnabled = Config.SkeletonEnabled
         getgenv().ChamsEnabled = Config.ChamsEnabled
@@ -895,7 +963,7 @@ SettingsSection:CreateButton({
 
 -- Reset to Default
 SettingsSection:CreateButton({
-    Name = "Reset to Default",
+    Name = "🔄 Reset to Default",
     Callback = function()
         ResetConfig()
     end,
