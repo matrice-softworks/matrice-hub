@@ -172,6 +172,7 @@ local SilentAimSection = CombatTab:CreateSection("Silent Aim", "Normal")
 
 -- Internal silent aim state
 local SilentAimHookInstalled = false
+local SilentAimEnabled = false
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Filled = false
 FOVCircle.Thickness = 1
@@ -201,7 +202,7 @@ local function IsEnemy(player)
 end
 
 local function GetSilentAimTarget()
-    if not getgenv().SilentAimEnabled then return nil end
+    if not SilentAimEnabled then return nil end
     local camera = workspace.CurrentCamera
     local cursor = UserInputService:GetMouseLocation()
     local closestPart, closestDistance = nil, getgenv().FOVRadius
@@ -298,18 +299,66 @@ local function InstallSilentAimHook()
 end
 
 -- Silent Aim UI
-SilentAimSection:CreateToggle("Normal", {
+local SilentAimToggle
+
+SilentAimToggle = SilentAimSection:CreateToggle("Normal", {
     Name = "Enable Silent Aim",
     Flag = "SilentAimEnabled",
     CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
-        getgenv().SilentAimEnabled = Value
-        Config.SilentAimEnabled = Value
-        if Value and not InstallSilentAimHook() then
+        -- If enabling, show warning
+        if Value then
+            Library:Notify({
+                Title = "⚠️ Silent Aim Warning",
+                Content = "While Matrice bypasses anti-cheat detections, using certain features such as silent aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.",
+                Duration = 67,
+                Image = "rbxassetid://4483362458",
+                Actions = {
+                    {
+                        Name = "I Understand",
+                        Callback = function()
+                            SilentAimEnabled = true
+                            getgenv().SilentAimEnabled = true
+                            Config.SilentAimEnabled = true
+                            SilentAimToggle:SetToggle(true)
+                            if not InstallSilentAimHook() then
+                                SilentAimEnabled = false
+                                getgenv().SilentAimEnabled = false
+                                Config.SilentAimEnabled = false
+                                SilentAimToggle:SetToggle(false)
+                            end
+                            SaveConfig()
+                            UI:Notify("Normal", {
+                                Title = "Silent Aim",
+                                Content = "Silent Aim enabled successfully.",
+                                Duration = 3,
+                                Image = "rbxassetid://4483362458",
+                            })
+                        end
+                    },
+                    {
+                        Name = "Cancel",
+                        Callback = function()
+                            SilentAimEnabled = false
+                            getgenv().SilentAimEnabled = false
+                            Config.SilentAimEnabled = false
+                            SilentAimToggle:SetToggle(false)
+                            UI:Notify("Warning", {
+                                Title = "Silent Aim",
+                                Content = "Silent Aim was not enabled.",
+                                Duration = 3,
+                                Image = "rbxassetid://4483362458",
+                            })
+                        end
+                    }
+                }
+            })
+        else
+            SilentAimEnabled = false
             getgenv().SilentAimEnabled = false
             Config.SilentAimEnabled = false
+            SaveConfig()
         end
-        SaveConfig()
     end,
 })
 
