@@ -147,7 +147,7 @@ HomeSection:CreateCard({
         GitHub = {
             Name = "Visit GitHub",
             Callback = function()
-                setclipboard("https://github.com/SentinelSoftworks/ROE")
+                setclipboard("https://github.com/matrice-softworks/matrice-hub")
                 UI:Notify("Normal", {
                     Title = "Copied",
                     Content = "GitHub link copied to clipboard.",
@@ -157,6 +157,14 @@ HomeSection:CreateCard({
             end
         }
     }
+})
+
+HomeSection:CreateDivider()
+
+local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
+InfoSection:CreateParagraph({
+    Title = "About",
+    Description = "This script provides ESP, Silent Aim, and Moderator Detection for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Configuration save/load/reset\n• Customizable keybinds"
 })
 
 -- ===== Combat Tab =====
@@ -292,6 +300,8 @@ end
 -- Silent Aim UI
 SilentAimSection:CreateToggle("Normal", {
     Name = "Enable Silent Aim",
+    Flag = "SilentAimEnabled",
+    CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
         getgenv().SilentAimEnabled = Value
         Config.SilentAimEnabled = Value
@@ -305,6 +315,8 @@ SilentAimSection:CreateToggle("Normal", {
 
 SilentAimSection:CreateToggle("Normal", {
     Name = "Wall Check",
+    Flag = "SilentAimWallCheck",
+    CurrentValue = getgenv().SilentAimWallCheck,
     Callback = function(Value)
         getgenv().SilentAimWallCheck = Value
         Config.SilentAimWallCheck = Value
@@ -314,6 +326,8 @@ SilentAimSection:CreateToggle("Normal", {
 
 SilentAimSection:CreateToggle("Normal", {
     Name = "Show FOV Circle",
+    Flag = "FOVCircleEnabled",
+    CurrentValue = getgenv().FOVCircleEnabled,
     Callback = function(Value)
         getgenv().FOVCircleEnabled = Value
         Config.FOVCircleEnabled = Value
@@ -327,6 +341,7 @@ SilentAimSection:CreateSlider({
     Value = {25, 500},
     Increment = 5,
     Suffix = "px",
+    Flag = "FOVRadius",
     CurrentValue = getgenv().FOVRadius,
     Callback = function(Value)
         getgenv().FOVRadius = Value
@@ -347,6 +362,7 @@ SilentAimSection:CreateColorPicker({
 SilentAimSection:CreateDropdown({
     Name = "Hit Part",
     Options = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"},
+    Flag = "SilentAimHitPart",
     CurrentOption = {getgenv().SilentAimHitPart},
     MultipleOptions = false,
     Callback = function(Option)
@@ -362,6 +378,7 @@ SilentAimSection:CreateSlider({
     Value = {0, 100},
     Increment = 1,
     Suffix = "%",
+    Flag = "SilentAimHitChance",
     CurrentValue = getgenv().SilentAimHitChance,
     Callback = function(Value)
         getgenv().SilentAimHitChance = Value
@@ -662,6 +679,8 @@ Players.PlayerRemoving:Connect(ClearPlayerESP)
 -- ESP UI Elements
 ESPSection:CreateToggle("Normal", {
     Name = "Enable ESP",
+    Flag = "ESPEnabled",
+    CurrentValue = getgenv().ESPEnabled,
     Callback = function(Value)
         getgenv().ESPEnabled = Value
         Config.ESPEnabled = Value
@@ -670,8 +689,12 @@ ESPSection:CreateToggle("Normal", {
     end,
 })
 
+ESPSection:CreateDivider()
+
 ESPSection:CreateToggle("Normal", {
     Name = "Highlight",
+    Flag = "HighlightEnabled",
+    CurrentValue = getgenv().HighlightEnabled,
     Callback = function(Value)
         getgenv().HighlightEnabled = Value
         Config.HighlightEnabled = Value
@@ -682,6 +705,8 @@ ESPSection:CreateToggle("Normal", {
 
 ESPSection:CreateToggle("Normal", {
     Name = "Box",
+    Flag = "BoxEnabled",
+    CurrentValue = getgenv().BoxEnabled,
     Callback = function(Value)
         getgenv().BoxEnabled = Value
         Config.BoxEnabled = Value
@@ -692,6 +717,8 @@ ESPSection:CreateToggle("Normal", {
 
 ESPSection:CreateToggle("Normal", {
     Name = "Tracer Lines",
+    Flag = "TracerEnabled",
+    CurrentValue = getgenv().TracerEnabled,
     Callback = function(Value)
         getgenv().TracerEnabled = Value
         Config.TracerEnabled = Value
@@ -702,6 +729,8 @@ ESPSection:CreateToggle("Normal", {
 
 ESPSection:CreateToggle("Normal", {
     Name = "Health Bars",
+    Flag = "HealthBarEnabled",
+    CurrentValue = getgenv().HealthBarEnabled,
     Callback = function(Value)
         getgenv().HealthBarEnabled = Value
         Config.HealthBarEnabled = Value
@@ -712,6 +741,8 @@ ESPSection:CreateToggle("Normal", {
 
 ESPSection:CreateToggle("Normal", {
     Name = "Skeleton",
+    Flag = "SkeletonEnabled",
+    CurrentValue = getgenv().SkeletonEnabled,
     Callback = function(Value)
         getgenv().SkeletonEnabled = Value
         Config.SkeletonEnabled = Value
@@ -722,6 +753,8 @@ ESPSection:CreateToggle("Normal", {
 
 ESPSection:CreateToggle("Normal", {
     Name = "Chams",
+    Flag = "ChamsEnabled",
+    CurrentValue = getgenv().ChamsEnabled,
     Callback = function(Value)
         getgenv().ChamsEnabled = Value
         Config.ChamsEnabled = Value
@@ -730,11 +763,14 @@ ESPSection:CreateToggle("Normal", {
     end,
 })
 
+ESPSection:CreateDivider()
+
 ESPSection:CreateSlider({
     Name = "ESP Range",
     Value = {50, 2000},
     Increment = 50,
     Suffix = "studs",
+    Flag = "ESPRange",
     CurrentValue = getgenv().ESPRange,
     Callback = function(Value)
         getgenv().ESPRange = Value
@@ -747,6 +783,7 @@ ESPSection:CreateSlider({
 -- Greyscale
 MiscVizSection:CreateToggle("Normal", {
     Name = "Greyscale World",
+    Flag = "GreyscaleEnabled",
     Callback = function(Value)
         if Value then
             local cc = Instance.new("ColorCorrectionEffect")
@@ -768,6 +805,8 @@ local ModeratorDetectorConnection = nil
 
 ModeratorSection:CreateToggle("Normal", {
     Name = "Enable Moderator Detector",
+    Flag = "ModeratorDetector",
+    CurrentValue = getgenv().ModeratorDetector,
     Callback = function(Value)
         getgenv().ModeratorDetector = Value
         Config.ModeratorDetector = Value
@@ -812,12 +851,15 @@ local SettingsSection = SettingsTab:CreateSection("UI & Configuration", "Normal"
 -- Keybind to toggle UI
 SettingsSection:CreateKeybind({
     Name = "Toggle UI",
+    Flag = "UIToggleKey",
     Keybind = Config.UIToggleKey,
     Type = "Press",
     Callback = function()
         UI:ToggleUI()
     end,
 })
+
+SettingsSection:CreateDivider()
 
 -- Load Configuration
 SettingsSection:CreateButton({
@@ -844,7 +886,7 @@ SettingsSection:CreateButton({
         if getgenv().ESPEnabled then RebuildAllESPs() end
         UI:Notify("Normal", {
             Title = "Config Loaded",
-            Content = "Settings loaded. Please reload the script for changes to take full effect.",
+            Content = "Settings loaded successfully.",
             Duration = 5,
             Image = "rbxassetid://4483362458",
         })
@@ -866,7 +908,7 @@ UI:Notify("Normal", {
     Duration = 5,
     Image = "rbxassetid://12974454446",
     Actions = {
-        Close = {
+        {
             Name = "Okay!",
             Callback = function()
                 print("Script ready.")
