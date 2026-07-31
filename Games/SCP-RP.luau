@@ -298,23 +298,26 @@ local function InstallSilentAimHook()
     return true
 end
 
+-- Show Silent Aim warning
 local function ShowSilentAimWarning(Callback)
     Library:Notify({
-        Title = "Warning",
+        Title = "⚠️ Silent Aim Warning",
         Content = "While Matrice bypasses anti-cheat detections, using certain features such as Silent Aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.\n\nYou must wait 67 seconds before enabling this feature.",
-        Duration = 10,
+        Duration = 67,
         Image = "rbxassetid://4483362458",
         Actions = {
             Understand = {
                 Name = "I Understand",
                 Callback = function()
                     SilentAimWarningShown = true
+                    if Callback then Callback(true) end
                 end
             },
             Cancel = {
                 Name = "Cancel",
                 Callback = function()
                     SilentAimWarningShown = false
+                    if Callback then Callback(false) end
                 end
             }
         }
@@ -328,10 +331,8 @@ SilentAimSection:CreateToggle("Normal", {
     CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
         if Value and not SilentAimWarningShown then
-            -- Show warning, temporarily disable the toggle
             getgenv().SilentAimEnabled = false
             Config.SilentAimEnabled = false
-            
             ShowSilentAimWarning(function(Confirmed)
                 if Confirmed then
                     getgenv().SilentAimEnabled = true
@@ -346,12 +347,9 @@ SilentAimSection:CreateToggle("Normal", {
                     Config.SilentAimEnabled = false
                     SaveConfig()
                 end
-                -- Update the toggle UI to reflect the actual state
-                -- The toggle will need to be updated via its internal state
             end)
             return
         end
-        
         getgenv().SilentAimEnabled = Value
         Config.SilentAimEnabled = Value
         if Value and not InstallSilentAimHook() then
@@ -606,7 +604,7 @@ local function RebuildAllESPs()
     end
 end
 
--- Background ESP loop
+-- Background ESP lifecycle (distance checks, respawns)
 task.spawn(function()
     while task.wait(0.5) do
         if not getgenv().ESPEnabled then
@@ -645,9 +643,14 @@ task.spawn(function()
     end
 end)
 
--- Render loop for drawing positions
+-- ===== Optimized render loop =====
+-- Update only every 2 frames to reduce CPU usage
+local frameCounter = 0
 RunService.RenderStepped:Connect(function()
-    -- FOV circle
+    frameCounter = frameCounter + 1
+    if frameCounter % 2 ~= 0 then return end
+
+    -- Update FOV circle (simple, always runs if enabled)
     FOVCircle.Visible = getgenv().FOVCircleEnabled
     if getgenv().FOVCircleEnabled then
         FOVCircle.Position = UserInputService:GetMouseLocation()
@@ -656,6 +659,7 @@ RunService.RenderStepped:Connect(function()
     end
 
     if not getgenv().ESPEnabled then return end
+
     for player, esp in pairs(PlayerESPs) do
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
             local onScreen, size, pos = Visuals:GetBoundingBox(player)
