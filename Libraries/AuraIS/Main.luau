@@ -232,6 +232,11 @@ function e:CreateLibrary(G, H)
 function M:Notify(y, N, O, P)
     if not currentUIInstance then return end
     
+    local template = currentUIInstance.Main.Notifications:FindFirstChild("Template")
+    if template then
+        template.Visible = false
+    end
+    
     task.spawn(function()
         currentUIInstance.Main.Notifications.Visible = true
         local z = typeof(y) == "table" and y.Duration or O or b
@@ -240,6 +245,7 @@ function M:Notify(y, N, O, P)
         A.Duration.Text = z
         A.Visible = true
         
+        -- Clear old actions
         for Q, R in next, A.Actions:GetChildren() do
             if R.Name ~= "ButtonTemplate" and not R:IsA("UIListLayout") then
                 R:Destroy()
@@ -248,6 +254,7 @@ function M:Notify(y, N, O, P)
         
         A.Actions.ButtonTemplate.Visible = false
         
+        -- Create new actions
         if typeof(y) == "table" and y.Actions or P then
             for B, C in next, (typeof(y) == "table" and y.Actions or P) do
                 local D = A.Actions.ButtonTemplate:Clone()
@@ -259,7 +266,8 @@ function M:Notify(y, N, O, P)
                 D.MouseButton1Click:Connect(function()
                     PlayClick()
                     local E, F = pcall(C.Callback)
-                    A:Destroy()  -- FIX: Close notification
+                    A:Destroy()  -- Close notification
+                    currentUIInstance.Main.Notifications.Visible = false
                 end)
             end
         end
@@ -267,6 +275,7 @@ function M:Notify(y, N, O, P)
         A.Title.Text = typeof(y) == "table" and y.Title or y or "Unknown"
         A.Description.Text = typeof(y) == "table" and y.Content or N or "Unknown"
         
+        -- Countdown
         while z >= 0 do
             A.Duration.Text = z
             task.wait(1)
