@@ -204,7 +204,7 @@ end
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
     local camera = workspace.CurrentCamera
-    local cursor = camera.ViewportSize / 2
+    local cursor = UserInputService:GetMouseLocation()
     local closestPart, closestDistance = nil, getgenv().FOVRadius
 
     for _, player in ipairs(Players:GetPlayers()) do
