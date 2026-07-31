@@ -126,6 +126,8 @@ local currentUIInstance = nil
 function e:ToggleUI()
 	if currentUIInstance and currentUIInstance.Main then
 		currentUIInstance.Main.Visible = not currentUIInstance.Main.Visible
+		-- Hide cursor when UI is closed, show it when UI is open
+		Mouse.Visible = currentUIInstance.Main.Visible
 	end
 end
 
@@ -193,6 +195,8 @@ function e:CreateLibrary(G, H)
 	currentUIInstance = w
 	
 	w.Main.Visible = true
+	Mouse.Visible = true  -- show cursor when UI appears
+	
 	local J = w.Main.SideBar
 	local K = J.Buttons
 	local L = w.Main.TabContainer
