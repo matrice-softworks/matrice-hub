@@ -313,7 +313,7 @@ SilentAimToggleRef = SilentAimSection:CreateToggle("Normal", {
     CurrentValue = getgenv().SilentAimEnabled,
     Callback = function(Value)
         if Value and not getgenv().SilentAimWarningShown then
-            Library:Notify({
+            UI:Notify("Warning", {
                 Title = "⚠️ Silent Aim Warning",
                 Content = "While Matrice bypasses anti-cheat detections, using certain features such as silent aim in public servers increases your risk of being reported by players and manually banned by game moderators. We are not responsible if your account gets banned.",
                 Duration = 67,
@@ -936,7 +936,8 @@ SettingsSection:CreateButton({
     Callback = function()
         LoadConfig()
         -- Apply loaded config to globals
-        getgenv().ESPEnabled = Config.ESPEnabled        getgenv().HighlightEnabled = Config.HighlightEnabled
+        getgenv().ESPEnabled = Config.ESPEnabled
+        getgenv().HighlightEnabled = Config.HighlightEnabled
         getgenv().BoxEnabled = Config.BoxEnabled
         getgenv().SkeletonEnabled = Config.SkeletonEnabled
         getgenv().ChamsEnabled = Config.ChamsEnabled
