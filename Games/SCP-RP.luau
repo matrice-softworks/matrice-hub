@@ -1087,8 +1087,11 @@ local function ToggleFly(enable)
     SaveConfig()
 end
 
+-- FIX: Keybind only works if Fly toggle is enabled
 FlyKeybindCallback = function()
-    ToggleFly(not FlyActive)
+    if getgenv().FlyEnabled then
+        ToggleFly(not FlyActive)
+    end
 end
 
 -- ----- UI for Character Modifications -----
