@@ -28,6 +28,10 @@ local Config = {
     FOVColor = Color3.fromRGB(255, 255, 255),
     -- Moderator
     ModeratorDetector = false,
+    -- Movement
+    MovementEnabled = false,
+    Walkspeed = 16,
+    Jumppower = 50,
     -- UI
     UIToggleKey = "RightControl",
 }
@@ -75,6 +79,9 @@ local function ResetConfig()
         FOVRadius = 150,
         FOVColor = Color3.fromRGB(255, 255, 255),
         ModeratorDetector = false,
+        MovementEnabled = false,
+        Walkspeed = 16,
+        Jumppower = 50,
         UIToggleKey = "RightControl",
     }
     local ok, err = Matrice.ResetConfiguration(CONFIG_FILE)
@@ -107,6 +114,9 @@ getgenv().FOVCircleEnabled = Config.FOVCircleEnabled
 getgenv().FOVRadius = Config.FOVRadius
 getgenv().FOVColor = Config.FOVColor
 getgenv().ModeratorDetector = Config.ModeratorDetector
+getgenv().MovementEnabled = Config.MovementEnabled
+getgenv().Walkspeed = Config.Walkspeed
+getgenv().Jumppower = Config.Jumppower
 
 LoadConfig()
 
@@ -164,7 +174,7 @@ HomeSection:CreateDivider()
 local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
 InfoSection:CreateParagraph({
     Title = "About",
-    Description = "This script provides ESP, Silent Aim, and Moderator Detection for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Configuration save/load/reset\n• Customizable keybinds"
+    Description = "This script provides ESP, Silent Aim, and Moderator Detection for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & Jump Power modification\n• Configuration save/load/reset\n• Customizable keybinds"
 })
 
 -- ===== Combat Tab =====
@@ -803,7 +813,7 @@ MiscVizSection:CreateToggle("Normal", {
 local ModeratorSection = MiscTab:CreateSection("Moderator Detector", "Normal")
 
 local ModeratorDetectorConnection = nil
-local ModNotifiedPlayers = {} -- Track who we already notified to avoid duplicates
+local ModNotifiedPlayers = {}
 
 local function CheckModerators()
     ModNotifiedPlayers = {}
@@ -826,9 +836,7 @@ end
 
 local function EnableModeratorDetector()
     if ModeratorDetectorConnection then return end
-
     CheckModerators()
-
     ModeratorDetectorConnection = Players.PlayerAdded:Connect(function(player)
         if player ~= LocalPlayer then
             local rank = player:GetRankInGroup(game.CreatorId)
@@ -844,7 +852,6 @@ local function EnableModeratorDetector()
             end
         end
     end)
-
     UI:Notify("Normal", {
         Title = "Moderator Detector",
         Content = "Enabled",
@@ -883,15 +890,156 @@ ModeratorSection:CreateToggle("Normal", {
     end,
 })
 
--- If the detector was enabled from config, start it
 if getgenv().ModeratorDetector then
     EnableModeratorDetector()
+end
+
+-- ===== Movement Section (Undetected) =====
+local MovementSection = MiscTab:CreateSection("Movement", "Normal")
+
+local MovementEnabled = getgenv().MovementEnabled or false
+local Walkspeed = getgenv().Walkspeed or 16
+local Jumppower = getgenv().Jumppower or 50
+
+local MovementHumanoid = nil
+local MovementCharacterConnection = nil
+local MovementLoop = nil
+
+local function ApplyMovement(humanoid)
+    if not humanoid then return end
+    if MovementEnabled then
+        humanoid.WalkSpeed = Walkspeed
+        humanoid.JumpPower = Jumppower
+    end
+end
+
+local function StartMovementLoop()
+    if MovementLoop then return end
+    MovementLoop = RunService.Heartbeat:Connect(function()
+        if not MovementEnabled then
+            if MovementHumanoid and MovementHumanoid.Parent then
+                MovementHumanoid.WalkSpeed = 16
+                MovementHumanoid.JumpPower = 50
+            end
+            return
+        end
+        if MovementHumanoid and MovementHumanoid.Parent then
+            MovementHumanoid.WalkSpeed = Walkspeed
+            MovementHumanoid.JumpPower = Jumppower
+        end
+    end)
+end
+
+local function StopMovementLoop()
+    if MovementLoop then
+        MovementLoop:Disconnect()
+        MovementLoop = nil
+    end
+end
+
+local function OnCharacterAdded(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    MovementHumanoid = humanoid
+    ApplyMovement(humanoid)
+end
+
+local function EnableMovement()
+    if MovementEnabled then return end
+    MovementEnabled = true
+    getgenv().MovementEnabled = true
+    Config.MovementEnabled = true
+
+    if MovementCharacterConnection then
+        MovementCharacterConnection:Disconnect()
+    end
+    MovementCharacterConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+
+    if LocalPlayer.Character then
+        OnCharacterAdded(LocalPlayer.Character)
+    end
+
+    StartMovementLoop()
+    SaveConfig()
+end
+
+local function DisableMovement()
+    if not MovementEnabled then return end
+    MovementEnabled = false
+    getgenv().MovementEnabled = false
+    Config.MovementEnabled = false
+
+    if MovementCharacterConnection then
+        MovementCharacterConnection:Disconnect()
+        MovementCharacterConnection = nil
+    end
+
+    StopMovementLoop()
+
+    if MovementHumanoid and MovementHumanoid.Parent then
+        MovementHumanoid.WalkSpeed = 16
+        MovementHumanoid.JumpPower = 50
+    end
+    MovementHumanoid = nil
+
+    SaveConfig()
+end
+
+MovementSection:CreateToggle("Normal", {
+    Name = "Enable Movement Mods",
+    Flag = "MovementEnabled",
+    CurrentValue = MovementEnabled,
+    Callback = function(Value)
+        if Value then
+            EnableMovement()
+        else
+            DisableMovement()
+        end
+    end,
+})
+
+MovementSection:CreateSlider({
+    Name = "Walkspeed",
+    Value = {16, 100},
+    Increment = 1,
+    Suffix = "studs/s",
+    Flag = "Walkspeed",
+    CurrentValue = Walkspeed,
+    Callback = function(Value)
+        Walkspeed = Value
+        getgenv().Walkspeed = Value
+        Config.Walkspeed = Value
+        if MovementEnabled and MovementHumanoid and MovementHumanoid.Parent then
+            MovementHumanoid.WalkSpeed = Value
+        end
+        SaveConfig()
+    end,
+})
+
+MovementSection:CreateSlider({
+    Name = "Jump Power",
+    Value = {50, 200},
+    Increment = 5,
+    Suffix = "strength",
+    Flag = "Jumppower",
+    CurrentValue = Jumppower,
+    Callback = function(Value)
+        Jumppower = Value
+        getgenv().Jumppower = Value
+        Config.Jumppower = Value
+        if MovementEnabled and MovementHumanoid and MovementHumanoid.Parent then
+            MovementHumanoid.JumpPower = Value
+        end
+        SaveConfig()
+    end,
+})
+
+if getgenv().MovementEnabled then
+    EnableMovement()
 end
 
 -- ===== Settings Tab =====
 local SettingsSection = SettingsTab:CreateSection("UI & Configuration", "Normal")
 
--- Keybind to toggle UI
 SettingsSection:CreateKeybind({
     Name = "Toggle UI",
     Flag = "UIToggleKey",
@@ -904,12 +1052,10 @@ SettingsSection:CreateKeybind({
 
 SettingsSection:CreateDivider()
 
--- Load Configuration
 SettingsSection:CreateButton({
     Name = "Load Configuration",
     Callback = function()
         LoadConfig()
-        -- Apply loaded config to globals
         getgenv().ESPEnabled = Config.ESPEnabled
         getgenv().HighlightEnabled = Config.HighlightEnabled
         getgenv().BoxEnabled = Config.BoxEnabled
@@ -926,13 +1072,24 @@ SettingsSection:CreateButton({
         getgenv().FOVRadius = Config.FOVRadius
         getgenv().FOVColor = Config.FOVColor
         getgenv().ModeratorDetector = Config.ModeratorDetector
+        getgenv().MovementEnabled = Config.MovementEnabled
+        getgenv().Walkspeed = Config.Walkspeed
+        getgenv().Jumppower = Config.Jumppower
+
         if getgenv().ESPEnabled then RebuildAllESPs() end
-        -- Restart moderator detector if needed
+
         if getgenv().ModeratorDetector then
             EnableModeratorDetector()
         else
             DisableModeratorDetector()
         end
+
+        if getgenv().MovementEnabled then
+            EnableMovement()
+        else
+            DisableMovement()
+        end
+
         UI:Notify("Normal", {
             Title = "Config Loaded",
             Content = "Settings loaded successfully.",
@@ -942,7 +1099,6 @@ SettingsSection:CreateButton({
     end,
 })
 
--- Reset to Default
 SettingsSection:CreateButton({
     Name = "Reset to Default",
     Callback = function()
