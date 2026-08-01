@@ -174,7 +174,7 @@ HomeSection:CreateDivider()
 local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
 InfoSection:CreateParagraph({
     Title = "About",
-    Description = "This script provides ESP, Silent Aim, and Moderator Detection for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & Jump Power modification\n• Configuration save/load/reset\n• Customizable keybinds"
+    Description = "This script provides ESP, Silent Aim, Moderator Detection, and advanced undetected Movement spoofing for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• Configuration save/load/reset\n• Customizable keybinds"
 })
 
 -- ===== Combat Tab =====
@@ -810,6 +810,7 @@ MiscVizSection:CreateToggle("Normal", {
 })
 
 -- ===== Miscellaneous Tab =====
+-- Moderator Detector
 local ModeratorSection = MiscTab:CreateSection("Moderator Detector", "Normal")
 
 local ModeratorDetectorConnection = nil
@@ -894,106 +895,211 @@ if getgenv().ModeratorDetector then
     EnableModeratorDetector()
 end
 
--- ===== Movement Section (Undetected) =====
+-- ===== Movement Section (Undetected Spoof) =====
 local MovementSection = MiscTab:CreateSection("Movement", "Normal")
 
-local MovementEnabled = getgenv().MovementEnabled or false
-local Walkspeed = getgenv().Walkspeed or 16
-local Jumppower = getgenv().Jumppower or 50
-
-local MovementHumanoid = nil
+local MovementSpoof = {}
+local SpoofActive = false
+local CurrentHumanoid = nil
+local SpoofedWalk = 16
+local SpoofedJump = 50
+local cachedHumanoids = {}
+local GetDebugIdHandler = Instance.new("BindableFunction")
+local TempHumanoid = Instance.new("Humanoid")
+local indexHook, newIndexHook
 local MovementCharacterConnection = nil
-local MovementLoop = nil
 
-local function ApplyMovement(humanoid)
-    if not humanoid then return end
-    if MovementEnabled then
-        humanoid.WalkSpeed = Walkspeed
-        humanoid.JumpPower = Jumppower
-    end
+function GetDebugIdHandler.OnInvoke(obj)
+    return obj:GetDebugId()
+end
+local function GetDebugId(obj)
+    return GetDebugIdHandler:Invoke(obj)
 end
 
-local function StartMovementLoop()
-    if MovementLoop then return end
-    MovementLoop = RunService.Heartbeat:Connect(function()
-        if not MovementEnabled then
-            if MovementHumanoid and MovementHumanoid.Parent then
-                MovementHumanoid.WalkSpeed = 16
-                MovementHumanoid.JumpPower = 50
+local function GetSpoofValue(value)
+    TempHumanoid.WalkSpeed = value
+    return TempHumanoid.WalkSpeed
+end
+
+function cachedHumanoids:cacheHumanoid(DebugId, Humanoid)
+    cachedHumanoids[DebugId] = {
+        currentWalk = indexHook(Humanoid, "WalkSpeed"),
+        currentJump = indexHook(Humanoid, "JumpPower"),
+        lastWalk = nil,
+        lastJump = nil,
+    }
+    return self[DebugId]
+end
+
+indexHook = hookmetamethod(game, "__index", function(self, index)
+    if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
+        local DebugId = GetDebugId(self)
+        local cached = cachedHumanoids[DebugId]
+        if self:IsDescendantOf(LocalPlayer.Character) or cached then
+            if type(index) == "string" then
+                local clean = string.split(index, "\0")[1]
+                if clean == "WalkSpeed" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    return cached.lastWalk or cached.currentWalk
+                elseif clean == "JumpPower" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    return cached.lastJump or cached.currentJump
+                end
             end
-            return
         end
-        if MovementHumanoid and MovementHumanoid.Parent then
-            MovementHumanoid.WalkSpeed = Walkspeed
-            MovementHumanoid.JumpPower = Jumppower
+    end
+    return indexHook(self, index)
+end)
+
+newIndexHook = hookmetamethod(game, "__newindex", function(self, index, newValue)
+    if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
+        local DebugId = GetDebugId(self)
+        local cached = cachedHumanoids[DebugId]
+        if self:IsDescendantOf(LocalPlayer.Character) or cached then
+            if type(index) == "string" then
+                local clean = string.split(index, "\0")[1]
+                if clean == "WalkSpeed" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    cached.lastWalk = GetSpoofValue(newValue)
+                    return CurrentHumanoid.WalkSpeed
+                elseif clean == "JumpPower" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    cached.lastJump = GetSpoofValue(newValue)
+                    return CurrentHumanoid.JumpPower
+                end
+            end
         end
-    end)
+    end
+    return newIndexHook(self, index, newValue)
+end)
+
+function MovementSpoof:GetHumanoid()
+    return CurrentHumanoid or (function()
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
+        if humanoid then
+            cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
+            return cloneref(humanoid)
+        end
+    end)()
 end
 
-local function StopMovementLoop()
-    if MovementLoop then
-        MovementLoop:Disconnect()
-        MovementLoop = nil
+function MovementSpoof:SetWalkSpeed(speed)
+    local humanoid = MovementSpoof:GetHumanoid()
+    if not humanoid then return end
+    local connections = {}
+    local function AddConnections(Signal)
+        for _, conn in getconnections(Signal) do
+            if conn.State then
+                conn:Disable()
+                table.insert(connections, conn)
+            end
+        end
+    end
+    AddConnections(humanoid.Changed)
+    AddConnections(humanoid:GetPropertyChangedSignal("WalkSpeed"))
+    humanoid.WalkSpeed = speed
+    for _, conn in connections do conn:Enable() end
+end
+
+function MovementSpoof:SetJumpPower(power)
+    local humanoid = MovementSpoof:GetHumanoid()
+    if not humanoid then return end
+    local connections = {}
+    local function AddConnections(Signal)
+        for _, conn in getconnections(Signal) do
+            if conn.State then
+                conn:Disable()
+                table.insert(connections, conn)
+            end
+        end
+    end
+    AddConnections(humanoid.Changed)
+    AddConnections(humanoid:GetPropertyChangedSignal("JumpPower"))
+    humanoid.JumpPower = power
+    for _, conn in connections do conn:Enable() end
+end
+
+function MovementSpoof:Restore()
+    local humanoid = MovementSpoof:GetHumanoid()
+    if humanoid then
+        local debugId = humanoid:GetDebugId()
+        local cached = cachedHumanoids[debugId]
+        if cached then
+            MovementSpoof:SetWalkSpeed(cached.lastWalk or cached.currentWalk)
+            MovementSpoof:SetJumpPower(cached.lastJump or cached.currentJump)
+        else
+            MovementSpoof:SetWalkSpeed(16)
+            MovementSpoof:SetJumpPower(50)
+        end
     end
 end
 
-local function OnCharacterAdded(character)
-    local humanoid = character:WaitForChild("Humanoid")
-    MovementHumanoid = humanoid
-    ApplyMovement(humanoid)
-end
-
-local function EnableMovement()
-    if MovementEnabled then return end
-    MovementEnabled = true
-    getgenv().MovementEnabled = true
-    Config.MovementEnabled = true
-
-    if MovementCharacterConnection then
-        MovementCharacterConnection:Disconnect()
-    end
-    MovementCharacterConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
-
-    if LocalPlayer.Character then
-        OnCharacterAdded(LocalPlayer.Character)
-    end
-
-    StartMovementLoop()
-    SaveConfig()
-end
-
-local function DisableMovement()
-    if not MovementEnabled then return end
-    MovementEnabled = false
-    getgenv().MovementEnabled = false
-    Config.MovementEnabled = false
-
+function MovementSpoof:Disable()
+    SpoofActive = false
+    MovementSpoof:Restore()
     if MovementCharacterConnection then
         MovementCharacterConnection:Disconnect()
         MovementCharacterConnection = nil
     end
+end
 
-    StopMovementLoop()
-
-    if MovementHumanoid and MovementHumanoid.Parent then
-        MovementHumanoid.WalkSpeed = 16
-        MovementHumanoid.JumpPower = 50
+function MovementSpoof:Enable(walk, jump)
+    SpoofActive = true
+    SpoofedWalk = walk or SpoofedWalk
+    SpoofedJump = jump or SpoofedJump
+    local humanoid = MovementSpoof:GetHumanoid()
+    if humanoid then
+        cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
+        MovementSpoof:SetWalkSpeed(SpoofedWalk)
+        MovementSpoof:SetJumpPower(SpoofedJump)
     end
-    MovementHumanoid = nil
+    if not MovementCharacterConnection then
+        MovementCharacterConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+            task.wait(0.1)
+            local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+            if humanoid and SpoofActive then
+                cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
+                MovementSpoof:SetWalkSpeed(SpoofedWalk)
+                MovementSpoof:SetJumpPower(SpoofedJump)
+            end
+        end)
+    end
+end
 
+local function ToggleMovement(enable)
+    if enable then
+        if not SpoofActive then
+            MovementSpoof:Enable(getgenv().Walkspeed or 16, getgenv().Jumppower or 50)
+        end
+    else
+        if SpoofActive then
+            MovementSpoof:Disable()
+        end
+    end
+    getgenv().MovementEnabled = enable
+    Config.MovementEnabled = enable
     SaveConfig()
 end
 
 MovementSection:CreateToggle("Normal", {
-    Name = "Enable Movement Mods",
+    Name = "Enable Movement Spoof",
     Flag = "MovementEnabled",
-    CurrentValue = MovementEnabled,
+    CurrentValue = getgenv().MovementEnabled or false,
     Callback = function(Value)
-        if Value then
-            EnableMovement()
-        else
-            DisableMovement()
-        end
+        ToggleMovement(Value)
     end,
 })
 
@@ -1003,13 +1109,13 @@ MovementSection:CreateSlider({
     Increment = 1,
     Suffix = "studs/s",
     Flag = "Walkspeed",
-    CurrentValue = Walkspeed,
+    CurrentValue = getgenv().Walkspeed or 16,
     Callback = function(Value)
-        Walkspeed = Value
         getgenv().Walkspeed = Value
         Config.Walkspeed = Value
-        if MovementEnabled and MovementHumanoid and MovementHumanoid.Parent then
-            MovementHumanoid.WalkSpeed = Value
+        if SpoofActive then
+            SpoofedWalk = Value
+            MovementSpoof:SetWalkSpeed(Value)
         end
         SaveConfig()
     end,
@@ -1021,20 +1127,20 @@ MovementSection:CreateSlider({
     Increment = 5,
     Suffix = "strength",
     Flag = "Jumppower",
-    CurrentValue = Jumppower,
+    CurrentValue = getgenv().Jumppower or 50,
     Callback = function(Value)
-        Jumppower = Value
         getgenv().Jumppower = Value
         Config.Jumppower = Value
-        if MovementEnabled and MovementHumanoid and MovementHumanoid.Parent then
-            MovementHumanoid.JumpPower = Value
+        if SpoofActive then
+            SpoofedJump = Value
+            MovementSpoof:SetJumpPower(Value)
         end
         SaveConfig()
     end,
 })
 
 if getgenv().MovementEnabled then
-    EnableMovement()
+    ToggleMovement(true)
 end
 
 -- ===== Settings Tab =====
@@ -1075,21 +1181,15 @@ SettingsSection:CreateButton({
         getgenv().MovementEnabled = Config.MovementEnabled
         getgenv().Walkspeed = Config.Walkspeed
         getgenv().Jumppower = Config.Jumppower
-
         if getgenv().ESPEnabled then RebuildAllESPs() end
-
-        if getgenv().ModeratorDetector then
-            EnableModeratorDetector()
-        else
-            DisableModeratorDetector()
-        end
-
+        if getgenv().ModeratorDetector then EnableModeratorDetector() else DisableModeratorDetector() end
         if getgenv().MovementEnabled then
-            EnableMovement()
+            if not SpoofActive then
+                MovementSpoof:Enable(getgenv().Walkspeed, getgenv().Jumppower)
+            end
         else
-            DisableMovement()
+            if SpoofActive then MovementSpoof:Disable() end
         end
-
         UI:Notify("Normal", {
             Title = "Config Loaded",
             Content = "Settings loaded successfully.",
