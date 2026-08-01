@@ -349,7 +349,9 @@ SilentAimSection:CreateColorPicker({
     end,
 })
 
-SilentAimSection:CreateDropdown({
+-- Hit Part dropdown with forced update
+local HitPartDropdown
+HitPartDropdown = SilentAimSection:CreateDropdown({
     Name = "Hit Part",
     Options = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"},
     Flag = "SilentAimHitPart",
@@ -359,6 +361,9 @@ SilentAimSection:CreateDropdown({
         local val = typeof(Option) == "table" and Option[1] or Option
         getgenv().SilentAimHitPart = val
         Config.SilentAimHitPart = val
+        if HitPartDropdown then
+            HitPartDropdown:Set(val)
+        end
         SaveConfig()
     end,
 })
@@ -1036,6 +1041,7 @@ end
 local FlyActive = false
 local FlyConnection = nil
 local FlyKeybindCallback = nil
+local FlyToggleObject = nil
 
 local function StartFly()
     if FlyActive then return end
@@ -1084,10 +1090,12 @@ local function ToggleFly(enable)
     end
     getgenv().FlyEnabled = enable
     Config.FlyEnabled = enable
+    if FlyToggleObject then
+        FlyToggleObject:SetToggle(enable)
+    end
     SaveConfig()
 end
 
--- FIX: Keybind only works if Fly toggle is enabled
 FlyKeybindCallback = function()
     if getgenv().FlyEnabled then
         ToggleFly(not FlyActive)
@@ -1138,8 +1146,9 @@ CharModSection:CreateSlider({
 
 CharModSection:CreateDivider()
 
+-- Updated NoClip label (removed "(Disable Collisions)")
 CharModSection:CreateToggle("Normal", {
-    Name = "NoClip (Disable Collisions)",
+    Name = "NoClip",
     Flag = "NoClipEnabled",
     CurrentValue = getgenv().NoClipEnabled or false,
     Callback = function(Value) ToggleNoClip(Value) end,
@@ -1147,12 +1156,13 @@ CharModSection:CreateToggle("Normal", {
 
 CharModSection:CreateDivider()
 
-CharModSection:CreateToggle("Normal", {
+FlyToggleObject = CharModSection:CreateToggle("Normal", {
     Name = "Fly Mode",
     Flag = "FlyEnabled",
     CurrentValue = getgenv().FlyEnabled or false,
     Callback = function(Value) ToggleFly(Value) end,
 })
+
 CharModSection:CreateSlider({
     Name = "Fly Speed",
     Value = {10, 200},
@@ -1173,7 +1183,7 @@ CharModSection:CreateKeybind({
     Callback = FlyKeybindCallback,
 })
 CharModSection:CreateLabel({
-    Description = "WASD to move, Space to fly up, Shift to fly down."
+    Description = "WASD to move, Space to fly up, Shift to fly down. (Keybind works only when Fly toggle is ON)"
 })
 
 -- Start features if enabled from config
