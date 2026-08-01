@@ -9,6 +9,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- ===== Configuration =====
 local Config = {
+    -- ESP
     ESPEnabled = false,
     HighlightEnabled = false,
     BoxEnabled = false,
@@ -17,6 +18,7 @@ local Config = {
     TracerEnabled = false,
     HealthBarEnabled = false,
     ESPRange = 600,
+    -- Silent Aim
     SilentAimEnabled = false,
     SilentAimWallCheck = true,
     SilentAimHitPart = "Head",
@@ -24,51 +26,70 @@ local Config = {
     FOVCircleEnabled = false,
     FOVRadius = 150,
     FOVColor = Color3.fromRGB(255, 255, 255),
+    -- Moderator
     ModeratorDetector = false,
+    -- Character Modifications
     MovementEnabled = false,
     Walkspeed = 16,
     Jumppower = 50,
     NoClipEnabled = false,
-    FlyEnabled = false,
-    FlySpeed = 50,
+    -- UI
     UIToggleKey = "RightControl",
 }
 
 local CONFIG_FILE = "SCP-RP-Config.json"
 
--- Matrice config helpers
+-- Use Matrice global helpers
 local function SaveConfig()
     local ok, err = Matrice.SaveConfiguration(Config, CONFIG_FILE)
-    if not ok then warn("Failed to save config:", err) end
+    if not ok then
+        warn("Failed to save config:", err)
+    end
 end
 
 local function LoadConfig()
     local data, err = Matrice.LoadConfiguration(CONFIG_FILE)
     if data then
-        for k, v in pairs(data) do Config[k] = v end
+        for k, v in pairs(data) do
+            Config[k] = v
+        end
         return true
     else
-        if err and err ~= "Config file not found" then warn("Failed to load config:", err) end
+        if err and err ~= "Config file not found" then
+            warn("Failed to load config:", err)
+        end
         return false
     end
 end
 
 local function ResetConfig()
     Config = {
-        ESPEnabled = false, HighlightEnabled = false, BoxEnabled = false,
-        SkeletonEnabled = false, ChamsEnabled = false, TracerEnabled = false,
-        HealthBarEnabled = false, ESPRange = 600,
-        SilentAimEnabled = false, SilentAimWallCheck = true,
-        SilentAimHitPart = "Head", SilentAimHitChance = 100,
-        FOVCircleEnabled = false, FOVRadius = 150,
+        ESPEnabled = false,
+        HighlightEnabled = false,
+        BoxEnabled = false,
+        SkeletonEnabled = false,
+        ChamsEnabled = false,
+        TracerEnabled = false,
+        HealthBarEnabled = false,
+        ESPRange = 600,
+        SilentAimEnabled = false,
+        SilentAimWallCheck = true,
+        SilentAimHitPart = "Head",
+        SilentAimHitChance = 100,
+        FOVCircleEnabled = false,
+        FOVRadius = 150,
         FOVColor = Color3.fromRGB(255, 255, 255),
         ModeratorDetector = false,
-        MovementEnabled = false, Walkspeed = 16, Jumppower = 50,
-        NoClipEnabled = false, FlyEnabled = false, FlySpeed = 50,
+        MovementEnabled = false,
+        Walkspeed = 16,
+        Jumppower = 50,
+        NoClipEnabled = false,
         UIToggleKey = "RightControl",
     }
     local ok, err = Matrice.ResetConfiguration(CONFIG_FILE)
-    if not ok then warn("Failed to reset config:", err) end
+    if not ok then
+        warn("Failed to reset config:", err)
+    end
     SaveConfig()
     UI:Notify("Warning", {
         Title = "Config Reset",
@@ -99,8 +120,6 @@ getgenv().MovementEnabled = Config.MovementEnabled
 getgenv().Walkspeed = Config.Walkspeed
 getgenv().Jumppower = Config.Jumppower
 getgenv().NoClipEnabled = Config.NoClipEnabled
-getgenv().FlyEnabled = Config.FlyEnabled
-getgenv().FlySpeed = Config.FlySpeed
 
 LoadConfig()
 
@@ -119,6 +138,7 @@ local SettingsTab = Library:CreateTab("Settings", "rbxassetid://12974454446")
 
 -- ===== Home Tab =====
 local HomeSection = HomeTab:CreateSection("Welcome", "Normal")
+
 HomeSection:CreateCard({
     Title = "Matrice Hub",
     Description = "Matrice is a premium Roblox script hub delivering optimized, undetected, and high-quality scripts.",
@@ -151,17 +171,19 @@ HomeSection:CreateCard({
         }
     }
 })
+
 HomeSection:CreateDivider()
 
 local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
 InfoSection:CreateParagraph({
     Title = "About",
-    Description = "This script provides ESP, Silent Aim, Moderator Detection, and Character Modifications (Movement Spoof, NoClip, Fly) for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• NoClip (disable collisions)\n• Fly mode with keybind toggle (F)\n• Configuration save/load/reset\n• Customizable keybinds"
+    Description = "This script provides ESP, Silent Aim, Moderator Detection, and Character Modifications (Movement Spoof & NoClip) for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• NoClip / Fly mode\n• Configuration save/load/reset\n• Customizable keybinds"
 })
 
--- ===== Combat Tab (Silent Aim) =====
+-- ===== Combat Tab =====
 local SilentAimSection = CombatTab:CreateSection("Silent Aim", "Normal")
 
+-- Internal silent aim state
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Filled = false
@@ -288,6 +310,7 @@ local function InstallSilentAimHook()
     return true
 end
 
+-- Silent Aim UI
 SilentAimSection:CreateToggle("Normal", {
     Name = "Enable Silent Aim",
     Flag = "SilentAimEnabled",
@@ -349,9 +372,7 @@ SilentAimSection:CreateColorPicker({
     end,
 })
 
--- Hit Part dropdown with forced update
-local HitPartDropdown
-HitPartDropdown = SilentAimSection:CreateDropdown({
+SilentAimSection:CreateDropdown({
     Name = "Hit Part",
     Options = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"},
     Flag = "SilentAimHitPart",
@@ -361,9 +382,6 @@ HitPartDropdown = SilentAimSection:CreateDropdown({
         local val = typeof(Option) == "table" and Option[1] or Option
         getgenv().SilentAimHitPart = val
         Config.SilentAimHitPart = val
-        if HitPartDropdown then
-            HitPartDropdown:Set(val)
-        end
         SaveConfig()
     end,
 })
@@ -386,10 +404,11 @@ SilentAimSection:CreateLabel({
     Description = "FOV settings control target selection area."
 })
 
--- ===== Visuals Tab (ESP) =====
+-- ===== Visuals Tab =====
 local ESPSection = VisualsTab:CreateSection("ESP Settings", "Normal")
 local MiscVizSection = VisualsTab:CreateSection("Miscellaneous Visuals", "Normal")
 
+-- ESP state
 local PlayerESPs = {}
 local Connections = {}
 
@@ -551,19 +570,23 @@ local function RebuildAllESPs()
     end
 end
 
+-- Background ESP loop
 task.spawn(function()
     while task.wait(0.5) do
         if not getgenv().ESPEnabled then
             ClearESPs()
             continue
         end
+
         local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not localRoot then continue end
+
         for p, _ in pairs(PlayerESPs) do
             if not p or p.Parent ~= Players then
                 ClearPlayerESP(p)
             end
         end
+
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer then
                 local targetRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -586,13 +609,16 @@ task.spawn(function()
     end
 end)
 
+-- Render loop for drawing positions
 RunService.RenderStepped:Connect(function()
+    -- FOV circle
     FOVCircle.Visible = getgenv().FOVCircleEnabled
     if getgenv().FOVCircleEnabled then
         FOVCircle.Position = UserInputService:GetMouseLocation()
         FOVCircle.Radius = getgenv().FOVRadius
         FOVCircle.Color = getgenv().FOVColor
     end
+
     if not getgenv().ESPEnabled then return end
     for player, esp in pairs(PlayerESPs) do
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
@@ -602,8 +628,10 @@ RunService.RenderStepped:Connect(function()
             local healthBarOutline = esp.HealthBarOutline
             local healthBarFill = esp.HealthBarFill
             local healthBarTicks = esp.HealthBarTicks
+
             if onScreen then
                 local teamColor = player.TeamColor and player.TeamColor.Color or Color3.new(1, 1, 1)
+
                 if box then
                     box.Size = size
                     box.Position = pos
@@ -623,13 +651,16 @@ RunService.RenderStepped:Connect(function()
                     local barHeight = size.Y
                     local barX = pos.X - 8
                     local barY = pos.Y
+
                     healthBarOutline.Position = Vector2.new(barX - 1, barY - 2)
                     healthBarOutline.Size = Vector2.new(5, barHeight + 4)
                     healthBarOutline.Visible = getgenv().HealthBarEnabled
+
                     healthBarFill.Position = Vector2.new(barX, barY + barHeight * (1 - healthPercent))
                     healthBarFill.Size = Vector2.new(3, math.max(barHeight * healthPercent, 1))
                     healthBarFill.Color = Color3.fromHSV(healthPercent * 0.33, 0.9, 1)
                     healthBarFill.Visible = getgenv().HealthBarEnabled
+
                     if healthBarTicks then
                         for index, tick in ipairs(healthBarTicks) do
                             local y = barY + (barHeight * index / 5)
@@ -658,6 +689,7 @@ end)
 
 Players.PlayerRemoving:Connect(ClearPlayerESP)
 
+-- ESP UI Elements
 ESPSection:CreateToggle("Normal", {
     Name = "Enable ESP",
     Flag = "ESPEnabled",
@@ -669,7 +701,9 @@ ESPSection:CreateToggle("Normal", {
         SaveConfig()
     end,
 })
+
 ESPSection:CreateDivider()
+
 ESPSection:CreateToggle("Normal", {
     Name = "Highlight",
     Flag = "HighlightEnabled",
@@ -681,6 +715,7 @@ ESPSection:CreateToggle("Normal", {
         SaveConfig()
     end,
 })
+
 ESPSection:CreateToggle("Normal", {
     Name = "Box",
     Flag = "BoxEnabled",
@@ -692,6 +727,7 @@ ESPSection:CreateToggle("Normal", {
         SaveConfig()
     end,
 })
+
 ESPSection:CreateToggle("Normal", {
     Name = "Tracer Lines",
     Flag = "TracerEnabled",
@@ -703,6 +739,7 @@ ESPSection:CreateToggle("Normal", {
         SaveConfig()
     end,
 })
+
 ESPSection:CreateToggle("Normal", {
     Name = "Health Bars",
     Flag = "HealthBarEnabled",
@@ -714,6 +751,7 @@ ESPSection:CreateToggle("Normal", {
         SaveConfig()
     end,
 })
+
 ESPSection:CreateToggle("Normal", {
     Name = "Skeleton",
     Flag = "SkeletonEnabled",
@@ -725,6 +763,7 @@ ESPSection:CreateToggle("Normal", {
         SaveConfig()
     end,
 })
+
 ESPSection:CreateToggle("Normal", {
     Name = "Chams",
     Flag = "ChamsEnabled",
@@ -736,7 +775,9 @@ ESPSection:CreateToggle("Normal", {
         SaveConfig()
     end,
 })
+
 ESPSection:CreateDivider()
+
 ESPSection:CreateSlider({
     Name = "ESP Range",
     Value = {50, 2000},
@@ -752,6 +793,7 @@ ESPSection:CreateSlider({
     end,
 })
 
+-- Greyscale
 MiscVizSection:CreateToggle("Normal", {
     Name = "Greyscale World",
     Flag = "GreyscaleEnabled",
@@ -773,6 +815,7 @@ MiscVizSection:CreateToggle("Normal", {
 -- ===== Miscellaneous Tab =====
 -- Moderator Detector
 local ModeratorSection = MiscTab:CreateSection("Moderator Detector", "Normal")
+
 local ModeratorDetectorConnection = nil
 local ModNotifiedPlayers = {}
 
@@ -813,7 +856,12 @@ local function EnableModeratorDetector()
             end
         end
     end)
-    UI:Notify("Normal", { Title = "Moderator Detector", Content = "Enabled", Duration = 3, Image = "rbxassetid://4483362458" })
+    UI:Notify("Normal", {
+        Title = "Moderator Detector",
+        Content = "Enabled",
+        Duration = 3,
+        Image = "rbxassetid://4483362458",
+    })
 end
 
 local function DisableModeratorDetector()
@@ -822,7 +870,12 @@ local function DisableModeratorDetector()
         ModeratorDetectorConnection = nil
         ModNotifiedPlayers = {}
     end
-    UI:Notify("Warning", { Title = "Moderator Detector", Content = "Disabled", Duration = 3, Image = "rbxassetid://4483362458" })
+    UI:Notify("Warning", {
+        Title = "Moderator Detector",
+        Content = "Disabled",
+        Duration = 3,
+        Image = "rbxassetid://4483362458",
+    })
 end
 
 ModeratorSection:CreateToggle("Normal", {
@@ -832,16 +885,23 @@ ModeratorSection:CreateToggle("Normal", {
     Callback = function(Value)
         getgenv().ModeratorDetector = Value
         Config.ModeratorDetector = Value
-        if Value then EnableModeratorDetector() else DisableModeratorDetector() end
+        if Value then
+            EnableModeratorDetector()
+        else
+            DisableModeratorDetector()
+        end
         SaveConfig()
     end,
 })
-if getgenv().ModeratorDetector then EnableModeratorDetector() end
 
--- ===== Character Modifications =====
+if getgenv().ModeratorDetector then
+    EnableModeratorDetector()
+end
+
+-- ===== Character Modifications Section (formerly Movement) =====
 local CharModSection = MiscTab:CreateSection("Character Modifications", "Normal")
 
--- ----- Movement Spoof (undetected) -----
+-- ===== Movement Spoof (undetected) =====
 local MovementSpoof = {}
 local SpoofActive = false
 local CurrentHumanoid = nil
@@ -853,8 +913,12 @@ local TempHumanoid = Instance.new("Humanoid")
 local indexHook, newIndexHook
 local MovementCharacterConnection = nil
 
-function GetDebugIdHandler.OnInvoke(obj) return obj:GetDebugId() end
-local function GetDebugId(obj) return GetDebugIdHandler:Invoke(obj) end
+function GetDebugIdHandler.OnInvoke(obj)
+    return obj:GetDebugId()
+end
+local function GetDebugId(obj)
+    return GetDebugIdHandler:Invoke(obj)
+end
 
 local function GetSpoofValue(value)
     TempHumanoid.WalkSpeed = value
@@ -880,11 +944,15 @@ indexHook = hookmetamethod(game, "__index", function(self, index)
                 local clean = string.split(index, "\0")[1]
                 if clean == "WalkSpeed" then
                     if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then CurrentHumanoid = cloneref(self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
                     return cached.lastWalk or cached.currentWalk
                 elseif clean == "JumpPower" then
                     if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then CurrentHumanoid = cloneref(self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
                     return cached.lastJump or cached.currentJump
                 end
             end
@@ -902,12 +970,16 @@ newIndexHook = hookmetamethod(game, "__newindex", function(self, index, newValue
                 local clean = string.split(index, "\0")[1]
                 if clean == "WalkSpeed" then
                     if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then CurrentHumanoid = cloneref(self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
                     cached.lastWalk = GetSpoofValue(newValue)
                     return CurrentHumanoid.WalkSpeed
                 elseif clean == "JumpPower" then
                     if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then CurrentHumanoid = cloneref(self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
                     cached.lastJump = GetSpoofValue(newValue)
                     return CurrentHumanoid.JumpPower
                 end
@@ -934,7 +1006,10 @@ function MovementSpoof:SetWalkSpeed(speed)
     local connections = {}
     local function AddConnections(Signal)
         for _, conn in getconnections(Signal) do
-            if conn.State then conn:Disable(); table.insert(connections, conn) end
+            if conn.State then
+                conn:Disable()
+                table.insert(connections, conn)
+            end
         end
     end
     AddConnections(humanoid.Changed)
@@ -949,7 +1024,10 @@ function MovementSpoof:SetJumpPower(power)
     local connections = {}
     local function AddConnections(Signal)
         for _, conn in getconnections(Signal) do
-            if conn.State then conn:Disable(); table.insert(connections, conn) end
+            if conn.State then
+                conn:Disable()
+                table.insert(connections, conn)
+            end
         end
     end
     AddConnections(humanoid.Changed)
@@ -1007,108 +1085,28 @@ end
 
 local function ToggleMovement(enable)
     if enable then
-        if not SpoofActive then MovementSpoof:Enable(getgenv().Walkspeed or 16, getgenv().Jumppower or 50) end
+        if not SpoofActive then
+            MovementSpoof:Enable(getgenv().Walkspeed or 16, getgenv().Jumppower or 50)
+        end
     else
-        if SpoofActive then MovementSpoof:Disable() end
+        if SpoofActive then
+            MovementSpoof:Disable()
+        end
     end
     getgenv().MovementEnabled = enable
     Config.MovementEnabled = enable
     SaveConfig()
 end
 
--- ----- NoClip -----
-local NoClipActive = false
-
-local function ApplyNoClip(state)
-    local character = LocalPlayer.Character
-    if not character then return end
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not state
-        end
-    end
-end
-
-local function ToggleNoClip(enable)
-    NoClipActive = enable
-    ApplyNoClip(enable)
-    getgenv().NoClipEnabled = enable
-    Config.NoClipEnabled = enable
-    SaveConfig()
-end
-
--- ----- Fly -----
-local FlyActive = false
-local FlyConnection = nil
-local FlyKeybindCallback = nil
-local FlyToggleObject = nil
-
-local function StartFly()
-    if FlyActive then return end
-    FlyActive = true
-    FlyConnection = RunService.Heartbeat:Connect(function()
-        if not FlyActive or not LocalPlayer.Character then return end
-        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-
-        local forward = workspace.CurrentCamera.CFrame.LookVector
-        local right = workspace.CurrentCamera.CFrame.RightVector
-        local up = Vector3.new(0, 1, 0)
-
-        local move = Vector3.new()
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += forward end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= forward end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= right end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += right end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += up end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move -= up end
-
-        if move.Magnitude > 0 then
-            move = move.Unit * getgenv().FlySpeed
-        end
-
-        root.CFrame = root.CFrame + move * RunService.Heartbeat:Wait()
-        root.Velocity = Vector3.new(0, 0, 0)
-        root.RotVelocity = Vector3.new(0, 0, 0)
-    end)
-end
-
-local function StopFly()
-    if not FlyActive then return end
-    FlyActive = false
-    if FlyConnection then
-        FlyConnection:Disconnect()
-        FlyConnection = nil
-    end
-end
-
-local function ToggleFly(enable)
-    if enable then
-        StartFly()
-    else
-        StopFly()
-    end
-    getgenv().FlyEnabled = enable
-    Config.FlyEnabled = enable
-    if FlyToggleObject then
-        FlyToggleObject:SetToggle(enable)
-    end
-    SaveConfig()
-end
-
-FlyKeybindCallback = function()
-    if getgenv().FlyEnabled then
-        ToggleFly(not FlyActive)
-    end
-end
-
--- ----- UI for Character Modifications -----
 CharModSection:CreateToggle("Normal", {
     Name = "Enable Movement Spoof",
     Flag = "MovementEnabled",
     CurrentValue = getgenv().MovementEnabled or false,
-    Callback = function(Value) ToggleMovement(Value) end,
+    Callback = function(Value)
+        ToggleMovement(Value)
+    end,
 })
+
 CharModSection:CreateSlider({
     Name = "Walkspeed",
     Value = {16, 100},
@@ -1126,6 +1124,7 @@ CharModSection:CreateSlider({
         SaveConfig()
     end,
 })
+
 CharModSection:CreateSlider({
     Name = "Jump Power",
     Value = {50, 200},
@@ -1144,52 +1143,129 @@ CharModSection:CreateSlider({
     end,
 })
 
+if getgenv().MovementEnabled then
+    ToggleMovement(true)
+end
+
+-- ===== NoClip / Fly (part of Character Modifications) =====
+local NoClipActive = false
+local NoClipConnection = nil
+local NoClipSpeed = 50
+
+local function StartNoClip()
+    if NoClipActive or not LocalPlayer.Character then return end
+    NoClipActive = true
+
+    local function SetCollision(state)
+        local character = LocalPlayer.Character
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = state
+            end
+        end
+    end
+
+    SetCollision(false)
+
+    NoClipConnection = RunService.Heartbeat:Connect(function()
+        if not NoClipActive or not LocalPlayer.Character then
+            return
+        end
+        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        local forward = workspace.CurrentCamera.CFrame.LookVector
+        local right = workspace.CurrentCamera.CFrame.RightVector
+        local up = Vector3.new(0, 1, 0)
+
+        local moveDirection = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDirection = moveDirection + up
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            moveDirection = moveDirection - up
+        end
+
+        if moveDirection.Magnitude > 0 then
+            moveDirection = moveDirection.Unit * NoClipSpeed
+        end
+
+        root.CFrame = root.CFrame + moveDirection * game:GetService("RunService").Heartbeat:Wait()
+        root.Velocity = Vector3.new(0, 0, 0)
+        root.RotVelocity = Vector3.new(0, 0, 0)
+    end)
+end
+
+local function StopNoClip()
+    if not NoClipActive then return end
+    NoClipActive = false
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+    local character = LocalPlayer.Character
+    if character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+end
+
+local function ToggleNoClip(enable)
+    if enable then
+        StartNoClip()
+    else
+        StopNoClip()
+    end
+    getgenv().NoClipEnabled = enable
+    Config.NoClipEnabled = enable
+    SaveConfig()
+end
+
 CharModSection:CreateDivider()
 
--- Updated NoClip label (removed "(Disable Collisions)")
 CharModSection:CreateToggle("Normal", {
-    Name = "NoClip",
+    Name = "Enable NoClip / Fly",
     Flag = "NoClipEnabled",
     CurrentValue = getgenv().NoClipEnabled or false,
-    Callback = function(Value) ToggleNoClip(Value) end,
-})
-
-CharModSection:CreateDivider()
-
-FlyToggleObject = CharModSection:CreateToggle("Normal", {
-    Name = "Fly Mode",
-    Flag = "FlyEnabled",
-    CurrentValue = getgenv().FlyEnabled or false,
-    Callback = function(Value) ToggleFly(Value) end,
+    Callback = function(Value)
+        ToggleNoClip(Value)
+    end,
 })
 
 CharModSection:CreateSlider({
-    Name = "Fly Speed",
+    Name = "Flight Speed",
     Value = {10, 200},
     Increment = 5,
     Suffix = "studs/s",
-    CurrentValue = getgenv().FlySpeed or 50,
+    CurrentValue = NoClipSpeed,
     Callback = function(Value)
-        getgenv().FlySpeed = Value
-        Config.FlySpeed = Value
-        SaveConfig()
+        NoClipSpeed = Value
     end,
 })
-CharModSection:CreateKeybind({
-    Name = "Toggle Fly Keybind",
-    Keybind = "F",
-    Type = "Press",
-    Flag = "FlyKeybind",
-    Callback = FlyKeybindCallback,
-})
+
 CharModSection:CreateLabel({
-    Description = "WASD to move, Space to fly up, Shift to fly down. (Keybind works only when Fly toggle is ON)"
+    Description = "WASD to move, Space to fly up, Shift to fly down."
 })
 
--- Start features if enabled from config
-if getgenv().MovementEnabled then ToggleMovement(true) end
-if getgenv().NoClipEnabled then ToggleNoClip(true) end
-if getgenv().FlyEnabled then ToggleFly(true) end
+if getgenv().NoClipEnabled then
+    ToggleNoClip(true)
+end
 
 -- ===== Settings Tab =====
 local SettingsSection = SettingsTab:CreateSection("UI & Configuration", "Normal")
@@ -1199,8 +1275,11 @@ SettingsSection:CreateKeybind({
     Flag = "UIToggleKey",
     Keybind = Config.UIToggleKey,
     Type = "Press",
-    Callback = function() UI:ToggleUI() end,
+    Callback = function()
+        UI:ToggleUI()
+    end,
 })
+
 SettingsSection:CreateDivider()
 
 SettingsSection:CreateButton({
@@ -1227,33 +1306,34 @@ SettingsSection:CreateButton({
         getgenv().Walkspeed = Config.Walkspeed
         getgenv().Jumppower = Config.Jumppower
         getgenv().NoClipEnabled = Config.NoClipEnabled
-        getgenv().FlyEnabled = Config.FlyEnabled
-        getgenv().FlySpeed = Config.FlySpeed
-
         if getgenv().ESPEnabled then RebuildAllESPs() end
         if getgenv().ModeratorDetector then EnableModeratorDetector() else DisableModeratorDetector() end
         if getgenv().MovementEnabled then
-            if not SpoofActive then MovementSpoof:Enable(getgenv().Walkspeed, getgenv().Jumppower) end
+            if not SpoofActive then
+                MovementSpoof:Enable(getgenv().Walkspeed, getgenv().Jumppower)
+            end
         else
             if SpoofActive then MovementSpoof:Disable() end
         end
         if getgenv().NoClipEnabled then
-            if not NoClipActive then ToggleNoClip(true) end
+            if not NoClipActive then StartNoClip() end
         else
-            if NoClipActive then ToggleNoClip(false) end
+            if NoClipActive then StopNoClip() end
         end
-        if getgenv().FlyEnabled then
-            if not FlyActive then ToggleFly(true) end
-        else
-            if FlyActive then ToggleFly(false) end
-        end
-        UI:Notify("Normal", { Title = "Config Loaded", Content = "Settings loaded successfully.", Duration = 5, Image = "rbxassetid://4483362458" })
+        UI:Notify("Normal", {
+            Title = "Config Loaded",
+            Content = "Settings loaded successfully.",
+            Duration = 5,
+            Image = "rbxassetid://4483362458",
+        })
     end,
 })
 
 SettingsSection:CreateButton({
     Name = "Reset to Default",
-    Callback = function() ResetConfig() end,
+    Callback = function()
+        ResetConfig()
+    end,
 })
 
 -- ===== Startup Notification =====
@@ -1263,6 +1343,11 @@ UI:Notify("Normal", {
     Duration = 5,
     Image = "rbxassetid://12974454446",
     Actions = {
-        { Name = "Okay!", Callback = function() print("Script ready.") end }
+        {
+            Name = "Okay!",
+            Callback = function()
+                print("Script ready.")
+            end
+        }
     }
 })
