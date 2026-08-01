@@ -32,6 +32,8 @@ local Config = {
     MovementEnabled = false,
     Walkspeed = 16,
     Jumppower = 50,
+    -- NoClip
+    NoClipEnabled = false,
     -- UI
     UIToggleKey = "RightControl",
 }
@@ -82,6 +84,7 @@ local function ResetConfig()
         MovementEnabled = false,
         Walkspeed = 16,
         Jumppower = 50,
+        NoClipEnabled = false,
         UIToggleKey = "RightControl",
     }
     local ok, err = Matrice.ResetConfiguration(CONFIG_FILE)
@@ -117,6 +120,7 @@ getgenv().ModeratorDetector = Config.ModeratorDetector
 getgenv().MovementEnabled = Config.MovementEnabled
 getgenv().Walkspeed = Config.Walkspeed
 getgenv().Jumppower = Config.Jumppower
+getgenv().NoClipEnabled = Config.NoClipEnabled
 
 LoadConfig()
 
@@ -174,7 +178,7 @@ HomeSection:CreateDivider()
 local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
 InfoSection:CreateParagraph({
     Title = "About",
-    Description = "This script provides ESP, Silent Aim, Moderator Detection, and advanced undetected Movement spoofing for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• Configuration save/load/reset\n• Customizable keybinds"
+    Description = "This script provides ESP, Silent Aim, Moderator Detection, undetected Movement spoofing, and NoClip/Fly for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• NoClip / Fly mode\n• Configuration save/load/reset\n• Customizable keybinds"
 })
 
 -- ===== Combat Tab =====
@@ -1143,6 +1147,131 @@ if getgenv().MovementEnabled then
     ToggleMovement(true)
 end
 
+-- ===== NoClip Section =====
+local NoClipSection = MiscTab:CreateSection("NoClip / Fly", "Normal")
+
+local NoClipActive = false
+local NoClipConnection = nil
+local NoClipSpeed = 50
+
+local function StartNoClip()
+    if NoClipActive or not LocalPlayer.Character then return end
+    NoClipActive = true
+
+    -- Disable collisions on all parts
+    local function SetCollision(state)
+        local character = LocalPlayer.Character
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = state
+            end
+        end
+    end
+
+    SetCollision(false)
+
+    NoClipConnection = RunService.Heartbeat:Connect(function()
+        if not NoClipActive or not LocalPlayer.Character then
+            return
+        end
+        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        -- Get movement directions
+        local forward = workspace.CurrentCamera.CFrame.LookVector
+        local right = workspace.CurrentCamera.CFrame.RightVector
+        local up = Vector3.new(0, 1, 0)
+
+        local moveDirection = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection - forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection - right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + right
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDirection = moveDirection + up
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            moveDirection = moveDirection - up
+        end
+
+        if moveDirection.Magnitude > 0 then
+            moveDirection = moveDirection.Unit * NoClipSpeed
+        end
+
+        -- Move the root part
+        root.CFrame = root.CFrame + moveDirection * game:GetService("RunService").Heartbeat:Wait()
+        -- Also set velocity to zero to avoid physics interference
+        root.Velocity = Vector3.new(0, 0, 0)
+        root.RotVelocity = Vector3.new(0, 0, 0)
+    end)
+end
+
+local function StopNoClip()
+    if not NoClipActive then return end
+    NoClipActive = false
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+    -- Restore collisions
+    local character = LocalPlayer.Character
+    if character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+end
+
+local function ToggleNoClip(enable)
+    if enable then
+        StartNoClip()
+    else
+        StopNoClip()
+    end
+    getgenv().NoClipEnabled = enable
+    Config.NoClipEnabled = enable
+    SaveConfig()
+end
+
+NoClipSection:CreateToggle("Normal", {
+    Name = "Enable NoClip / Fly",
+    Flag = "NoClipEnabled",
+    CurrentValue = getgenv().NoClipEnabled or false,
+    Callback = function(Value)
+        ToggleNoClip(Value)
+    end,
+})
+
+NoClipSection:CreateSlider({
+    Name = "Flight Speed",
+    Value = {10, 200},
+    Increment = 5,
+    Suffix = "studs/s",
+    CurrentValue = NoClipSpeed,
+    Callback = function(Value)
+        NoClipSpeed = Value
+    end,
+})
+
+NoClipSection:CreateLabel({
+    Description = "WASD to move, Space to fly up, Shift to fly down."
+})
+
+if getgenv().NoClipEnabled then
+    ToggleNoClip(true)
+end
+
 -- ===== Settings Tab =====
 local SettingsSection = SettingsTab:CreateSection("UI & Configuration", "Normal")
 
@@ -1181,6 +1310,7 @@ SettingsSection:CreateButton({
         getgenv().MovementEnabled = Config.MovementEnabled
         getgenv().Walkspeed = Config.Walkspeed
         getgenv().Jumppower = Config.Jumppower
+        getgenv().NoClipEnabled = Config.NoClipEnabled
         if getgenv().ESPEnabled then RebuildAllESPs() end
         if getgenv().ModeratorDetector then EnableModeratorDetector() else DisableModeratorDetector() end
         if getgenv().MovementEnabled then
@@ -1189,6 +1319,11 @@ SettingsSection:CreateButton({
             end
         else
             if SpoofActive then MovementSpoof:Disable() end
+        end
+        if getgenv().NoClipEnabled then
+            if not NoClipActive then StartNoClip() end
+        else
+            if NoClipActive then StopNoClip() end
         end
         UI:Notify("Normal", {
             Title = "Config Loaded",

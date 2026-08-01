@@ -1,6 +1,6 @@
 return {
 	Matrice = {
-		Version = "0.1.112",
+		Version = "0.1.122",
 		Changelog = "[+] Complete rewrite of Matrice hub\n[+] New modular loader system",
 	},
 	Games = {
