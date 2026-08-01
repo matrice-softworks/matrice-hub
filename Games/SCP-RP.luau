@@ -28,11 +28,10 @@ local Config = {
     FOVColor = Color3.fromRGB(255, 255, 255),
     -- Moderator
     ModeratorDetector = false,
-    -- Movement
+    -- Character Modifications
     MovementEnabled = false,
     Walkspeed = 16,
     Jumppower = 50,
-    -- NoClip
     NoClipEnabled = false,
     -- UI
     UIToggleKey = "RightControl",
@@ -178,7 +177,7 @@ HomeSection:CreateDivider()
 local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
 InfoSection:CreateParagraph({
     Title = "About",
-    Description = "This script provides ESP, Silent Aim, Moderator Detection, undetected Movement spoofing, and NoClip/Fly for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• NoClip / Fly mode\n• Configuration save/load/reset\n• Customizable keybinds"
+    Description = "This script provides ESP, Silent Aim, Moderator Detection, and Character Modifications (Movement Spoof & NoClip) for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• NoClip (walk through walls)\n• Configuration save/load/reset\n• Customizable keybinds"
 })
 
 -- ===== Combat Tab =====
@@ -899,9 +898,10 @@ if getgenv().ModeratorDetector then
     EnableModeratorDetector()
 end
 
--- ===== Movement Section (Undetected Spoof) =====
-local MovementSection = MiscTab:CreateSection("Movement", "Normal")
+-- ===== Character Modifications Section =====
+local CharModSection = MiscTab:CreateSection("Character Modifications", "Normal")
 
+-- ===== Movement Spoof (undetected) =====
 local MovementSpoof = {}
 local SpoofActive = false
 local CurrentHumanoid = nil
@@ -1098,7 +1098,7 @@ local function ToggleMovement(enable)
     SaveConfig()
 end
 
-MovementSection:CreateToggle("Normal", {
+CharModSection:CreateToggle("Normal", {
     Name = "Enable Movement Spoof",
     Flag = "MovementEnabled",
     CurrentValue = getgenv().MovementEnabled or false,
@@ -1107,7 +1107,7 @@ MovementSection:CreateToggle("Normal", {
     end,
 })
 
-MovementSection:CreateSlider({
+CharModSection:CreateSlider({
     Name = "Walkspeed",
     Value = {16, 100},
     Increment = 1,
@@ -1125,7 +1125,7 @@ MovementSection:CreateSlider({
     end,
 })
 
-MovementSection:CreateSlider({
+CharModSection:CreateSlider({
     Name = "Jump Power",
     Value = {50, 200},
     Increment = 5,
@@ -1147,105 +1147,61 @@ if getgenv().MovementEnabled then
     ToggleMovement(true)
 end
 
--- ===== NoClip Section =====
-local NoClipSection = MiscTab:CreateSection("NoClip / Fly", "Normal")
+-- ===== Simple NoClip (collisions off only, no fly) =====
+CharModSection:CreateDivider()
 
 local NoClipActive = false
-local NoClipConnection = nil
-local NoClipSpeed = 50
+local NoClipCharacterConnection = nil
 
-local function StartNoClip()
-    if NoClipActive or not LocalPlayer.Character then return end
-    NoClipActive = true
-
-    -- Disable collisions on all parts
-    local function SetCollision(state)
-        local character = LocalPlayer.Character
-        if not character then return end
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = state
-            end
+local function ApplyNoClip(state)
+    local character = LocalPlayer.Character
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not state
         end
     end
-
-    SetCollision(false)
-
-    NoClipConnection = RunService.Heartbeat:Connect(function()
-        if not NoClipActive or not LocalPlayer.Character then
-            return
-        end
-        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-
-        -- Get movement directions
-        local forward = workspace.CurrentCamera.CFrame.LookVector
-        local right = workspace.CurrentCamera.CFrame.RightVector
-        local up = Vector3.new(0, 1, 0)
-
-        local moveDirection = Vector3.new()
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveDirection = moveDirection + forward
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveDirection = moveDirection - forward
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveDirection = moveDirection - right
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveDirection = moveDirection + right
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveDirection = moveDirection + up
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            moveDirection = moveDirection - up
-        end
-
-        if moveDirection.Magnitude > 0 then
-            moveDirection = moveDirection.Unit * NoClipSpeed
-        end
-
-        -- Move the root part
-        root.CFrame = root.CFrame + moveDirection * game:GetService("RunService").Heartbeat:Wait()
-        -- Also set velocity to zero to avoid physics interference
-        root.Velocity = Vector3.new(0, 0, 0)
-        root.RotVelocity = Vector3.new(0, 0, 0)
-    end)
 end
 
-local function StopNoClip()
+local function EnableNoClip()
+    if NoClipActive then return end
+    NoClipActive = true
+    ApplyNoClip(true)
+
+    if not NoClipCharacterConnection then
+        NoClipCharacterConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+            task.wait(0.1)
+            if NoClipActive then
+                ApplyNoClip(true)
+            end
+        end)
+    end
+end
+
+local function DisableNoClip()
     if not NoClipActive then return end
     NoClipActive = false
-    if NoClipConnection then
-        NoClipConnection:Disconnect()
-        NoClipConnection = nil
-    end
-    -- Restore collisions
-    local character = LocalPlayer.Character
-    if character then
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = true
-            end
-        end
+    ApplyNoClip(false)
+
+    if NoClipCharacterConnection then
+        NoClipCharacterConnection:Disconnect()
+        NoClipCharacterConnection = nil
     end
 end
 
 local function ToggleNoClip(enable)
     if enable then
-        StartNoClip()
+        EnableNoClip()
     else
-        StopNoClip()
+        DisableNoClip()
     end
     getgenv().NoClipEnabled = enable
     Config.NoClipEnabled = enable
     SaveConfig()
 end
 
-NoClipSection:CreateToggle("Normal", {
-    Name = "Enable NoClip / Fly",
+CharModSection:CreateToggle("Normal", {
+    Name = "Enable NoClip",
     Flag = "NoClipEnabled",
     CurrentValue = getgenv().NoClipEnabled or false,
     Callback = function(Value)
@@ -1253,19 +1209,8 @@ NoClipSection:CreateToggle("Normal", {
     end,
 })
 
-NoClipSection:CreateSlider({
-    Name = "Flight Speed",
-    Value = {10, 200},
-    Increment = 5,
-    Suffix = "studs/s",
-    CurrentValue = NoClipSpeed,
-    Callback = function(Value)
-        NoClipSpeed = Value
-    end,
-})
-
-NoClipSection:CreateLabel({
-    Description = "WASD to move, Space to fly up, Shift to fly down."
+CharModSection:CreateLabel({
+    Description = "Disables collisions, allowing you to walk through walls."
 })
 
 if getgenv().NoClipEnabled then
@@ -1321,9 +1266,9 @@ SettingsSection:CreateButton({
             if SpoofActive then MovementSpoof:Disable() end
         end
         if getgenv().NoClipEnabled then
-            if not NoClipActive then StartNoClip() end
+            if not NoClipActive then EnableNoClip() end
         else
-            if NoClipActive then StopNoClip() end
+            if NoClipActive then DisableNoClip() end
         end
         UI:Notify("Normal", {
             Title = "Config Loaded",
