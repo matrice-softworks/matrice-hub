@@ -201,24 +201,6 @@ function e:CreateLibrary(G, H)
 		end)
 	end
 	
-	-- ===== FIX 2: Prevent scroll wheel from zooming the 3D camera when over the UI =====
-	UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-		if input.UserInputType == Enum.UserInputType.MouseWheel and not gameProcessedEvent then
-			local mousePos = UserInputService:GetMouseLocation()
-			local mainFrame = w.Main
-			if mainFrame and mainFrame.Visible then
-				local absPos = mainFrame.AbsolutePosition
-				local absSize = mainFrame.AbsoluteSize
-				if mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and
-				   mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y then
-					-- Block the camera zoom
-					input.Handled = true
-				end
-			end
-		end
-	end)
-	-- =================================================================
-	
 	currentUIInstance = w
 	
 	w.Main.Visible = true
@@ -255,6 +237,23 @@ function e:CreateLibrary(G, H)
 			TweenService:Create(L, e.Theme.Dark.TweenInfo, {Position = UDim2.new(0.13, 0, 0.021, 0)}):Play()
 		end
 	end)
+	
+	-- ===== FIX 2: Block camera zoom when scrolling over the UI =====
+	UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+		if input.UserInputType == Enum.UserInputType.MouseWheel then
+			local mousePos = UserInputService:GetMouseLocation()
+			if w and w.Main and w.Main.Visible then
+				local absPos = w.Main.AbsolutePosition
+				local absSize = w.Main.AbsoluteSize
+				if mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and
+				   mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y then
+					-- Block the camera zoom
+					input.Handled = true
+				end
+			end
+		end
+	end)
+	-- ================================================================
 	
 	local M = {}
 	

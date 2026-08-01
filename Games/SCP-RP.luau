@@ -18,6 +18,9 @@ local Config = {
     TracerEnabled = false,
     HealthBarEnabled = false,
     ESPRange = 600,
+    -- SCP ESP
+    SCPESPEnabled = false,
+    SCPColor = Color3.fromRGB(255, 0, 0), -- Default red
     -- Silent Aim
     SilentAimEnabled = false,
     SilentAimWallCheck = true,
@@ -26,6 +29,8 @@ local Config = {
     FOVCircleEnabled = false,
     FOVRadius = 150,
     FOVColor = Color3.fromRGB(255, 255, 255),
+    -- SCP Silent Aim
+    SCPSilentAimEnabled = false,
     -- Moderator
     ModeratorDetector = false,
     -- UI
@@ -67,6 +72,8 @@ local function ResetConfig()
         TracerEnabled = false,
         HealthBarEnabled = false,
         ESPRange = 600,
+        SCPESPEnabled = false,
+        SCPColor = Color3.fromRGB(255, 0, 0),
         SilentAimEnabled = false,
         SilentAimWallCheck = true,
         SilentAimHitPart = "Head",
@@ -74,6 +81,7 @@ local function ResetConfig()
         FOVCircleEnabled = false,
         FOVRadius = 150,
         FOVColor = Color3.fromRGB(255, 255, 255),
+        SCPSilentAimEnabled = false,
         ModeratorDetector = false,
         UIToggleKey = "RightControl",
     }
@@ -99,6 +107,8 @@ getgenv().ChamsEnabled = Config.ChamsEnabled
 getgenv().TracerEnabled = Config.TracerEnabled
 getgenv().HealthBarEnabled = Config.HealthBarEnabled
 getgenv().ESPRange = Config.ESPRange
+getgenv().SCPESPEnabled = Config.SCPESPEnabled
+getgenv().SCPColor = Config.SCPColor
 getgenv().SilentAimEnabled = Config.SilentAimEnabled
 getgenv().SilentAimWallCheck = Config.SilentAimWallCheck
 getgenv().SilentAimHitPart = Config.SilentAimHitPart
@@ -106,6 +116,7 @@ getgenv().SilentAimHitChance = Config.SilentAimHitChance
 getgenv().FOVCircleEnabled = Config.FOVCircleEnabled
 getgenv().FOVRadius = Config.FOVRadius
 getgenv().FOVColor = Config.FOVColor
+getgenv().SCPSilentAimEnabled = Config.SCPSilentAimEnabled
 getgenv().ModeratorDetector = Config.ModeratorDetector
 
 LoadConfig()
@@ -200,12 +211,25 @@ local function IsEnemy(player)
     return localTeam == nil or targetTeam == nil or localTeam ~= targetTeam
 end
 
+-- ===== SCP Detection =====
+local function GetSCPs()
+    local scps = {}
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v:FindFirstChildOfClass("Humanoid") and not Players:GetPlayerFromCharacter(v) then
+            table.insert(scps, v)
+        end
+    end
+    return scps
+end
+
+-- ===== Silent Aim Target Selection (Players + SCPs) =====
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
     local camera = workspace.CurrentCamera
     local cursor = UserInputService:GetMouseLocation()
     local closestPart, closestDistance = nil, getgenv().FOVRadius
 
+    -- Players
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and IsEnemy(player) then
             local character = player.Character
@@ -238,9 +262,43 @@ local function GetSilentAimTarget()
             end
         end
     end
+
+    -- SCPs (only if enabled)
+    if getgenv().SCPSilentAimEnabled then
+        for _, scp in ipairs(GetSCPs()) do
+            local humanoid = scp:FindFirstChildOfClass("Humanoid")
+            local hitPartName = getgenv().SilentAimHitPart
+            if hitPartName == "Randomized" then
+                local hitParts = {"Head", "UpperTorso", "HumanoidRootPart"}
+                hitPartName = hitParts[math.random(1, #hitParts)]
+            end
+            local targetPart = scp:FindFirstChild(hitPartName) or scp:FindFirstChild("HumanoidRootPart")
+            if humanoid and humanoid.Health > 0 and targetPart then
+                local screenPosition, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+                local visible = true
+                if getgenv().SilentAimWallCheck then
+                    local localCharacter = LocalPlayer.Character
+                    if localCharacter then
+                        SilentAimRaycastParams.FilterDescendantsInstances = {localCharacter}
+                        local result = workspace:Raycast(camera.CFrame.Position, targetPart.Position - camera.CFrame.Position, SilentAimRaycastParams)
+                        visible = not result or result.Instance:IsDescendantOf(scp)
+                    end
+                end
+                if onScreen and visible then
+                    local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - cursor).Magnitude
+                    if distance < closestDistance then
+                        closestPart = targetPart
+                        closestDistance = distance
+                    end
+                end
+            end
+        end
+    end
+
     return closestPart
 end
 
+-- Bullet function finder and hook (unchanged)
 local function FindBulletFunction()
     local controller = LocalPlayer.PlayerScripts:FindFirstChild("Controller")
     if not controller then return nil end
@@ -309,6 +367,17 @@ SilentAimSection:CreateToggle("Normal", {
             getgenv().SilentAimEnabled = false
             Config.SilentAimEnabled = false
         end
+        SaveConfig()
+    end,
+})
+
+SilentAimSection:CreateToggle("Normal", {
+    Name = "Silent Aim on SCPs",
+    Flag = "SCPSilentAimEnabled",
+    CurrentValue = getgenv().SCPSilentAimEnabled,
+    Callback = function(Value)
+        getgenv().SCPSilentAimEnabled = Value
+        Config.SCPSilentAimEnabled = Value
         SaveConfig()
     end,
 })
@@ -393,10 +462,12 @@ SilentAimSection:CreateLabel({
 
 -- ===== Visuals Tab =====
 local ESPSection = VisualsTab:CreateSection("ESP Settings", "Normal")
+local SCPESPSection = VisualsTab:CreateSection("SCP ESP", "Normal")
 local MiscVizSection = VisualsTab:CreateSection("Miscellaneous Visuals", "Normal")
 
 -- ESP state
 local PlayerESPs = {}
+local SCPESPs = {}
 local Connections = {}
 
 local function ClearPlayerESP(player)
@@ -425,9 +496,34 @@ local function ClearPlayerESP(player)
     end
 end
 
+local function ClearSCPESP(scp)
+    if SCPESPs[scp] then
+        if SCPESPs[scp].Skeleton then SCPESPs[scp].Skeleton:Remove() end
+        if SCPESPs[scp].Box then SCPESPs[scp].Box:Remove() end
+        if SCPESPs[scp].Tracer then SCPESPs[scp].Tracer:Remove() end
+        if SCPESPs[scp].HealthBarOutline then SCPESPs[scp].HealthBarOutline:Remove() end
+        if SCPESPs[scp].HealthBarFill then SCPESPs[scp].HealthBarFill:Remove() end
+        if SCPESPs[scp].HealthBarTicks then
+            for _, tick in ipairs(SCPESPs[scp].HealthBarTicks) do tick:Remove() end
+        end
+        if SCPESPs[scp].Highlight then SCPESPs[scp].Highlight:Remove() end
+        if SCPESPs[scp].Chams then
+            for part, originalMaterial in pairs(SCPESPs[scp].Chams) do
+                if part and part.Parent then
+                    part.Material = originalMaterial
+                end
+            end
+        end
+        SCPESPs[scp] = nil
+    end
+end
+
 local function ClearESPs()
     for player, _ in pairs(PlayerESPs) do
         ClearPlayerESP(player)
+    end
+    for scp, _ in pairs(SCPESPs) do
+        ClearSCPESP(scp)
     end
 end
 
@@ -537,43 +633,107 @@ local function CreatePlayerESP(player)
     end)
 end
 
-local function RebuildAllESPs()
-    if not getgenv().ESPEnabled then return end
-    local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not localRoot then return end
+local function CreateSCPESP(scp)
+    if not scp or not scp.Parent then return end
+    local teamColor = getgenv().SCPColor or Color3.fromRGB(255, 0, 0)
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            ClearPlayerESP(player)
-            local targetRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-            local targetHumanoid = player.Character and player.Character:FindFirstChild("Humanoid")
-            if targetRoot and targetHumanoid and targetHumanoid.Health > 0 and player.Parent == Players then
-                local distance = (localRoot.Position - targetRoot.Position).Magnitude
-                if distance <= getgenv().ESPRange then
-                    CreatePlayerESP(player)
-                end
+    local box = nil
+    if getgenv().BoxEnabled then
+        box = Drawing.new("Square")
+        box.Thickness = 1
+        box.Color = teamColor
+        box.Filled = false
+        box.Transparency = 1
+        box.Visible = false
+    end
+
+    local highlight = nil
+    if getgenv().HighlightEnabled then
+        highlight = Visuals:CreateVisual("Highlight", {
+            Target = scp,
+            Color = teamColor,
+            Transparency = 0.5,
+            StrokeColor = Color3.new(1, 1, 1),
+            OutlineTransparency = 0,
+        })
+    end
+
+    local skeleton = nil
+    if getgenv().SkeletonEnabled then
+        skeleton = Visuals:CreateVisual("Drawing", {
+            Type = "Skeleton",
+            Player = scp, -- Reuse skeleton logic (works with models)
+            Color = teamColor,
+            Thickness = 1
+        })
+    end
+
+    local tracer = nil
+    if getgenv().TracerEnabled then
+        tracer = Drawing.new("Line")
+        tracer.Thickness = 1
+        tracer.Color = teamColor
+        tracer.Transparency = 1
+        tracer.Visible = false
+    end
+
+    local healthBarOutline, healthBarFill, healthBarTicks = nil, nil, nil
+    if getgenv().HealthBarEnabled then
+        healthBarOutline = Drawing.new("Square")
+        healthBarOutline.Color = Color3.fromRGB(18, 20, 28)
+        healthBarOutline.Filled = true
+        healthBarOutline.Transparency = 1
+        healthBarOutline.Visible = false
+
+        healthBarFill = Drawing.new("Square")
+        healthBarFill.Filled = true
+        healthBarFill.Transparency = 1
+        healthBarFill.Visible = false
+
+        healthBarTicks = {}
+        for _ = 1, 4 do
+            local tick = Drawing.new("Line")
+            tick.Color = Color3.fromRGB(90, 96, 112)
+            tick.Thickness = 1
+            tick.Transparency = 0.9
+            tick.Visible = false
+            table.insert(healthBarTicks, tick)
+        end
+    end
+
+    local chams = nil
+    if getgenv().ChamsEnabled and scp then
+        chams = {}
+        for _, v in pairs(scp:GetDescendants()) do
+            if v:IsA("BasePart") then
+                chams[v] = v.Material
+                v.Material = Enum.Material.ForceField
             end
         end
     end
+
+    SCPESPs[scp] = {
+        Skeleton = skeleton,
+        Box = box,
+        Tracer = tracer,
+        HealthBarOutline = healthBarOutline,
+        HealthBarFill = healthBarFill,
+        HealthBarTicks = healthBarTicks,
+        Highlight = highlight,
+        Chams = chams,
+        Character = scp
+    }
 end
 
--- Background ESP loop
-task.spawn(function()
-    while task.wait(0.5) do
-        if not getgenv().ESPEnabled then
-            ClearESPs()
-            continue
-        end
+local function RebuildAllESPs()
+    -- Clear all first
+    ClearESPs()
 
-        local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not localRoot then continue end
+    local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return end
 
-        for p, _ in pairs(PlayerESPs) do
-            if not p or p.Parent ~= Players then
-                ClearPlayerESP(p)
-            end
-        end
-
+    -- Player ESP
+    if getgenv().ESPEnabled then
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer then
                 local targetRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -581,22 +741,75 @@ task.spawn(function()
                 if targetRoot and targetHumanoid and targetHumanoid.Health > 0 and player.Parent == Players then
                     local distance = (localRoot.Position - targetRoot.Position).Magnitude
                     if distance <= getgenv().ESPRange then
-                        if not PlayerESPs[player] or PlayerESPs[player].Character ~= player.Character then
-                            if PlayerESPs[player] then ClearPlayerESP(player) end
-                            CreatePlayerESP(player)
+                        CreatePlayerESP(player)
+                    end
+                end
+            end
+        end
+    end
+
+    -- SCP ESP
+    if getgenv().SCPESPEnabled then
+        for _, scp in ipairs(GetSCPs()) do
+            local targetRoot = scp:FindFirstChild("HumanoidRootPart")
+            local targetHumanoid = scp:FindFirstChildOfClass("Humanoid")
+            if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                local distance = (localRoot.Position - targetRoot.Position).Magnitude
+                if distance <= getgenv().ESPRange then
+                    CreateSCPESP(scp)
+                end
+            end
+        end
+    end
+end
+
+-- Background ESP lifecycle loop
+task.spawn(function()
+    while task.wait(0.5) do
+        if not getgenv().ESPEnabled and not getgenv().SCPESPEnabled then
+            ClearESPs()
+            continue
+        end
+
+        local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not localRoot then continue end
+
+        -- Cleanup orphaned SCP ESPs
+        for scp, _ in pairs(SCPESPs) do
+            if not scp or not scp.Parent then
+                ClearSCPESP(scp)
+            end
+        end
+
+        -- Rebuild SCP ESPs if toggled
+        if getgenv().SCPESPEnabled then
+            for _, scp in ipairs(GetSCPs()) do
+                local targetRoot = scp:FindFirstChild("HumanoidRootPart")
+                local targetHumanoid = scp:FindFirstChildOfClass("Humanoid")
+                if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                    local distance = (localRoot.Position - targetRoot.Position).Magnitude
+                    if distance <= getgenv().ESPRange then
+                        if not SCPESPs[scp] or SCPESPs[scp].Character ~= scp then
+                            if SCPESPs[scp] then ClearSCPESP(scp) end
+                            CreateSCPESP(scp)
                         end
                     else
-                        ClearPlayerESP(player)
+                        ClearSCPESP(scp)
                     end
                 else
-                    ClearPlayerESP(player)
+                    ClearSCPESP(scp)
                 end
+            end
+        else
+            -- Clear all SCP ESPs if disabled
+            for scp, _ in pairs(SCPESPs) do
+                ClearSCPESP(scp)
             end
         end
     end
 end)
 
--- Render loop for drawing positions
+-- Render loop for drawing positions (players + SCPs)
 RunService.RenderStepped:Connect(function()
     -- FOV circle
     FOVCircle.Visible = getgenv().FOVCircleEnabled
@@ -606,85 +819,158 @@ RunService.RenderStepped:Connect(function()
         FOVCircle.Color = getgenv().FOVColor
     end
 
-    if not getgenv().ESPEnabled then return end
-    for player, esp in pairs(PlayerESPs) do
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-            local onScreen, size, pos = Visuals:GetBoundingBox(player)
-            local box = esp.Box
-            local tracer = esp.Tracer
-            local healthBarOutline = esp.HealthBarOutline
-            local healthBarFill = esp.HealthBarFill
-            local healthBarTicks = esp.HealthBarTicks
+    -- Draw player ESPs
+    if getgenv().ESPEnabled then
+        for player, esp in pairs(PlayerESPs) do
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+                local onScreen, size, pos = Visuals:GetBoundingBox(player)
+                local box = esp.Box
+                local tracer = esp.Tracer
+                local healthBarOutline = esp.HealthBarOutline
+                local healthBarFill = esp.HealthBarFill
+                local healthBarTicks = esp.HealthBarTicks
 
-            if onScreen then
-                local teamColor = player.TeamColor and player.TeamColor.Color or Color3.new(1, 1, 1)
+                if onScreen then
+                    local teamColor = player.TeamColor and player.TeamColor.Color or Color3.new(1, 1, 1)
 
-                if box then
-                    box.Size = size
-                    box.Position = pos
-                    box.Color = teamColor
-                    box.Visible = getgenv().BoxEnabled
-                end
-                if tracer then
-                    local viewport = workspace.CurrentCamera.ViewportSize
-                    tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
-                    tracer.To = Vector2.new(pos.X + (size.X / 2), pos.Y + size.Y)
-                    tracer.Color = teamColor
-                    tracer.Visible = getgenv().TracerEnabled
-                end
-                if healthBarOutline and healthBarFill then
-                    local humanoid = player.Character.Humanoid
-                    local healthPercent = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
-                    local barHeight = size.Y
-                    local barX = pos.X - 8
-                    local barY = pos.Y
+                    if box then
+                        box.Size = size
+                        box.Position = pos
+                        box.Color = teamColor
+                        box.Visible = getgenv().BoxEnabled
+                    end
+                    if tracer then
+                        local viewport = workspace.CurrentCamera.ViewportSize
+                        tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
+                        tracer.To = Vector2.new(pos.X + (size.X / 2), pos.Y + size.Y)
+                        tracer.Color = teamColor
+                        tracer.Visible = getgenv().TracerEnabled
+                    end
+                    if healthBarOutline and healthBarFill then
+                        local humanoid = player.Character.Humanoid
+                        local healthPercent = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
+                        local barHeight = size.Y
+                        local barX = pos.X - 8
+                        local barY = pos.Y
 
-                    healthBarOutline.Position = Vector2.new(barX - 1, barY - 2)
-                    healthBarOutline.Size = Vector2.new(5, barHeight + 4)
-                    healthBarOutline.Visible = getgenv().HealthBarEnabled
+                        healthBarOutline.Position = Vector2.new(barX - 1, barY - 2)
+                        healthBarOutline.Size = Vector2.new(5, barHeight + 4)
+                        healthBarOutline.Visible = getgenv().HealthBarEnabled
 
-                    healthBarFill.Position = Vector2.new(barX, barY + barHeight * (1 - healthPercent))
-                    healthBarFill.Size = Vector2.new(3, math.max(barHeight * healthPercent, 1))
-                    healthBarFill.Color = Color3.fromHSV(healthPercent * 0.33, 0.9, 1)
-                    healthBarFill.Visible = getgenv().HealthBarEnabled
+                        healthBarFill.Position = Vector2.new(barX, barY + barHeight * (1 - healthPercent))
+                        healthBarFill.Size = Vector2.new(3, math.max(barHeight * healthPercent, 1))
+                        healthBarFill.Color = Color3.fromHSV(healthPercent * 0.33, 0.9, 1)
+                        healthBarFill.Visible = getgenv().HealthBarEnabled
 
-                    if healthBarTicks then
-                        for index, tick in ipairs(healthBarTicks) do
-                            local y = barY + (barHeight * index / 5)
-                            tick.From = Vector2.new(barX - 1, y)
-                            tick.To = Vector2.new(barX + 4, y)
-                            tick.Visible = getgenv().HealthBarEnabled
+                        if healthBarTicks then
+                            for index, tick in ipairs(healthBarTicks) do
+                                local y = barY + (barHeight * index / 5)
+                                tick.From = Vector2.new(barX - 1, y)
+                                tick.To = Vector2.new(barX + 4, y)
+                                tick.Visible = getgenv().HealthBarEnabled
+                            end
                         end
                     end
+                else
+                    if box then box.Visible = false end
+                    if tracer then tracer.Visible = false end
+                    if healthBarOutline then healthBarOutline.Visible = false end
+                    if healthBarFill then healthBarFill.Visible = false end
+                    if healthBarTicks then for _, tick in ipairs(healthBarTicks) do tick.Visible = false end end
                 end
             else
-                if box then box.Visible = false end
-                if tracer then tracer.Visible = false end
-                if healthBarOutline then healthBarOutline.Visible = false end
-                if healthBarFill then healthBarFill.Visible = false end
-                if healthBarTicks then for _, tick in ipairs(healthBarTicks) do tick.Visible = false end end
+                if esp.Box then esp.Box.Visible = false end
+                if esp.Tracer then esp.Tracer.Visible = false end
+                if esp.HealthBarOutline then esp.HealthBarOutline.Visible = false end
+                if esp.HealthBarFill then esp.HealthBarFill.Visible = false end
+                if esp.HealthBarTicks then for _, tick in ipairs(esp.HealthBarTicks) do tick.Visible = false end end
             end
-        else
-            if esp.Box then esp.Box.Visible = false end
-            if esp.Tracer then esp.Tracer.Visible = false end
-            if esp.HealthBarOutline then esp.HealthBarOutline.Visible = false end
-            if esp.HealthBarFill then esp.HealthBarFill.Visible = false end
-            if esp.HealthBarTicks then for _, tick in ipairs(esp.HealthBarTicks) do tick.Visible = false end end
+        end
+    end
+
+    -- Draw SCP ESPs
+    if getgenv().SCPESPEnabled then
+        for scp, esp in pairs(SCPESPs) do
+            if scp and scp:FindFirstChild("HumanoidRootPart") and scp:FindFirstChildOfClass("Humanoid") and scp:FindFirstChildOfClass("Humanoid").Health > 0 then
+                local onScreen, size, pos = Visuals:GetBoundingBox(scp)
+                local box = esp.Box
+                local tracer = esp.Tracer
+                local healthBarOutline = esp.HealthBarOutline
+                local healthBarFill = esp.HealthBarFill
+                local healthBarTicks = esp.HealthBarTicks
+
+                if onScreen then
+                    local teamColor = getgenv().SCPColor or Color3.fromRGB(255, 0, 0)
+
+                    if box then
+                        box.Size = size
+                        box.Position = pos
+                        box.Color = teamColor
+                        box.Visible = getgenv().BoxEnabled
+                    end
+                    if tracer then
+                        local viewport = workspace.CurrentCamera.ViewportSize
+                        tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
+                        tracer.To = Vector2.new(pos.X + (size.X / 2), pos.Y + size.Y)
+                        tracer.Color = teamColor
+                        tracer.Visible = getgenv().TracerEnabled
+                    end
+                    if healthBarOutline and healthBarFill then
+                        local humanoid = scp:FindFirstChildOfClass("Humanoid")
+                        local healthPercent = math.clamp(humanoid.Health / math.max(humanoid.MaxHealth, 1), 0, 1)
+                        local barHeight = size.Y
+                        local barX = pos.X - 8
+                        local barY = pos.Y
+
+                        healthBarOutline.Position = Vector2.new(barX - 1, barY - 2)
+                        healthBarOutline.Size = Vector2.new(5, barHeight + 4)
+                        healthBarOutline.Visible = getgenv().HealthBarEnabled
+
+                        healthBarFill.Position = Vector2.new(barX, barY + barHeight * (1 - healthPercent))
+                        healthBarFill.Size = Vector2.new(3, math.max(barHeight * healthPercent, 1))
+                        healthBarFill.Color = Color3.fromHSV(healthPercent * 0.33, 0.9, 1)
+                        healthBarFill.Visible = getgenv().HealthBarEnabled
+
+                        if healthBarTicks then
+                            for index, tick in ipairs(healthBarTicks) do
+                                local y = barY + (barHeight * index / 5)
+                                tick.From = Vector2.new(barX - 1, y)
+                                tick.To = Vector2.new(barX + 4, y)
+                                tick.Visible = getgenv().HealthBarEnabled
+                            end
+                        end
+                    end
+                else
+                    if box then box.Visible = false end
+                    if tracer then tracer.Visible = false end
+                    if healthBarOutline then healthBarOutline.Visible = false end
+                    if healthBarFill then healthBarFill.Visible = false end
+                    if healthBarTicks then for _, tick in ipairs(healthBarTicks) do tick.Visible = false end end
+                end
+            else
+                if esp.Box then esp.Box.Visible = false end
+                if esp.Tracer then esp.Tracer.Visible = false end
+                if esp.HealthBarOutline then esp.HealthBarOutline.Visible = false end
+                if esp.HealthBarFill then esp.HealthBarFill.Visible = false end
+                if esp.HealthBarTicks then for _, tick in ipairs(esp.HealthBarTicks) do tick.Visible = false end end
+            end
         end
     end
 end)
 
 Players.PlayerRemoving:Connect(ClearPlayerESP)
 
--- ESP UI Elements
+-- ===== ESP UI Elements =====
 ESPSection:CreateToggle("Normal", {
-    Name = "Enable ESP",
+    Name = "Enable Player ESP",
     Flag = "ESPEnabled",
     CurrentValue = getgenv().ESPEnabled,
     Callback = function(Value)
         getgenv().ESPEnabled = Value
         Config.ESPEnabled = Value
-        if not Value then ClearESPs() end
+        if not Value then
+            for player, _ in pairs(PlayerESPs) do ClearPlayerESP(player) end
+        end
         SaveConfig()
     end,
 })
@@ -780,6 +1066,31 @@ ESPSection:CreateSlider({
     end,
 })
 
+-- SCP ESP Section
+SCPESPSection:CreateToggle("Normal", {
+    Name = "Enable SCP ESP",
+    Flag = "SCPESPEnabled",
+    CurrentValue = getgenv().SCPESPEnabled,
+    Callback = function(Value)
+        getgenv().SCPESPEnabled = Value
+        Config.SCPESPEnabled = Value
+        if not Value then
+            for scp, _ in pairs(SCPESPs) do ClearSCPESP(scp) end
+        end
+        SaveConfig()
+    end,
+})
+
+SCPESPSection:CreateColorPicker({
+    Name = "SCP Color",
+    Callback = function(Color)
+        getgenv().SCPColor = Color
+        Config.SCPColor = Color
+        RebuildAllESPs()
+        SaveConfig()
+    end,
+})
+
 -- Greyscale
 MiscVizSection:CreateToggle("Normal", {
     Name = "Greyscale World",
@@ -801,7 +1112,71 @@ MiscVizSection:CreateToggle("Normal", {
 
 -- ===== Miscellaneous Tab =====
 local ModeratorSection = MiscTab:CreateSection("Moderator Detector", "Normal")
+
 local ModeratorDetectorConnection = nil
+local ModNotifiedPlayers = {}
+
+local function CheckModerators()
+    ModNotifiedPlayers = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local rank = player:GetRankInGroup(game.CreatorId)
+            if rank >= 248 then
+                local role = player:GetRoleInGroup(game.CreatorId)
+                UI:Notify("Warning", {
+                    Title = "Moderator Detector",
+                    Content = player.Name .. " (" .. role .. ") is online",
+                    Duration = 5,
+                    Image = "rbxassetid://4483362458",
+                })
+                ModNotifiedPlayers[player] = true
+            end
+        end
+    end
+end
+
+local function EnableModeratorDetector()
+    if ModeratorDetectorConnection then return end
+
+    CheckModerators()
+
+    ModeratorDetectorConnection = Players.PlayerAdded:Connect(function(player)
+        if player ~= LocalPlayer then
+            local rank = player:GetRankInGroup(game.CreatorId)
+            if rank >= 248 then
+                local role = player:GetRoleInGroup(game.CreatorId)
+                UI:Notify("Warning", {
+                    Title = "Moderator Detector",
+                    Content = player.Name .. " (" .. role .. ") joined",
+                    Duration = 5,
+                    Image = "rbxassetid://4483362458",
+                })
+                ModNotifiedPlayers[player] = true
+            end
+        end
+    end)
+
+    UI:Notify("Normal", {
+        Title = "Moderator Detector",
+        Content = "Enabled",
+        Duration = 3,
+        Image = "rbxassetid://4483362458",
+    })
+end
+
+local function DisableModeratorDetector()
+    if ModeratorDetectorConnection then
+        ModeratorDetectorConnection:Disconnect()
+        ModeratorDetectorConnection = nil
+        ModNotifiedPlayers = {}
+    end
+    UI:Notify("Warning", {
+        Title = "Moderator Detector",
+        Content = "Disabled",
+        Duration = 3,
+        Image = "rbxassetid://4483362458",
+    })
+end
 
 ModeratorSection:CreateToggle("Normal", {
     Name = "Enable Moderator Detector",
@@ -811,44 +1186,21 @@ ModeratorSection:CreateToggle("Normal", {
         getgenv().ModeratorDetector = Value
         Config.ModeratorDetector = Value
         if Value then
-            ModeratorDetectorConnection = Players.PlayerAdded:Connect(function(player)
-                local rank = player:GetRankInGroup(game.CreatorId)
-                if rank >= 248 then
-                    local role = player:GetRoleInGroup(game.CreatorId)
-                    UI:Notify("Warning", {
-                        Title = "Moderator Detector",
-                        Content = player.Name .. " (" .. role .. ") joined",
-                        Duration = 5,
-                        Image = "rbxassetid://4483362458",
-                    })
-                end
-            end)
-            UI:Notify("Normal", {
-                Title = "Moderator Detector",
-                Content = "Enabled",
-                Duration = 3,
-                Image = "rbxassetid://4483362458",
-            })
+            EnableModeratorDetector()
         else
-            if ModeratorDetectorConnection then
-                ModeratorDetectorConnection:Disconnect()
-                ModeratorDetectorConnection = nil
-            end
-            UI:Notify("Warning", {
-                Title = "Moderator Detector",
-                Content = "Disabled",
-                Duration = 3,
-                Image = "rbxassetid://4483362458",
-            })
+            DisableModeratorDetector()
         end
         SaveConfig()
     end,
 })
 
+if getgenv().ModeratorDetector then
+    EnableModeratorDetector()
+end
+
 -- ===== Settings Tab =====
 local SettingsSection = SettingsTab:CreateSection("UI & Configuration", "Normal")
 
--- Keybind to toggle UI
 SettingsSection:CreateKeybind({
     Name = "Toggle UI",
     Flag = "UIToggleKey",
@@ -861,12 +1213,10 @@ SettingsSection:CreateKeybind({
 
 SettingsSection:CreateDivider()
 
--- Load Configuration
 SettingsSection:CreateButton({
     Name = "Load Configuration",
     Callback = function()
         LoadConfig()
-        -- Apply loaded config to globals
         getgenv().ESPEnabled = Config.ESPEnabled
         getgenv().HighlightEnabled = Config.HighlightEnabled
         getgenv().BoxEnabled = Config.BoxEnabled
@@ -875,6 +1225,8 @@ SettingsSection:CreateButton({
         getgenv().TracerEnabled = Config.TracerEnabled
         getgenv().HealthBarEnabled = Config.HealthBarEnabled
         getgenv().ESPRange = Config.ESPRange
+        getgenv().SCPESPEnabled = Config.SCPESPEnabled
+        getgenv().SCPColor = Config.SCPColor
         getgenv().SilentAimEnabled = Config.SilentAimEnabled
         getgenv().SilentAimWallCheck = Config.SilentAimWallCheck
         getgenv().SilentAimHitPart = Config.SilentAimHitPart
@@ -882,8 +1234,10 @@ SettingsSection:CreateButton({
         getgenv().FOVCircleEnabled = Config.FOVCircleEnabled
         getgenv().FOVRadius = Config.FOVRadius
         getgenv().FOVColor = Config.FOVColor
+        getgenv().SCPSilentAimEnabled = Config.SCPSilentAimEnabled
         getgenv().ModeratorDetector = Config.ModeratorDetector
-        if getgenv().ESPEnabled then RebuildAllESPs() end
+        RebuildAllESPs()
+        if getgenv().ModeratorDetector then EnableModeratorDetector() else DisableModeratorDetector() end
         UI:Notify("Normal", {
             Title = "Config Loaded",
             Content = "Settings loaded successfully.",
@@ -893,7 +1247,6 @@ SettingsSection:CreateButton({
     end,
 })
 
--- Reset to Default
 SettingsSection:CreateButton({
     Name = "Reset to Default",
     Callback = function()
