@@ -353,7 +353,7 @@ SilentAimSection:CreateDropdown({
     Name = "Hit Part",
     Options = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"},
     Flag = "SilentAimHitPart",
-    CurrentOption = {getgenv().SilentAimHitPart},
+    CurrentOption = getgenv().SilentAimHitPart, -- fixed: not a table
     MultipleOptions = false,
     Callback = function(Option)
         local val = typeof(Option) == "table" and Option[1] or Option
@@ -1087,10 +1087,6 @@ local function ToggleFly(enable)
     SaveConfig()
 end
 
-FlyKeybindCallback = function()
-    ToggleFly(not FlyActive)
-end
-
 -- ----- UI for Character Modifications -----
 CharModSection:CreateToggle("Normal", {
     Name = "Enable Movement Spoof",
@@ -1144,7 +1140,7 @@ CharModSection:CreateToggle("Normal", {
 
 CharModSection:CreateDivider()
 
-CharModSection:CreateToggle("Normal", {
+local FlyToggle = CharModSection:CreateToggle("Normal", {
     Name = "Fly Mode",
     Flag = "FlyEnabled",
     CurrentValue = getgenv().FlyEnabled or false,
@@ -1162,6 +1158,11 @@ CharModSection:CreateSlider({
         SaveConfig()
     end,
 })
+FlyKeybindCallback = function()
+    local newState = not FlyActive
+    ToggleFly(newState)
+    FlyToggle:SetToggle(newState)  -- sync UI toggle
+end
 CharModSection:CreateKeybind({
     Name = "Toggle Fly Keybind",
     Keybind = "F",
@@ -1234,6 +1235,8 @@ SettingsSection:CreateButton({
         else
             if FlyActive then ToggleFly(false) end
         end
+        -- Sync UI toggle state
+        FlyToggle:SetToggle(getgenv().FlyEnabled)
         UI:Notify("Normal", { Title = "Config Loaded", Content = "Settings loaded successfully.", Duration = 5, Image = "rbxassetid://4483362458" })
     end,
 })
