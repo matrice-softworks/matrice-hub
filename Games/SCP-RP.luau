@@ -1,24 +1,21 @@
 -- =============================================================
 --  SCP: Roleplay – Example UI using AuraIS
---  Uses assets from Matrice/Assets/ (downloaded via Update)
 -- =============================================================
 
--- The library is already loaded by the loader into Matrice.UI
 local AuraIS = Matrice.UI
 local Library
 
--- Helper to get asset paths
 local function Asset(name)
     return Matrice.Asset(name .. ".png")
 end
 
--- Create the main window
+-- Create main window
 Library = AuraIS:CreateLibrary({
     Name = "Matrice · SCP:RP",
-    Icon = Asset("matrice")   -- window icon
+    Icon = Asset("matrice")
 })
 
--- Add advertisements (optional)
+-- Ads
 Library:CreateAdvertisement(
     "Matrice Hub",
     Asset("matrice-softworks"),
@@ -36,12 +33,14 @@ Library:CreateAdvertisement(
 -- =============================================================
 --  CREATE TABS
 -- =============================================================
-
 local CombatTab   = Library:CreateTab("Combat",   Asset("crosshair"))
 local VisualsTab  = Library:CreateTab("Visuals",  Asset("palette"))
 local PlayerTab   = Library:CreateTab("Player",   Asset("user-shield"))
 local MiscTab     = Library:CreateTab("Misc",     Asset("toolbox"))
 local SettingsTab = Library:CreateTab("Settings", Asset("settings"))
+
+-- ✅ Activate the first tab so content appears
+Library:SwitchTab()
 
 -- =============================================================
 --  COMBAT TAB
@@ -50,7 +49,6 @@ local CombatGeneral = CombatTab:CreateSection("General", "Normal")
 local CombatAimbot   = CombatTab:CreateSection("Aimbot",   "Foldable")
 local CombatTrigger  = CombatTab:CreateSection("Triggerbot", "Foldable")
 
--- Toggle: Silent Aim
 CombatGeneral:CreateToggle("Normal", {
     Name = "Silent Aim",
     Flag = "SilentAim",
@@ -59,7 +57,6 @@ CombatGeneral:CreateToggle("Normal", {
     end
 })
 
--- Slider: FOV
 CombatGeneral:CreateSlider({
     Name = "Aim FOV",
     Value = {1, 360},
@@ -72,7 +69,6 @@ CombatGeneral:CreateSlider({
     end
 })
 
--- Keybind: Aim key
 CombatGeneral:CreateKeybind({
     Name = "Aim Key",
     Flag = "AimKey",
@@ -83,7 +79,6 @@ CombatGeneral:CreateKeybind({
     end
 })
 
--- Toggle: Triggerbot
 CombatTrigger:CreateToggle("Normal", {
     Name = "Triggerbot",
     Flag = "Triggerbot",
@@ -92,7 +87,6 @@ CombatTrigger:CreateToggle("Normal", {
     end
 })
 
--- Slider: Trigger delay
 CombatTrigger:CreateSlider({
     Name = "Trigger Delay",
     Value = {0, 500},
@@ -112,35 +106,30 @@ local VisualsESP   = VisualsTab:CreateSection("ESP", "Normal")
 local VisualsChams = VisualsTab:CreateSection("Chams", "Foldable")
 local VisualsWorld = VisualsTab:CreateSection("World", "Foldable")
 
--- Toggle: Box ESP
 VisualsESP:CreateToggle("Normal", {
     Name = "Box ESP",
     Flag = "BoxESP",
     Callback = function(v) print("Box ESP " .. (v and "ON" or "OFF")) end
 })
 
--- Toggle: Skeleton ESP
 VisualsESP:CreateToggle("Normal", {
     Name = "Skeleton ESP",
     Flag = "SkeletonESP",
     Callback = function(v) print("Skeleton ESP " .. (v and "ON" or "OFF")) end
 })
 
--- Toggle: Health Bars
 VisualsESP:CreateToggle("Normal", {
     Name = "Health Bars",
     Flag = "HealthBars",
     Callback = function(v) print("Health Bars " .. (v and "ON" or "OFF")) end
 })
 
--- Toggle: Tracers
 VisualsESP:CreateToggle("Normal", {
     Name = "Tracers",
     Flag = "Tracers",
     Callback = function(v) print("Tracers " .. (v and "ON" or "OFF")) end
 })
 
--- Color Picker: ESP Color
 VisualsESP:CreateColorPicker({
     Name = "ESP Color",
     Callback = function(color)
@@ -148,14 +137,12 @@ VisualsESP:CreateColorPicker({
     end
 })
 
--- Toggle: Chams
 VisualsChams:CreateToggle("Normal", {
     Name = "Chams",
     Flag = "Chams",
     Callback = function(v) print("Chams " .. (v and "ON" or "OFF")) end
 })
 
--- Dropdown: Chams Material
 VisualsChams:CreateDropdown({
     Name = "Chams Material",
     Options = {"ForceField", "Glass", "Neon", "Plastic"},
@@ -166,7 +153,6 @@ VisualsChams:CreateDropdown({
     end
 })
 
--- Toggle: Greyscale World
 VisualsWorld:CreateToggle("Normal", {
     Name = "Greyscale World",
     Flag = "GreyscaleWorld",
@@ -179,7 +165,6 @@ VisualsWorld:CreateToggle("Normal", {
 local PlayerGeneral = PlayerTab:CreateSection("General", "Normal")
 local PlayerMods    = PlayerTab:CreateSection("Moderator Detector", "Foldable")
 
--- Toggle: Show moderators
 PlayerMods:CreateToggle("Normal", {
     Name = "Detect Moderators",
     Flag = "ModDetect",
@@ -188,7 +173,6 @@ PlayerMods:CreateToggle("Normal", {
     end
 })
 
--- Textbox: Custom name
 PlayerGeneral:CreateTextbox({
     Name = "Your Name Override",
     PlaceholderText = "Enter custom name",
@@ -198,7 +182,6 @@ PlayerGeneral:CreateTextbox({
     end
 })
 
--- Button: Teleport to player (placeholder)
 PlayerGeneral:CreateButton({
     Name = "Teleport to Player",
     Callback = function()
@@ -216,7 +199,6 @@ PlayerGeneral:CreateButton({
 local MiscGeneral = MiscTab:CreateSection("General", "Normal")
 local MiscAds     = MiscTab:CreateSection("Advertisements", "Foldable")
 
--- Button: Copy Discord link
 MiscGeneral:CreateButton({
     Name = "Copy Discord Link",
     Callback = function()
@@ -230,12 +212,10 @@ MiscGeneral:CreateButton({
     end
 })
 
--- Label
 MiscAds:CreateLabel({
     Description = "Support us by checking our ads below!"
 })
 
--- Card example (shows an ad)
 MiscAds:CreateCard({
     Title = "Matrice Hub",
     Description = "Best SCP:RP scripts",
@@ -275,7 +255,6 @@ MiscAds:CreateCard({
 local SettingsGeneral = SettingsTab:CreateSection("General", "Normal")
 local SettingsConfig  = SettingsTab:CreateSection("Configuration", "Foldable")
 
--- Toggle: Show UI on startup
 SettingsGeneral:CreateToggle("Normal", {
     Name = "Show UI on Startup",
     Flag = "ShowUIOnStartup",
@@ -285,7 +264,6 @@ SettingsGeneral:CreateToggle("Normal", {
     end
 })
 
--- Button: Reset all settings
 SettingsConfig:CreateButton({
     Name = "Reset All Settings",
     Callback = function()
@@ -297,7 +275,6 @@ SettingsConfig:CreateButton({
                 {
                     Name = "Yes",
                     Callback = function()
-                        -- Reset config logic would go here
                         print("Settings reset!")
                     end
                 },
@@ -312,11 +289,9 @@ SettingsConfig:CreateButton({
     end
 })
 
--- Button: Save config
 SettingsConfig:CreateButton({
     Name = "Save Configuration",
     Callback = function()
-        -- Normally would call a save function
         AuraIS:Notify("Normal", {
             Title = "Saved",
             Content = "Configuration saved successfully!",
@@ -335,12 +310,5 @@ AuraIS:Notify("Normal", {
     Duration = 4,
     Image = Asset("matrice")
 })
-
--- =============================================================
---  KEYBIND: TOGGLE UI (optional)
--- =============================================================
--- You can add a global keybind to toggle the UI using AuraIS:ToggleUI()
--- For example, bind it to a key using the UserInputService if desired.
--- Not included here for simplicity.
 
 print("SCP:RP UI loaded.")

@@ -136,6 +136,47 @@ function Matrice.Update()
 
     Matrice.IsUpdating = true
 
+    -- 1. Fetch remote Versions.json FIRST (small, cheap request)
+    local VersionSuccess, VersionContent =
+        pcall(
+            game.HttpGet,
+            game,
+            Matrice.Source .. "Versions.json"
+        )
+
+    if not VersionSuccess or not VersionContent then
+        Matrice.IsUpdating = false
+        return false, "Failed to fetch remote Versions.json"
+    end
+
+    local DecodeSuccess, RemoteVersion = pcall(
+        HttpService.JSONDecode,
+        HttpService,
+        VersionContent
+    )
+
+    if not DecodeSuccess or not RemoteVersion or not RemoteVersion.Matrice then
+        Matrice.IsUpdating = false
+        return false, "Invalid Versions.json format"
+    end
+
+    -- 2. Compare with local version (if any)
+    local LocalVersion = Matrice.Version()
+    local LocalVerStr = LocalVersion and LocalVersion.Matrice and LocalVersion.Matrice.Version
+    local RemoteVerStr = RemoteVersion.Matrice.Version
+
+    if LocalVerStr == RemoteVerStr then
+        -- No version change – skip full tree fetch, but save remote version anyway
+        pcall(
+            writefile,
+            "Matrice/Versions.json",
+            HttpService:JSONEncode(RemoteVersion)
+        )
+        Matrice.IsUpdating = false
+        return false, "Already up to date (version " .. RemoteVerStr .. ")"
+    end
+
+    -- 3. Version differs – now fetch the full tree (heavy request)
     local TreeUrl =
         "https://api.github.com/repos/matrice-softworks/matrice-hub/git/trees/"
         .. Branch
@@ -173,6 +214,7 @@ function Matrice.Update()
         return false, "Missing 'tree' field in API response"
     end
 
+    -- 4. SHA cache handling (branch-aware)
     local SHAInfo = {
         Branch = Branch,
         Files = {}
@@ -200,6 +242,7 @@ function Matrice.Update()
         end
     end
 
+    -- 5. Build remote file set for deletion detection
     local RemoteFiles = {}
 
     for _, File in ipairs(Tree.tree) do
@@ -208,6 +251,7 @@ function Matrice.Update()
         end
     end
 
+    -- 6. Clean up deleted files
     for Path,_ in pairs(SHAInfo.Files) do
         if not RemoteFiles[Path] then
             local DeletePath =
@@ -221,6 +265,7 @@ function Matrice.Update()
         end
     end
 
+    -- 7. Identify changed files
     local Changed = {}
 
     for _, File in ipairs(Tree.tree) do
@@ -239,6 +284,7 @@ function Matrice.Update()
         end
     end
 
+    -- 8. Download changed files
     local Downloaded = 0
     local Failed = {}
 
@@ -304,6 +350,7 @@ function Matrice.Update()
         end
     end
 
+    -- 9. Save SHA cache
     pcall(
         makefolder,
         "Matrice"
@@ -315,33 +362,12 @@ function Matrice.Update()
         HttpService:JSONEncode(SHAInfo)
     )
 
-    local RemoteVersion
-
-    local VersionSuccess, VersionContent =
-        pcall(
-            game.HttpGet,
-            game,
-            Matrice.Source .. "Versions.json"
-        )
-
-    if VersionSuccess and VersionContent then
-        local Decode, Data =
-            pcall(
-                HttpService.JSONDecode,
-                HttpService,
-                VersionContent
-            )
-
-        if Decode then
-            RemoteVersion = Data
-
-            pcall(
-                writefile,
-                "Matrice/Versions.json",
-                HttpService:JSONEncode(Data)
-            )
-        end
-    end
+    -- 10. Save remote version locally
+    pcall(
+        writefile,
+        "Matrice/Versions.json",
+        HttpService:JSONEncode(RemoteVersion)
+    )
 
     Matrice.IsUpdating = false
 
@@ -355,9 +381,11 @@ function Matrice.Update()
     end
 
     return true,
-        "Updated "
+        "Updated to version "
+        .. RemoteVerStr
+        .. " ("
         .. tostring(Downloaded)
-        .. " files"
+        .. " files changed)"
 end
 
 local Updated, UpdateMessage =
