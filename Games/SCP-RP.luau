@@ -301,14 +301,4 @@ SettingsConfig:CreateButton({
     end
 })
 
--- =============================================================
---  WELCOME NOTIFICATION
--- =============================================================
-AuraIS:Notify("Normal", {
-    Title = "Matrice v" .. (Matrice.Version or "0.1.0"),
-    Content = "SCP: Roleplay UI loaded successfully!",
-    Duration = 4,
-    Image = Asset("matrice")
-})
-
 print("SCP:RP UI loaded.")
