@@ -996,7 +996,7 @@ function _:CreateDropdown(aX)
 		end
 	end
 
-	UpdateSelectedText()  -- initial
+	UpdateSelectedText()
 
 	aY.BackgroundTransparency = 1
 	aY.UIStroke.Transparency = 1
@@ -1092,8 +1092,10 @@ function _:CreateDropdown(aX)
 
 		b4.Interact.MouseButton1Click:Connect(function()
 			PlayClick()
+
+			-- Toggle selection
 			if not aX.MultipleOptions and table.find(CurrentOption, b3) then
-				return
+				return  -- already selected, do nothing
 			end
 
 			if table.find(CurrentOption, b3) then
@@ -1105,19 +1107,10 @@ function _:CreateDropdown(aX)
 				table.insert(CurrentOption, b3)
 			end
 
-			-- Update the selected display immediately
+			-- Update the selected text
 			UpdateSelectedText()
 
-			if Flag then
-				Configuration.Dropdowns[Flag] = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
-				SaveConfiguration()
-			end
-
-			local E, F = pcall(function()
-				aX.Callback(aX.MultipleOptions == false and CurrentOption[1] or CurrentOption)
-			end)
-
-			-- Update background highlights
+			-- Update highlight colors
 			for B, b6 in next, aY.List:GetChildren() do
 				if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
 					if table.find(CurrentOption, b6.Name) then
@@ -1128,7 +1121,18 @@ function _:CreateDropdown(aX)
 				end
 			end
 
-			-- Auto‑close for single‑select
+			-- Save configuration
+			if Flag then
+				Configuration.Dropdowns[Flag] = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
+				SaveConfiguration()
+			end
+
+			-- Callback
+			local E, F = pcall(function()
+				aX.Callback(aX.MultipleOptions == false and CurrentOption[1] or CurrentOption)
+			end)
+
+			-- If single-select, close dropdown automatically
 			if not aX.MultipleOptions then
 				task.wait(0.1)
 				local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 45)})
@@ -1145,17 +1149,18 @@ function _:CreateDropdown(aX)
 				TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
 				task.wait(0.35)
 				aY.List.Visible = false
-				a2()  -- update section height
+				a2()
 			end
 		end)
 	end
 
+	-- Initial highlight
 	for B, b6 in next, aY.List:GetChildren() do
 		if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
-			if not table.find(CurrentOption, b6.Name) then
-				b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-			else
+			if table.find(CurrentOption, b6.Name) then
 				b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+			else
+				b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 			end
 		end
 	end
@@ -1168,7 +1173,6 @@ function _:CreateDropdown(aX)
 		if not aX.MultipleOptions then
 			CurrentOption = {CurrentOption[1]}
 		end
-
 		UpdateSelectedText()
 
 		if Flag then
@@ -1182,10 +1186,10 @@ function _:CreateDropdown(aX)
 
 		for B, b6 in next, aY.List:GetChildren() do
 			if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
-				if not table.find(CurrentOption, b6.Name) then
-					b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-				else
+				if table.find(CurrentOption, b6.Name) then
 					b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+				else
+					b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 				end
 			end
 		end
