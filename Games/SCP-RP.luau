@@ -827,6 +827,74 @@ local ModeratorSection = UtilitiesTab:CreateSection("Moderator Detector", "Norma
 
 local ModeratorDetectorConnection = nil
 local ModNotifiedPlayers = {}
+local ShutdownActive = false
+local SavedFeatures = {}
+
+-- Store previous states when turning off all features
+local FeatureKeys = {
+    "ESPEnabled",
+    "HighlightEnabled",
+    "BoxEnabled",
+    "SkeletonEnabled",
+    "ChamsEnabled",
+    "TracerEnabled",
+    "HealthBarEnabled",
+    "SilentAimEnabled",
+    "MovementEnabled",
+    "NoClipEnabled",
+    "FlyEnabled",
+}
+
+local function TurnOffAllFeatures()
+    SavedFeatures = {}
+    for _, key in ipairs(FeatureKeys) do
+        SavedFeatures[key] = getgenv()[key]
+        getgenv()[key] = false
+        Config[key] = false
+    end
+    ShutdownActive = true
+    SaveConfig()
+    -- Stop ESP if it was on
+    if getgenv().ESPEnabled then ClearESPs() end
+    -- Stop movement spoof if active
+    if SpoofActive then MovementSpoof:Disable() end
+    -- Stop NoClip if active
+    if NoClipActive then DisableNoClip() end
+    -- Stop Fly if active
+    if FlyActive then StopFly() end
+    UI:Notify("Warning", {
+        Title = "Features Disabled",
+        Content = "All features have been turned off due to moderator presence.",
+        Duration = 5,
+        Image = Matrice.Asset("circle-alert"),
+    })
+end
+
+local function TurnOnAllFeatures()
+    for key, value in pairs(SavedFeatures) do
+        getgenv()[key] = value
+        Config[key] = value
+    end
+    ShutdownActive = false
+    SavedFeatures = {}
+    SaveConfig()
+    -- Restore ESP if needed
+    if getgenv().ESPEnabled then RebuildAllESPs() end
+    -- Restore movement spoof
+    if getgenv().MovementEnabled then
+        if not SpoofActive then MovementSpoof:Enable(getgenv().Walkspeed, getgenv().Jumppower) end
+    end
+    -- Restore NoClip
+    if getgenv().NoClipEnabled then EnableNoClip() end
+    -- Restore Fly
+    if getgenv().FlyEnabled then StartFly() end
+    UI:Notify("Normal", {
+        Title = "Features Restored",
+        Content = "All features have been turned back on.",
+        Duration = 3,
+        Image = Matrice.Asset("info"),
+    })
+end
 
 local function CheckModerators()
     ModNotifiedPlayers = {}
@@ -835,11 +903,28 @@ local function CheckModerators()
             local rank = player:GetRankInGroup(game.CreatorId)
             if rank >= 248 then
                 local role = player:GetRoleInGroup(game.CreatorId)
-                UI:Notify("Warning", {
+                local notify
+                notify = UI:Notify("Warning", {
                     Title = "Moderator Detector",
                     Content = player.Name .. " (" .. role .. ") is online",
-                    Duration = 5,
+                    Duration = 10,
                     Image = Matrice.Asset("user-shield"),
+                    Actions = {
+                        {
+                            Name = "Leave Game",
+                            Callback = function()
+                                game:Shutdown()
+                            end
+                        },
+                        {
+                            Name = "Turn Off All Features",
+                            Callback = function()
+                                TurnOffAllFeatures()
+                                -- Close notification manually
+                                -- UI:CloseNotification(notify) -- if we had a way
+                            end
+                        }
+                    }
                 })
                 ModNotifiedPlayers[player] = true
             end
@@ -858,13 +943,53 @@ local function EnableModeratorDetector()
                 UI:Notify("Warning", {
                     Title = "Moderator Detector",
                     Content = player.Name .. " (" .. role .. ") joined",
-                    Duration = 5,
+                    Duration = 10,
                     Image = Matrice.Asset("user-shield"),
+                    Actions = {
+                        {
+                            Name = "Leave Game",
+                            Callback = function()
+                                game:Shutdown()
+                            end
+                        },
+                        {
+                            Name = "Turn Off All Features",
+                            Callback = function()
+                                TurnOffAllFeatures()
+                            end
+                        }
+                    }
                 })
                 ModNotifiedPlayers[player] = true
             end
         end
     end)
+    -- Also handle player leaving
+    if not ModNotifiedPlayers._leaveConnection then
+        ModNotifiedPlayers._leaveConnection = Players.PlayerRemoving:Connect(function(player)
+            if ModNotifiedPlayers[player] then
+                ModNotifiedPlayers[player] = nil
+                -- If we had turned off features because of this mod, we could auto-restore, but we'll let user decide.
+                -- Instead we show a notification with restore option.
+                if ShutdownActive then
+                    UI:Notify("Normal", {
+                        Title = "Moderator Left",
+                        Content = "A moderator has left. Do you want to turn all features back on?",
+                        Duration = 10,
+                        Image = Matrice.Asset("info"),
+                        Actions = {
+                            {
+                                Name = "Turn On All Features",
+                                Callback = function()
+                                    TurnOnAllFeatures()
+                                end
+                            }
+                        }
+                    })
+                end
+            end
+        end)
+    end
     UI:Notify("Normal", {
         Title = "Moderator Detector",
         Content = "Enabled",
@@ -877,8 +1002,12 @@ local function DisableModeratorDetector()
     if ModeratorDetectorConnection then
         ModeratorDetectorConnection:Disconnect()
         ModeratorDetectorConnection = nil
-        ModNotifiedPlayers = {}
     end
+    if ModNotifiedPlayers._leaveConnection then
+        ModNotifiedPlayers._leaveConnection:Disconnect()
+        ModNotifiedPlayers._leaveConnection = nil
+    end
+    ModNotifiedPlayers = {}
     UI:Notify("Warning", {
         Title = "Moderator Detector",
         Content = "Disabled",
@@ -1365,14 +1494,24 @@ CharModSection:CreateSlider({
     end,
 })
 
+-- Fly Keybind – only works if Fly is enabled
 CharModSection:CreateKeybind({
     Name = "Fly Toggle",
     Flag = "FlyKeybind",
     Keybind = getgenv().FlyKeybind or "F",
     Type = "Press",
     Callback = function()
-        local newState = not getgenv().FlyEnabled
-        ToggleFly(newState)
+        if getgenv().FlyEnabled then
+            local newState = not getgenv().FlyEnabled
+            ToggleFly(newState)
+        else
+            UI:Notify("Warning", {
+                Title = "Fly Keybind",
+                Content = "Enable Fly toggle first.",
+                Duration = 2,
+                Image = Matrice.Asset("circle-alert"),
+            })
+        end
     end,
 })
 

@@ -82,7 +82,7 @@ function Matrice.Download(Path)
     return true, Content
 end
 
--- Download asset to Matrice/Assets/
+-- Download asset directly to Matrice/Assets/
 function Matrice.DownloadAsset(Path)
     local Content, Error = Matrice.Get(Path)
     if not Content then
@@ -286,6 +286,7 @@ function Matrice.ClearCache()
     Matrice.Create("Matrice/Cache")
 end
 
+-- Updated Update: now downloads assets via GitHub tree
 function Matrice.Update(RemoteVersion, RemoteContent)
     local LocalVersion = Matrice.GetLocalVersion()
 
@@ -308,7 +309,9 @@ function Matrice.Update(RemoteVersion, RemoteContent)
     end
 
     Matrice.ClearCache()
-    Matrice.DownloadAssets() -- download assets on update
+
+    -- Download all assets from GitHub tree
+    Matrice.DownloadAssets()
 
     if RemoteContent then
         Matrice.SaveVersion(RemoteContent)
@@ -382,11 +385,6 @@ else
             Matrice.Version = RemoteVersion.Matrice.Version
         end
     end
-end
-
--- Ensure assets are downloaded if they are missing (e.g., on first run without version change)
-if not isfile("Matrice/Assets/matrice.png") then
-    Matrice.DownloadAssets()
 end
 
 local Success, UI = Matrice.Load("Libraries/AuraIS/Main.luau")
