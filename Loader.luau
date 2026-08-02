@@ -82,6 +82,64 @@ function Matrice.Download(Path)
     return true, Content
 end
 
+-- Download asset directly to Matrice/Assets/
+function Matrice.DownloadAsset(Path)
+    local Content, Error = Matrice.Get(Path)
+    if not Content then
+        return false, Error
+    end
+
+    local AssetPath = "Matrice/Assets/" .. Path
+    local Folder = string.match(AssetPath, "(.+)/[^/]+$")
+    if Folder then
+        local Success, FolderError = Matrice.Create(Folder)
+        if not Success then
+            return false, FolderError
+        end
+    end
+
+    if isfile(AssetPath) then
+        local ReadSuccess, OldContent = pcall(readfile, AssetPath)
+        if ReadSuccess and OldContent == Content then
+            return true, Content
+        end
+    end
+
+    local WriteSuccess, WriteError = pcall(function()
+        writefile(AssetPath, Content)
+    end)
+    if not WriteSuccess then
+        return false, "Failed caching asset " .. Path .. ": " .. tostring(WriteError)
+    end
+
+    return true, Content
+end
+
+-- Fetch GitHub tree and download all files under Assets/
+function Matrice.DownloadAssets()
+    local success, treeData = pcall(function()
+        local response = game:HttpGet("https://api.github.com/repos/matrice-softworks/matrice-hub/git/trees/main?recursive=1")
+        return game:GetService("HttpService"):JSONDecode(response)
+    end)
+
+    if not success or not treeData or not treeData.tree then
+        warn("Failed to fetch repository tree for assets")
+        return
+    end
+
+    for _, item in ipairs(treeData.tree) do
+        if item.type == "blob" and string.sub(item.path, 1, 7) == "Assets/" then
+            local assetPath = string.sub(item.path, 8) -- remove "Assets/"
+            if assetPath ~= "" then
+                local success, err = Matrice.DownloadAsset(assetPath)
+                if not success then
+                    warn("Failed to download asset:", assetPath, err)
+                end
+            end
+        end
+    end
+end
+
 function Matrice.Load(Path)
     local Success, Content = Matrice.Download(Path)
     if not Success then
@@ -228,6 +286,7 @@ function Matrice.ClearCache()
     Matrice.Create("Matrice/Cache")
 end
 
+-- Updated Update: now downloads assets via GitHub tree
 function Matrice.Update(RemoteVersion, RemoteContent)
     local LocalVersion = Matrice.GetLocalVersion()
 
@@ -250,6 +309,9 @@ function Matrice.Update(RemoteVersion, RemoteContent)
     end
 
     Matrice.ClearCache()
+
+    -- Download all assets from GitHub tree
+    Matrice.DownloadAssets()
 
     if RemoteContent then
         Matrice.SaveVersion(RemoteContent)
@@ -350,7 +412,7 @@ Matrice.UI:Notify("Normal", {
     Title = "Matrice v" .. Matrice.Version,
     Content = "Loading " .. Matrice.Game.Info.Name .. "...",
     Duration = 3,
-    Image = Matrice.Asset("Matrice"),
+    Image = Matrice.Asset("matrice"),
 })
 
 local Success, ScriptError = Matrice.Load(Matrice.Game.Script)
@@ -359,7 +421,7 @@ if not Success then
         Title = "Load Failed",
         Content = "Failed to load " .. Matrice.Game.Info.Name .. ": " .. tostring(ScriptError),
         Duration = 5,
-        Image = Matrice.Asset("Matrice"),
+        Image = Matrice.Asset("matrice"),
     })
     return
 end
@@ -370,5 +432,5 @@ Matrice.UI:Notify("Normal", {
     Title = "Matrice v" .. Matrice.Version .. " Loaded",
     Content = "Successfully loaded " .. Matrice.Game.Info.Name,
     Duration = 3,
-    Image = Matrice.Asset("Matrice"),
+    Image = Matrice.Asset("matrice"),
 })
