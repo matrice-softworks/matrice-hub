@@ -1346,7 +1346,8 @@ end
 
 CharModSection:CreateDivider()
 
-CharModSection:CreateToggle("Normal", {
+-- ===== FIX: Store NoClip toggle object reference =====
+local NoClipToggle = CharModSection:CreateToggle("Normal", {
     Name = "Enable NoClip",
     Flag = "NoClipEnabled",
     CurrentValue = getgenv().NoClipEnabled or false,
@@ -1355,27 +1356,15 @@ CharModSection:CreateToggle("Normal", {
     end,
 })
 
--- NoClip Keybind (uses active state)
+-- NoClip Keybind (now uses SetToggle to synchronise)
 CharModSection:CreateKeybind({
     Name = "NoClip Toggle",
     Flag = "NoClipKeybind",
     Keybind = getgenv().NoClipKeybind or "N",
     Type = "Press",
     Callback = function()
-        if getgenv().NoClipEnabled or NoClipActive then
-            if NoClipActive then
-                DisableNoClip()
-            else
-                EnableNoClip()
-            end
-        else
-            UI:Notify("Warning", {
-                Title = "NoClip Keybind",
-                Content = "Enable NoClip toggle first.",
-                Duration = 2,
-                Image = Matrice.Asset("circle-alert"),
-            })
-        end
+        -- Invert the toggle state via SetToggle – this updates UI, config, and calls the callback
+        NoClipToggle:SetToggle(not NoClipToggle.CurrentValue)
     end,
 })
 
@@ -1492,7 +1481,8 @@ end
 
 CharModSection:CreateDivider()
 
-CharModSection:CreateToggle("Normal", {
+-- ===== FIX: Store Fly toggle object reference =====
+local FlyToggle = CharModSection:CreateToggle("Normal", {
     Name = "Enable Fly",
     Flag = "FlyEnabled",
     CurrentValue = getgenv().FlyEnabled or false,
@@ -1516,27 +1506,14 @@ CharModSection:CreateSlider({
     end,
 })
 
--- Fly Keybind (uses active state)
+-- Fly Keybind (now uses SetToggle to synchronise)
 CharModSection:CreateKeybind({
     Name = "Fly Toggle",
     Flag = "FlyKeybind",
     Keybind = getgenv().FlyKeybind or "F",
     Type = "Press",
     Callback = function()
-        if getgenv().FlyEnabled or FlyActive then
-            if FlyActive then
-                StopFly()
-            else
-                StartFly()
-            end
-        else
-            UI:Notify("Warning", {
-                Title = "Fly Keybind",
-                Content = "Enable Fly toggle first.",
-                Duration = 2,
-                Image = Matrice.Asset("circle-alert"),
-            })
-        end
+        FlyToggle:SetToggle(not FlyToggle.CurrentValue)
     end,
 })
 

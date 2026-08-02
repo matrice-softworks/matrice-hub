@@ -82,9 +82,10 @@ function Matrice.Download(Path)
     return true, Content
 end
 
--- Download asset directly to Matrice/Assets/
+-- ===== FIXED: Download asset directly to Matrice/Assets/ =====
 function Matrice.DownloadAsset(Path)
-    local Content, Error = Matrice.Get(Path)
+    -- Request from the Assets/ subfolder on GitHub
+    local Content, Error = Matrice.Get("Assets/" .. Path)
     if not Content then
         return false, Error
     end
@@ -286,7 +287,6 @@ function Matrice.ClearCache()
     Matrice.Create("Matrice/Cache")
 end
 
--- Updated Update: now downloads assets via GitHub tree
 function Matrice.Update(RemoteVersion, RemoteContent)
     local LocalVersion = Matrice.GetLocalVersion()
 
@@ -310,7 +310,7 @@ function Matrice.Update(RemoteVersion, RemoteContent)
 
     Matrice.ClearCache()
 
-    -- Download all assets from GitHub tree
+    -- Download all assets from GitHub tree (now fixed)
     Matrice.DownloadAssets()
 
     if RemoteContent then
