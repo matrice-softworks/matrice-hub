@@ -33,6 +33,7 @@ local Config = {
     Walkspeed = 16,
     Jumppower = 50,
     NoClipEnabled = false,
+    NoClipKeybind = "N",
     FlyEnabled = false,
     FlySpeed = 50,
     FlyKeybind = "F",
@@ -87,6 +88,7 @@ local function ResetConfig()
         Walkspeed = 16,
         Jumppower = 50,
         NoClipEnabled = false,
+        NoClipKeybind = "N",
         FlyEnabled = false,
         FlySpeed = 50,
         FlyKeybind = "F",
@@ -126,6 +128,7 @@ getgenv().MovementEnabled = Config.MovementEnabled
 getgenv().Walkspeed = Config.Walkspeed
 getgenv().Jumppower = Config.Jumppower
 getgenv().NoClipEnabled = Config.NoClipEnabled
+getgenv().NoClipKeybind = Config.NoClipKeybind
 getgenv().FlyEnabled = Config.FlyEnabled
 getgenv().FlySpeed = Config.FlySpeed
 getgenv().FlyKeybind = Config.FlyKeybind
@@ -903,8 +906,7 @@ local function CheckModerators()
             local rank = player:GetRankInGroup(game.CreatorId)
             if rank >= 248 then
                 local role = player:GetRoleInGroup(game.CreatorId)
-                local notify
-                notify = UI:Notify("Warning", {
+                UI:Notify("Warning", {
                     Title = "Moderator Detector",
                     Content = player.Name .. " (" .. role .. ") is online",
                     Duration = 10,
@@ -920,8 +922,6 @@ local function CheckModerators()
                             Name = "Turn Off All Features",
                             Callback = function()
                                 TurnOffAllFeatures()
-                                -- Close notification manually
-                                -- UI:CloseNotification(notify) -- if we had a way
                             end
                         }
                     }
@@ -969,8 +969,6 @@ local function EnableModeratorDetector()
         ModNotifiedPlayers._leaveConnection = Players.PlayerRemoving:Connect(function(player)
             if ModNotifiedPlayers[player] then
                 ModNotifiedPlayers[player] = nil
-                -- If we had turned off features because of this mod, we could auto-restore, but we'll let user decide.
-                -- Instead we show a notification with restore option.
                 if ShutdownActive then
                     UI:Notify("Normal", {
                         Title = "Moderator Left",
@@ -1357,6 +1355,30 @@ CharModSection:CreateToggle("Normal", {
     end,
 })
 
+-- NoClip Keybind (uses active state)
+CharModSection:CreateKeybind({
+    Name = "NoClip Toggle",
+    Flag = "NoClipKeybind",
+    Keybind = getgenv().NoClipKeybind or "N",
+    Type = "Press",
+    Callback = function()
+        if getgenv().NoClipEnabled or NoClipActive then
+            if NoClipActive then
+                DisableNoClip()
+            else
+                EnableNoClip()
+            end
+        else
+            UI:Notify("Warning", {
+                Title = "NoClip Keybind",
+                Content = "Enable NoClip toggle first.",
+                Duration = 2,
+                Image = Matrice.Asset("circle-alert"),
+            })
+        end
+    end,
+})
+
 if getgenv().NoClipEnabled then
     EnableNoClip()
 end
@@ -1494,16 +1516,19 @@ CharModSection:CreateSlider({
     end,
 })
 
--- Fly Keybind – only works if Fly is enabled
+-- Fly Keybind (uses active state)
 CharModSection:CreateKeybind({
     Name = "Fly Toggle",
     Flag = "FlyKeybind",
     Keybind = getgenv().FlyKeybind or "F",
     Type = "Press",
     Callback = function()
-        if getgenv().FlyEnabled then
-            local newState = not getgenv().FlyEnabled
-            ToggleFly(newState)
+        if getgenv().FlyEnabled or FlyActive then
+            if FlyActive then
+                StopFly()
+            else
+                StartFly()
+            end
         else
             UI:Notify("Warning", {
                 Title = "Fly Keybind",
@@ -1562,6 +1587,7 @@ SettingsSection:CreateButton({
         getgenv().Walkspeed = Config.Walkspeed
         getgenv().Jumppower = Config.Jumppower
         getgenv().NoClipEnabled = Config.NoClipEnabled
+        getgenv().NoClipKeybind = Config.NoClipKeybind
         getgenv().FlyEnabled = Config.FlyEnabled
         getgenv().FlySpeed = Config.FlySpeed
         getgenv().FlyKeybind = Config.FlyKeybind
