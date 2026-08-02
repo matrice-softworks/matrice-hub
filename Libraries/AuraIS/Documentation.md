@@ -1,8 +1,7 @@
 # Aura Interface Suite (AuraIS)
 
-> A powerful, feature-rich UI library for Roblox with persistent configuration, smooth animations, and a modern dark theme.
-
-its very pro trust me bro
+> A powerful, feature-rich UI library for Roblox with persistent configuration, smooth animations, and a modern dark theme.  
+> Built for performance, flexibility, and a professional user experience.
 
 ![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/c075d655-f42e-4445-870d-f6579ae0c0b0)
 ![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/53caccd0-2d9f-47f1-bfdd-a109549ff680)
@@ -43,7 +42,7 @@ its very pro trust me bro
 
 ### 1. Import the module:
 ```lua
-local UI = Matrice.UI
+local AuraIS = require(path.to.AuraIS)
 ```
 
 ### 2. Optional: Pre-load assets
@@ -62,7 +61,7 @@ Example:
 ```lua
 local Library = AuraIS:CreateLibrary({
     Name = "Example", -- Window title
-    Icon = "rbxassetid://12974454446" -- Window icon (optional)
+    Icon = "rbxassetid://11432865001" -- Window icon (optional)
 })
 ```
 
@@ -83,7 +82,7 @@ Example:
 ```lua
 local Tab = Library:CreateTab(
     "Hi", -- Title
-    "rbxassetid://12974454446" -- Icon (optional)
+    "rbxassetid://11432859220" -- Icon (optional)
 )
 ```
 
@@ -169,6 +168,7 @@ Button:Remove()
 - Success animation on click
 - Dynamic name and callback updates
 - Clean removal from UI
+- Click sound feedback
 
 ---
 
@@ -224,6 +224,8 @@ RadioToggle:SetToggle(true)
 - Smooth toggle animations
 - Hover effects with size and color changes
 - Error handling with visual feedback
+- Callback wrapped in `task.spawn` to prevent UI blocking
+- Click sound feedback
 
 ---
 
@@ -257,6 +259,7 @@ Keybind:Set("G")
 - Click to rebind (shows "..." while waiting for input)
 - Auto-saves to configuration
 - Visual feedback for key selection
+- Click sound on the keybind box
 
 ---
 
@@ -271,6 +274,7 @@ local Textbox = Section:CreateTextbox({
     Name = "Input Example",
     PlaceholderText = "Enter text here...",
     RemoveTextAfterFocusLost = true, -- Clear after input
+    Flag = "MyInput", -- Optional: saves to Configuration.Inputs
     Callback = function(Text)
         print("User entered: " .. Text)
     end,
@@ -281,12 +285,15 @@ local Textbox = Section:CreateTextbox({
 ```lua
 -- Programmatically set text
 Textbox:Set("New text")
+-- Also updates the saved configuration if Flag is provided.
 ```
 
 **Features:**
 - Auto-resizing input box
 - Placeholder text support
 - Optional text clearing after input
+- **Flag support** – saves to `Configuration.Inputs` for persistence
+- Click sound feedback (on interaction)
 
 ---
 
@@ -320,7 +327,8 @@ Slider:Set(50)
 - Smooth drag interaction
 - Display suffix (e.g., "%", "ms", "Dragons")
 - Auto-saves using Flag
-- Visual progress bar
+- Visual progress bar with theme colour
+- Click sound on drag start
 
 ---
 
@@ -334,7 +342,7 @@ Example:
 local Dropdown = Section:CreateDropdown({
     Name = "Dropdown Example",
     Options = {"Cake", "Pie", "Milkshake", "Cupcake"},
-    CurrentOption = {"Option 1"}, -- Initial selection
+    CurrentOption = "Cake", -- Initial selection (or table for multi)
     MultipleOptions = false, -- true for multi-select
     Flag = "Dropdown1", -- Unique identifier for config saving
     Callback = function(Value)
@@ -355,6 +363,9 @@ Dropdown:Set({"Cake", "Pie"}) -- For multi-select
 - Auto-saves using Flag
 - Animated expand/collapse
 - Hover effects on options
+- **Auto‑callback on load** – if Flag exists, the callback is triggered with the saved value on creation.
+- **Auto‑close** – for single‑select, the dropdown closes automatically after selection.
+- Click sound on interaction.
 
 ---
 
@@ -378,6 +389,7 @@ local ColorPicker = Section:CreateColorPicker({
 - Darkness slider
 - Click and drag to select colors
 - Real-time color updates
+- Rainbow toggle (click the switch for animated cycling)
 
 ---
 
@@ -464,7 +476,7 @@ local Divider = Section:CreateDivider()
 
 ## Notifications
 
-AuraIS provides two notification systems: Side Notifications (toast-style) and Window Notifications (modal-style).
+AuraIS provides two notification systems: Side Notifications (toast-style) and Window Notifications (modal-style). Both support **auto‑close on action** – clicking a button dismisses the notification immediately.
 
 ### Side Notifications
 
@@ -547,7 +559,7 @@ AuraIS:Notify("Error", {
 - Each action appears as a clickable button
 - Auto-sizing based on text length
 - Triggers click sound when pressed
-- Wrapped in pcall for error protection
+- **Auto-close** – clicking any action immediately dismisses the notification (sets duration to 0)
 
 ---
 
@@ -585,6 +597,7 @@ Library:Notify({
 - Custom action buttons
 - Timer display with countdown
 - Auto-dismiss on timer end
+- **Auto-close on action** – button press dismisses immediately
 
 **Actions:**
 - Multiple actions supported
@@ -631,7 +644,7 @@ AuraIS automatically saves and loads UI state using JSON files.
 - Configuration saved to: `[ScriptFolder]/Configurations/UI.json`
 - Automatically loads on library creation
 - Saves on any state change
-- Supports: Toggles, Sliders, Dropdowns, Keybinds
+- Supports: Toggles, Sliders, Dropdowns, Keybinds, Inputs (textboxes)
 
 ### Using Flags:
 ```lua
@@ -658,6 +671,12 @@ local Keybind = Section:CreateKeybind({
     Flag = "MyKeybind", -- This will be saved
     -- ...
 })
+
+-- Textbox with Flag
+local Textbox = Section:CreateTextbox({
+    Flag = "MyInput", -- This will be saved
+    -- ...
+})
 ```
 
 ### Configuration Structure:
@@ -678,6 +697,9 @@ local Keybind = Section:CreateKeybind({
     "Keybinds": {
         "MyKeybind": "F",
         "ActionKey": "G"
+    },
+    "Inputs": {
+        "MyInput": "User entered text"
     }
 }
 ```
@@ -692,11 +714,11 @@ local AuraIS = require(path.to.AuraIS)
 -- Create Library
 local Library = AuraIS:CreateLibrary({
     Name = "My Script",
-    Icon = "rbxassetid://12974454446"
+    Icon = "rbxassetid://11432865001"
 })
 
 -- Create Tab
-local MainTab = Library:CreateTab("Main", "rbxassetid://12974454446")
+local MainTab = Library:CreateTab("Main", "rbxassetid://11432859220")
 
 -- Create Section
 local Settings = MainTab:CreateSection("Settings", "Normal")
@@ -741,3 +763,4 @@ AuraIS:Notify("Normal", {
     Duration = 3
 })
 ```
+

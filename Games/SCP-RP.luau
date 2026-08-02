@@ -33,6 +33,9 @@ local Config = {
     Walkspeed = 16,
     Jumppower = 50,
     NoClipEnabled = false,
+    FlyEnabled = false,
+    FlySpeed = 50,
+    FlyKeybind = "F",
     -- UI
     UIToggleKey = "RightControl",
 }
@@ -84,6 +87,9 @@ local function ResetConfig()
         Walkspeed = 16,
         Jumppower = 50,
         NoClipEnabled = false,
+        FlyEnabled = false,
+        FlySpeed = 50,
+        FlyKeybind = "F",
         UIToggleKey = "RightControl",
     }
     local ok, err = Matrice.ResetConfiguration(CONFIG_FILE)
@@ -120,6 +126,9 @@ getgenv().MovementEnabled = Config.MovementEnabled
 getgenv().Walkspeed = Config.Walkspeed
 getgenv().Jumppower = Config.Jumppower
 getgenv().NoClipEnabled = Config.NoClipEnabled
+getgenv().FlyEnabled = Config.FlyEnabled
+getgenv().FlySpeed = Config.FlySpeed
+getgenv().FlyKeybind = Config.FlyKeybind
 
 LoadConfig()
 
@@ -177,7 +186,7 @@ HomeSection:CreateDivider()
 local InfoSection = HomeTab:CreateSection("Script Information", "Foldable")
 InfoSection:CreateParagraph({
     Title = "About",
-    Description = "This script provides ESP, Silent Aim, Moderator Detection, and Character Modifications (Movement Spoof & NoClip) for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• NoClip / Fly mode\n• Configuration save/load/reset\n• Customizable keybinds"
+    Description = "This script provides ESP, Silent Aim, Moderator Detection, and Character Modifications (Movement Spoof, NoClip, Fly) for SCP: Roleplay.\n\n<b>Features:</b>\n• Full ESP system with multiple visual options\n• Silent Aim with adjustable FOV\n• Moderator/Staff detection\n• Undetected Walkspeed & JumpPower spoof\n• NoClip (disable collisions)\n• Fly mode with keybind and speed control\n• Configuration save/load/reset\n• Customizable keybinds"
 })
 
 -- ===== Combat Tab =====
@@ -898,7 +907,7 @@ if getgenv().ModeratorDetector then
     EnableModeratorDetector()
 end
 
--- ===== Character Modifications Section (formerly Movement) =====
+-- ===== Character Modifications Section =====
 local CharModSection = MiscTab:CreateSection("Character Modifications", "Normal")
 
 -- ===== Movement Spoof (undetected) =====
@@ -1147,29 +1156,94 @@ if getgenv().MovementEnabled then
     ToggleMovement(true)
 end
 
--- ===== NoClip / Fly (part of Character Modifications) =====
+-- ===== NoClip =====
 local NoClipActive = false
 local NoClipConnection = nil
-local NoClipSpeed = 50
 
-local function StartNoClip()
-    if NoClipActive or not LocalPlayer.Character then return end
-    NoClipActive = true
-
-    local function SetCollision(state)
-        local character = LocalPlayer.Character
-        if not character then return end
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = state
-            end
+local function SetNoClip(state)
+    local character = LocalPlayer.Character
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not state
         end
     end
+end
 
-    SetCollision(false)
+local function EnableNoClip()
+    if NoClipActive then return end
+    NoClipActive = true
+    SetNoClip(true)
 
-    NoClipConnection = RunService.Heartbeat:Connect(function()
-        if not NoClipActive or not LocalPlayer.Character then
+    NoClipConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        if NoClipActive then
+            task.wait(0.1)
+            SetNoClip(true)
+        end
+    end)
+
+    UI:Notify("Normal", {
+        Title = "NoClip",
+        Content = "Enabled",
+        Duration = 2,
+        Image = "rbxassetid://4483362458",
+    })
+end
+
+local function DisableNoClip()
+    if not NoClipActive then return end
+    NoClipActive = false
+    SetNoClip(false)
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+    UI:Notify("Warning", {
+        Title = "NoClip",
+        Content = "Disabled",
+        Duration = 2,
+        Image = "rbxassetid://4483362458",
+    })
+end
+
+local function ToggleNoClip(enable)
+    if enable then
+        EnableNoClip()
+    else
+        DisableNoClip()
+    end
+    getgenv().NoClipEnabled = enable
+    Config.NoClipEnabled = enable
+    SaveConfig()
+end
+
+CharModSection:CreateDivider()
+
+CharModSection:CreateToggle("Normal", {
+    Name = "Enable NoClip",
+    Flag = "NoClipEnabled",
+    CurrentValue = getgenv().NoClipEnabled or false,
+    Callback = function(Value)
+        ToggleNoClip(Value)
+    end,
+})
+
+if getgenv().NoClipEnabled then
+    EnableNoClip()
+end
+
+-- ===== Fly =====
+local FlyActive = false
+local FlyConnection = nil
+local FlyCharacterConnection = nil
+local FlySpeed = getgenv().FlySpeed or 50
+
+local function StartFly()
+    if FlyActive or not LocalPlayer.Character then return end
+    FlyActive = true
+
+    FlyConnection = RunService.Heartbeat:Connect(function()
+        if not FlyActive or not LocalPlayer.Character then
             return
         end
         local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -1200,72 +1274,115 @@ local function StartNoClip()
         end
 
         if moveDirection.Magnitude > 0 then
-            moveDirection = moveDirection.Unit * NoClipSpeed
+            moveDirection = moveDirection.Unit * FlySpeed
         end
 
-        root.CFrame = root.CFrame + moveDirection * game:GetService("RunService").Heartbeat:Wait()
+        root.CFrame = root.CFrame + moveDirection * RunService.Heartbeat:Wait()
         root.Velocity = Vector3.new(0, 0, 0)
         root.RotVelocity = Vector3.new(0, 0, 0)
     end)
+
+    FlyCharacterConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        if FlyActive then
+            task.wait(0.1)
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.Velocity = Vector3.new(0, 0, 0)
+                root.RotVelocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end)
+
+    UI:Notify("Normal", {
+        Title = "Fly",
+        Content = "Enabled",
+        Duration = 2,
+        Image = "rbxassetid://4483362458",
+    })
 end
 
-local function StopNoClip()
-    if not NoClipActive then return end
-    NoClipActive = false
-    if NoClipConnection then
-        NoClipConnection:Disconnect()
-        NoClipConnection = nil
+local function StopFly()
+    if not FlyActive then return end
+    FlyActive = false
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if FlyCharacterConnection then
+        FlyCharacterConnection:Disconnect()
+        FlyCharacterConnection = nil
     end
     local character = LocalPlayer.Character
     if character then
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = true
-            end
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.Velocity = Vector3.new(0, 0, 0)
+            root.RotVelocity = Vector3.new(0, 0, 0)
         end
     end
+    UI:Notify("Warning", {
+        Title = "Fly",
+        Content = "Disabled",
+        Duration = 2,
+        Image = "rbxassetid://4483362458",
+    })
 end
 
-local function ToggleNoClip(enable)
+local function ToggleFly(enable)
     if enable then
-        StartNoClip()
+        StartFly()
     else
-        StopNoClip()
+        StopFly()
     end
-    getgenv().NoClipEnabled = enable
-    Config.NoClipEnabled = enable
+    getgenv().FlyEnabled = enable
+    Config.FlyEnabled = enable
     SaveConfig()
 end
 
 CharModSection:CreateDivider()
 
 CharModSection:CreateToggle("Normal", {
-    Name = "Enable NoClip / Fly",
-    Flag = "NoClipEnabled",
-    CurrentValue = getgenv().NoClipEnabled or false,
+    Name = "Enable Fly",
+    Flag = "FlyEnabled",
+    CurrentValue = getgenv().FlyEnabled or false,
     Callback = function(Value)
-        ToggleNoClip(Value)
+        ToggleFly(Value)
     end,
 })
 
 CharModSection:CreateSlider({
-    Name = "Flight Speed",
+    Name = "Fly Speed",
     Value = {10, 200},
     Increment = 5,
     Suffix = "studs/s",
-    CurrentValue = NoClipSpeed,
+    Flag = "FlySpeed",
+    CurrentValue = getgenv().FlySpeed or 50,
     Callback = function(Value)
-        NoClipSpeed = Value
+        FlySpeed = Value
+        getgenv().FlySpeed = Value
+        Config.FlySpeed = Value
+        SaveConfig()
     end,
 })
+
+CharModSection:CreateKeybind({
+    Name = "Fly Toggle",
+    Flag = "FlyKeybind",
+    Keybind = getgenv().FlyKeybind or "F",
+    Type = "Press",
+    Callback = function()
+        local newState = not getgenv().FlyEnabled
+        ToggleFly(newState)
+    end,
+})
+
+if getgenv().FlyEnabled then
+    ToggleFly(true)
+end
 
 CharModSection:CreateLabel({
     Description = "WASD to move, Space to fly up, Shift to fly down."
 })
-
-if getgenv().NoClipEnabled then
-    ToggleNoClip(true)
-end
 
 -- ===== Settings Tab =====
 local SettingsSection = SettingsTab:CreateSection("UI & Configuration", "Normal")
@@ -1306,6 +1423,9 @@ SettingsSection:CreateButton({
         getgenv().Walkspeed = Config.Walkspeed
         getgenv().Jumppower = Config.Jumppower
         getgenv().NoClipEnabled = Config.NoClipEnabled
+        getgenv().FlyEnabled = Config.FlyEnabled
+        getgenv().FlySpeed = Config.FlySpeed
+        getgenv().FlyKeybind = Config.FlyKeybind
         if getgenv().ESPEnabled then RebuildAllESPs() end
         if getgenv().ModeratorDetector then EnableModeratorDetector() else DisableModeratorDetector() end
         if getgenv().MovementEnabled then
@@ -1316,9 +1436,14 @@ SettingsSection:CreateButton({
             if SpoofActive then MovementSpoof:Disable() end
         end
         if getgenv().NoClipEnabled then
-            if not NoClipActive then StartNoClip() end
+            if not NoClipActive then EnableNoClip() end
         else
-            if NoClipActive then StopNoClip() end
+            if NoClipActive then DisableNoClip() end
+        end
+        if getgenv().FlyEnabled then
+            if not FlyActive then StartFly() end
+        else
+            if FlyActive then StopFly() end
         end
         UI:Notify("Normal", {
             Title = "Config Loaded",

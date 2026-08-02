@@ -9,6 +9,7 @@ local Configuration = {
 	Dropdowns = {},
 	Sliders = {},
 	Keybinds = {},
+	Inputs = {},   -- for textboxes
 }
 
 local GetService = game.GetService
@@ -20,10 +21,14 @@ local Players = GetService(game, "Players")
 local CoreGui = cloneref(GetService(game, "CoreGui"))
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
+
+-- ===== Mobile / Emulator detection =====
 local IsMobile = table.find({
 	Enum.Platform.IOS,
 	Enum.Platform.Android,
 }, UserInputService:GetPlatform())
+
+local IsEmulator = IsMobile and UserInputService.KeyboardEnabled   -- true if on mobile + keyboard (e.g., Bluestacks)
 
 if not isfolder(c) then
 	makefolder(c)
@@ -43,6 +48,10 @@ else
 	local Success, Decoded = pcall(HttpService.JSONDecode, HttpService, Content)
 	if Success then
 		Configuration = Decoded
+		-- Ensure Inputs exists in loaded config
+		if not Configuration.Inputs then
+			Configuration.Inputs = {}
+		end
 	end
 end
 
@@ -50,6 +59,7 @@ local function SaveConfiguration()
 	writefile(FilePath, HttpService:JSONEncode(Configuration))
 end
 
+-- Download click sound
 if not isfile(Assets .. "click.ogg") then
 	local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/click.ogg")
 	if Success and Content then
@@ -132,6 +142,9 @@ function e:ToggleUI()
 	end
 end
 
+-- ================================================================
+-- WINDOW NOTIFICATION – auto‑close on action button click
+-- ================================================================
 function e:Notify(x, y)
 	if not currentUIInstance then return end
 	
@@ -153,6 +166,7 @@ function e:Notify(x, y)
 				D.MouseButton1Click:Connect(function()
 					PlayClick()
 					local E, F = pcall(C.Callback)
+					z = 0  -- close notification immediately
 				end)
 			end
 		end
@@ -192,7 +206,7 @@ function e:CreateLibrary(G, H)
 		w.Parent = CoreGui
 	end
 	
-	-- ===== FIX 1: Prevent UI from blocking first‑person camera =====
+	-- FIX: Prevent UI from blocking first‑person camera
 	for _, obj in ipairs(w:GetDescendants()) do
 		pcall(function()
 			if obj:IsA("GuiObject") then
@@ -213,10 +227,10 @@ function e:CreateLibrary(G, H)
 	
 	e:DragFunc(J, w.Main)
 	
+	-- ===== Mobile open button – only on real mobile, not emulators =====
 	if w:FindFirstChild("OpenButton") then
 		w.OpenButton.Icon.Image = I.Icon
-		w.OpenButton.Visible = IsMobile
-		
+		w.OpenButton.Visible = IsMobile and not IsEmulator
 		e:DragFunc(w.OpenButton)
 		w.OpenButton.MouseButton1Click:Connect(function()
 			e:ToggleUI()
@@ -238,22 +252,7 @@ function e:CreateLibrary(G, H)
 		end
 	end)
 	
-	-- ===== FIX 2: Block camera zoom when scrolling over the UI =====
-	UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-		if input.UserInputType == Enum.UserInputType.MouseWheel then
-			local mousePos = UserInputService:GetMouseLocation()
-			if w and w.Main and w.Main.Visible then
-				local absPos = w.Main.AbsolutePosition
-				local absSize = w.Main.AbsoluteSize
-				if mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and
-				   mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y then
-					-- Block the camera zoom
-					input.Handled = true
-				end
-			end
-		end
-	end)
-	-- ================================================================
+	-- SCROLL BLOCKER REMOVED – camera zoom now works as normal.
 	
 	local M = {}
 	
@@ -287,6 +286,7 @@ function e:CreateLibrary(G, H)
 					D.MouseButton1Click:Connect(function()
 						PlayClick()
 						local E, F = pcall(C.Callback)
+						z = 0   -- close on action
 					end)
 				end
 			end
@@ -482,6 +482,9 @@ function e:CreateLibrary(G, H)
 				return div
 			end
 			
+			-- ================================================================
+			-- TOGGLE – with task.spawn callback to prevent UI blocking
+			-- ================================================================
 			function _:CreateToggle(ad, ae)
 				local af = {}
 				local Flag = ae.Flag
@@ -523,18 +526,20 @@ function e:CreateLibrary(G, H)
 						}):Play()
 					end
 					
-					local success, err = pcall(function()
-						ae.Callback(value)
+					-- ===== Callback wrapped in task.spawn =====
+					task.spawn(function()
+						local success, err = pcall(function()
+							ae.Callback(value)
+						end)
+						if not success then
+							TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(103, 0, 0)}):Play()
+							ag.Title.Text = "Error occurred"
+							print("[AuraIS]: An error occurred: " .. tostring(err))
+							task.wait(0.5)
+							ag.Title.Text = ae.Name
+							TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = e.Theme.Dark.SecondaryColor}):Play()
+						end
 					end)
-					
-					if not success then
-						TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(103, 0, 0)}):Play()
-						ag.Title.Text = "Error occurred"
-						print("[AuraIS]: An error occurred: " .. tostring(err))
-						task.wait(0.5)
-						ag.Title.Text = ae.Name
-						TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = e.Theme.Dark.SecondaryColor}):Play()
-					end
 					
 					ae.CurrentValue = value
 				end
@@ -888,6 +893,9 @@ function e:CreateLibrary(G, H)
 				return aN
 			end
 			
+			-- ================================================================
+			-- DROPDOWN – with auto‑callback on load and auto‑close
+			-- ================================================================
 			function _:CreateDropdown(aX)
 				local aY = L.Template.Dropdown:Clone()
 				local Flag = aX.Flag
@@ -897,6 +905,24 @@ function e:CreateLibrary(G, H)
 					Configuration.Dropdowns[Flag] = CurrentOption
 					SaveConfiguration()
 				end
+				
+				-- Normalise to a table and sync with object
+				if typeof(CurrentOption) == "string" then
+					CurrentOption = {CurrentOption}
+				end
+				if not aX.MultipleOptions then
+					CurrentOption = {CurrentOption[1]}
+				end
+				aX.CurrentOption = CurrentOption
+				
+				-- ===== FEATURE 1: Auto‑callback on load (if Flag exists) =====
+				if Flag and Configuration.Dropdowns[Flag] then
+					task.spawn(function()
+						local callbackVal = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
+						pcall(aX.Callback, callbackVal)
+					end)
+				end
+				-- ============================================================
 				
 				if string.find(aX.Name, "closed") then
 					aY.Name = "Dropdown"
@@ -908,13 +934,6 @@ function e:CreateLibrary(G, H)
 				aY.Parent = a0
 				aY.Size = UDim2.new(1, -10, 0, 45)
 				aY.List.Visible = false
-				
-				if typeof(CurrentOption) == "string" then
-					CurrentOption = {CurrentOption}
-				end
-				if not aX.MultipleOptions then
-					CurrentOption = {CurrentOption[1]}
-				end
 				
 				if aX.MultipleOptions then
 					if #CurrentOption == 1 then
@@ -1015,6 +1034,10 @@ function e:CreateLibrary(G, H)
 							table.insert(CurrentOption, b3)
 						end
 						
+						-- Sync object property
+						aX.CurrentOption = CurrentOption
+						
+						-- Update display
 						if aX.MultipleOptions then
 							if #CurrentOption == 1 then
 								aY.Selected.Text = CurrentOption[1]
@@ -1036,6 +1059,7 @@ function e:CreateLibrary(G, H)
 							aX.Callback(aX.MultipleOptions == false and CurrentOption[1] or CurrentOption)
 						end)
 						
+						-- Update highlights
 						for B, b6 in next, aY.List:GetChildren() do
 							if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
 								if table.find(CurrentOption, b6.Name) then
@@ -1045,6 +1069,37 @@ function e:CreateLibrary(G, H)
 								end
 							end
 						end
+						
+						-- ===== FEATURE 2: Auto‑close after selection (single‑select only) =====
+						if not aX.MultipleOptions then
+							task.wait(0.1) -- allow visual feedback
+							local closeTween = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {
+								Size = UDim2.new(1, -10, 0, 45)
+							})
+							closeTween:Play()
+							
+							for B, b2 in next, aY.List:GetChildren() do
+								if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
+									TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
+										BackgroundTransparency = 1
+									}):Play()
+									TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
+										Transparency = 1
+									}):Play()
+									TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
+										TextTransparency = 1
+									}):Play()
+								end
+							end
+							
+							TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {
+								Rotation = 180
+							}):Play()
+							task.wait(0.35)
+							aY.List.Visible = false
+							Debounce = false
+						end
+						-- ========================================================
 					end)
 				end
 				
@@ -1056,6 +1111,7 @@ function e:CreateLibrary(G, H)
 					if not aX.MultipleOptions then
 						CurrentOption = {CurrentOption[1]}
 					end
+					aX.CurrentOption = CurrentOption
 					
 					if aX.MultipleOptions then
 						if #CurrentOption == 1 then
@@ -1081,10 +1137,20 @@ function e:CreateLibrary(G, H)
 				
 				return aX
 			end
+			-- ================================================================
 			
+			-- ================================================================
+			-- TEXTBOX – with Flag support and Configuration.Inputs
+			-- ================================================================
 			function _:CreateTextbox(b8)
 				local aQ = L.Template.Input:Clone()
-				local CurrentValue = ""
+				local Flag = b8.Flag
+				local CurrentValue = Flag and Configuration.Inputs[Flag] or ""
+				
+				if Flag and not Configuration.Inputs[Flag] then
+					Configuration.Inputs[Flag] = CurrentValue
+					SaveConfiguration()
+				end
 				
 				aQ.Name = b8.Name
 				aQ.Title.Text = b8.Name
@@ -1103,6 +1169,12 @@ function e:CreateLibrary(G, H)
 						aQ.InputFrame.InputBox.Text = ""
 					end
 					
+					-- Save to config if Flag present
+					if Flag then
+						Configuration.Inputs[Flag] = text
+						SaveConfiguration()
+					end
+					
 					local E, F = pcall(function()
 						b8.Callback(text)
 					end)
@@ -1119,9 +1191,14 @@ function e:CreateLibrary(G, H)
 				local b8Obj = {}
 				function b8Obj:Set(b9)
 					aQ.InputFrame.InputBox.Text = b9
+					if Flag then
+						Configuration.Inputs[Flag] = b9
+						SaveConfiguration()
+					end
 				end
 				return b8Obj
 			end
+			-- ================================================================
 			
 			function _:CreateParagraph(ba)
 				local bb = L.Template.Paragraph:Clone()
