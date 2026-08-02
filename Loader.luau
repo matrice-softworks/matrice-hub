@@ -118,7 +118,6 @@ function Matrice.Game()
     local Game = Version.Games[Matrice.PlaceId]
 
     if Game and Game.Info and Game.Info.Enabled ~= false then
-        -- Publish check: if Publish is set, compare PlaceVersion
         if Game.Info.Publish then
             if tostring(game.PlaceVersion) ~= tostring(Game.Info.Publish) then
                 return nil
@@ -150,18 +149,28 @@ function Matrice.Update()
 
     if not TreeSuccess then
         Matrice.IsUpdating = false
-        return false, "Failed to fetch GitHub tree"
+        return false, "Failed to fetch GitHub tree (network error)"
     end
 
-    local TreeSuccess, Tree = pcall(
+    local DecodeSuccess, Tree = pcall(
         HttpService.JSONDecode,
         HttpService,
         TreeContent
     )
 
-    if not TreeSuccess or not Tree.tree then
+    if not DecodeSuccess then
         Matrice.IsUpdating = false
-        return false, "Invalid GitHub tree"
+        return false, "Invalid JSON from GitHub API"
+    end
+
+    if Tree.message then
+        Matrice.IsUpdating = false
+        return false, "GitHub API error: " .. Tree.message
+    end
+
+    if not Tree.tree then
+        Matrice.IsUpdating = false
+        return false, "Missing 'tree' field in API response"
     end
 
     local SHAInfo = {
