@@ -981,17 +981,22 @@ function _:CreateDropdown(aX)
 		CurrentOption = {CurrentOption[1]}
 	end
 
-	if aX.MultipleOptions then
-		if #CurrentOption == 1 then
-			aY.Selected.Text = CurrentOption[1]
-		elseif #CurrentOption == 0 then
-			aY.Selected.Text = "None"
+	-- Helper to update the selected text
+	local function UpdateSelectedText()
+		if aX.MultipleOptions then
+			if #CurrentOption == 1 then
+				aY.Selected.Text = CurrentOption[1]
+			elseif #CurrentOption == 0 then
+				aY.Selected.Text = "None"
+			else
+				aY.Selected.Text = #CurrentOption .. " item" .. (#CurrentOption > 1 and "s" or "")
+			end
 		else
-			aY.Selected.Text = #CurrentOption .. " item" .. (#CurrentOption > 1 and "s" or "")
+			aY.Selected.Text = CurrentOption[1] or "None"
 		end
-	else
-		aY.Selected.Text = CurrentOption[1]
 	end
+
+	UpdateSelectedText()  -- initial
 
 	aY.BackgroundTransparency = 1
 	aY.UIStroke.Transparency = 1
@@ -1009,7 +1014,7 @@ function _:CreateDropdown(aX)
 		end
 	end
 
-	local Debounce = false  -- localised
+	local Debounce = false
 
 	aY.Interact.MouseButton1Click:Connect(function()
 		PlayClick()
@@ -1033,17 +1038,13 @@ function _:CreateDropdown(aX)
 			task.wait(0.35)
 			aY.List.Visible = false
 			Debounce = false
-
-			-- Update section height after collapse
-			a2()
-
+			a2()  -- update section height
 		else
 			-- EXPAND
 			aY.List.Visible = true
 			local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 180)})
 			a_:Play()
 
-			-- Continuously update while tween plays
 			local b1 = true
 			task.spawn(function()
 				while b1 do
@@ -1053,7 +1054,6 @@ function _:CreateDropdown(aX)
 			end)
 			a_.Completed:Connect(function()
 				b1 = false
-				-- Final update after tween finishes
 				a2()
 			end)
 
@@ -1105,17 +1105,8 @@ function _:CreateDropdown(aX)
 				table.insert(CurrentOption, b3)
 			end
 
-			if aX.MultipleOptions then
-				if #CurrentOption == 1 then
-					aY.Selected.Text = CurrentOption[1]
-				elseif #CurrentOption == 0 then
-					aY.Selected.Text = "None"
-				else
-					aY.Selected.Text = #CurrentOption .. " item" .. (#CurrentOption > 1 and "s" or "")
-				end
-			else
-				aY.Selected.Text = CurrentOption[1]
-			end
+			-- Update the selected display immediately
+			UpdateSelectedText()
 
 			if Flag then
 				Configuration.Dropdowns[Flag] = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
@@ -1126,6 +1117,7 @@ function _:CreateDropdown(aX)
 				aX.Callback(aX.MultipleOptions == false and CurrentOption[1] or CurrentOption)
 			end)
 
+			-- Update background highlights
 			for B, b6 in next, aY.List:GetChildren() do
 				if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
 					if table.find(CurrentOption, b6.Name) then
@@ -1136,7 +1128,7 @@ function _:CreateDropdown(aX)
 				end
 			end
 
-			-- If single-select, close dropdown automatically
+			-- Auto‑close for single‑select
 			if not aX.MultipleOptions then
 				task.wait(0.1)
 				local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 45)})
@@ -1153,9 +1145,7 @@ function _:CreateDropdown(aX)
 				TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
 				task.wait(0.35)
 				aY.List.Visible = false
-
-				-- Update section height after closing
-				a2()
+				a2()  -- update section height
 			end
 		end)
 	end
@@ -1179,17 +1169,7 @@ function _:CreateDropdown(aX)
 			CurrentOption = {CurrentOption[1]}
 		end
 
-		if aX.MultipleOptions then
-			if #CurrentOption == 1 then
-				aY.Selected.Text = CurrentOption[1]
-			elseif #CurrentOption == 0 then
-				aY.Selected.Text = "None"
-			else
-				aY.Selected.Text = #CurrentOption .. " item" .. (#CurrentOption > 1 and "s" or "")
-			end
-		else
-			aY.Selected.Text = CurrentOption[1]
-		end
+		UpdateSelectedText()
 
 		if Flag then
 			Configuration.Dropdowns[Flag] = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
