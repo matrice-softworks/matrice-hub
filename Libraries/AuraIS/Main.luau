@@ -26,6 +26,7 @@ local IsMobile = table.find({
 }, UserInputService:GetPlatform())
 local IsEmulator = IsMobile and UserInputService.KeyboardEnabled
 
+-- ===== Configuration folder & file =====
 if not isfolder(c) then
 	makefolder(c)
 end
@@ -52,6 +53,7 @@ local function SaveConfiguration()
 	writefile(FilePath, HttpService:JSONEncode(Configuration))
 end
 
+-- ===== Click Sound (direct Roblox asset) =====
 local ClickSound = Instance.new("Sound")
 ClickSound.SoundId = "rbxassetid://4630381528"
 ClickSound.Volume = 0.5
@@ -61,6 +63,7 @@ local function PlayClick()
 	ClickSound:Play()
 end
 
+-- ===== Notification Sound =====
 local NotificationSound = Instance.new("Sound")
 NotificationSound.SoundId = "rbxassetid://255881176"
 NotificationSound.Volume = 0.5
@@ -94,6 +97,7 @@ local e = {
 
 local f = tostring(math.random(1, 100)) .. tostring(math.random(1, 50)) .. tostring(math.random(1, 100))
 
+-- ===== Drag function (v2 style) =====
 function e:DragFunc(g, h)
     h = h or g
     local i = false
@@ -131,11 +135,12 @@ function e:ToggleUI()
 	end
 end
 
+-- ===== Global Notification =====
 function e:Notify(x, y)
 	if not currentUIInstance then return end
 	
 	task.spawn(function()
-		PlayNotification()  
+		PlayNotification()
 		local z = y.Duration or b
 		local A = currentUIInstance.Notifications[x]:Clone()
 		A.Parent = currentUIInstance.Notifications
@@ -182,7 +187,8 @@ function e:CreateLibrary(G, H)
 		Icon = typeof(G) == "table" and G.Icon or H or "rbxassetid://11432865001"
 	}
 	
-	local w = game:GetObjects("rbxassetid://115427779398440")[1]
+	-- NEW UI ASSET ID
+	local w = game:GetObjects("rbxassetid://98597289660761")[1]
 	w.Name = f
 	w.Main.Visible = false
 	w.DisplayOrder = 100
@@ -193,6 +199,7 @@ function e:CreateLibrary(G, H)
 		w.Parent = CoreGui
 	end
 	
+	-- === Modal fix for first‑person camera ===
 	for _, obj in ipairs(w:GetDescendants()) do
 		pcall(function()
 			if obj:IsA("GuiObject") then
@@ -240,11 +247,12 @@ function e:CreateLibrary(G, H)
 	
 	local M = {}
 	
+	-- ===== Library Notification =====
 	function M:Notify(y, N, O, P)
 		if not currentUIInstance then return end
 		
 		task.spawn(function()
-			PlayNotification()  
+			PlayNotification()
 			currentUIInstance.Main.Notifications.Visible = true
 			local z = typeof(y) == "table" and y.Duration or O or b
 			local A = currentUIInstance.Main.Notifications.Template:Clone()
@@ -290,31 +298,25 @@ function e:CreateLibrary(G, H)
 		end)
 	end
 	
+	-- ===== Advertisement System (now using ImageButton) =====
 	local Advertisements = {}
 	local CurrentAdIndex = 1
 	local AdTimer = nil
-	local AdFrame = w.Main:FindFirstChild("Advertisement")
+	local AdButton = w.Main:FindFirstChild("Advertisement")  -- now an ImageButton
 	
 	local function SetAdvertisement(index)
 		if #Advertisements == 0 then
-			if AdFrame then AdFrame.Visible = false end
+			if AdButton then AdButton.Visible = false end
 			return
 		end
 		
 		CurrentAdIndex = ((index - 1) % #Advertisements) + 1
 		local ad = Advertisements[CurrentAdIndex]
-		if AdFrame and ad then
-			AdFrame.Visible = true
-			AdFrame.Image.Image = ad.image
-			AdFrame.Interact.MouseButton1Click:Connect(function()
-				if setclipboard then
-					setclipboard(ad.link)
-					M:Notify("Advertisement", ad.notificationText or "Link copied to clipboard!", 3, {
-						{Name = "OK", Callback = function() end}
-					})
-					PlayClick()
-				end
-			end)
+		if AdButton and ad then
+			AdButton.Visible = true
+			AdButton.Image = ad.image
+			-- Replace any old click connection by clearing and reconnecting (simple approach: use a new connection)
+			-- We'll handle this in CreateAdvertisement by storing a connection variable.
 		end
 	end
 	
@@ -324,14 +326,17 @@ function e:CreateLibrary(G, H)
 		
 		AdTimer = task.spawn(function()
 			while true do
-				task.wait(300)
+				task.wait(300) -- 5 minutes
 				SetAdvertisement(CurrentAdIndex + 1)
 			end
 		end)
 	end
 	
+	-- We'll store the current click connection so we can clean it when the ad changes
+	local CurrentAdConnection = nil
+	
 	function M:CreateAdvertisement(Name, Image, Link, NotificationText)
-		if not AdFrame then return end
+		if not AdButton then return end
 		
 		local ad = {
 			name = Name or "Advertisement",
@@ -345,8 +350,34 @@ function e:CreateLibrary(G, H)
 			SetAdvertisement(1)
 			StartAdRotation()
 		end
+		
+		-- Update the button's click event to point to the latest ad (or use a single connection that checks the current ad)
+		-- Simpler: we'll just connect a new event each time an ad is shown, but we need to avoid stacking connections.
+		-- We'll disconnect the old one and create a new one inside SetAdvertisement.
+		-- But we need to capture the ad correctly.
+		-- Let's refactor: Store a function that gets the current ad from the index.
+		-- We'll clear any previous connection and attach a new one.
+		if CurrentAdConnection then
+			CurrentAdConnection:Disconnect()
+			CurrentAdConnection = nil
+		end
+		
+		-- Attach the click handler to the AdButton (now an ImageButton)
+		CurrentAdConnection = AdButton.MouseButton1Click:Connect(function()
+			if setclipboard then
+				local currentAd = Advertisements[CurrentAdIndex]
+				if currentAd then
+					setclipboard(currentAd.link)
+					M:Notify("Advertisement", currentAd.notificationText, 3, {
+						{Name = "OK", Callback = function() end}
+					})
+					PlayClick()
+				end
+			end
+		end)
 	end
 	
+	-- ===== Tab Management =====
 	local FirstTabCreated = false
 	local FirstTab = nil
 	
