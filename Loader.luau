@@ -2,435 +2,477 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-if getgenv().Matrice and getgenv().Matrice.IsLoaded then
+if getgenv().Matrice and (getgenv().Matrice.IsLoaded or getgenv().Matrice.IsUpdating) then
     warn("Matrice is already running!")
     return
 end
 
-local Players = game:GetService("Players")
-repeat
-    task.wait()
-until Players.LocalPlayer
+local Branch = ... or "main"
 
 getgenv().Matrice = {
-    Source = "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/main/",
+    Source = "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/" .. Branch .. "/",
+
     UI = nil,
     Visuals = nil,
+
+    PlaceId = tostring(game.PlaceId),
+
     IsLoaded = false,
-    Version = nil,
-    Game = nil,
-    GameId = tostring(game.GameId),
+    IsUpdating = false,
 }
 
 local Matrice = getgenv().Matrice
 
-function Matrice.Create(Path)
-    local Current = ""
-    for Segment in string.gmatch(Path, "[^/]+") do
-        Current = Current == "" and Segment or Current .. "/" .. Segment
-        if not isfolder(Current) then
-            local Success, Error = pcall(function()
-                makefolder(Current)
-            end)
-            if not Success then
-                return false, "Failed creating folder " .. Current .. ": " .. tostring(Error)
-            end
-        end
-    end
-    return true
-end
+local HttpService = game:GetService("HttpService")
 
 function Matrice.Get(Path)
-    local Success, Response = pcall(function()
-        return game:HttpGet(Matrice.Source .. Path)
-    end)
-    if not Success or not Response then
-        return nil, "Failed to download " .. Path .. ": " .. tostring(Response)
-    end
-    return Response
-end
-
-function Matrice.Download(Path)
-    local Content, Error = Matrice.Get(Path)
-    if not Content then
-        return false, Error
-    end
-
-    local CachePath = "Matrice/Cache/" .. Path
-    local Folder = string.match(CachePath, "(.+)/[^/]+$")
-    if Folder then
-        local Success, FolderError = Matrice.Create(Folder)
-        if not Success then
-            return false, FolderError
-        end
-    end
-
-    if isfile(CachePath) then
-        local ReadSuccess, OldContent = pcall(readfile, CachePath)
-        if ReadSuccess and OldContent == Content then
-            return true, Content
-        end
-    end
-
-    local WriteSuccess, WriteError = pcall(function()
-        writefile(CachePath, Content)
-    end)
-    if not WriteSuccess then
-        return false, "Failed caching " .. Path .. ": " .. tostring(WriteError)
-    end
-
-    return true, Content
-end
-
--- ===== FIXED: Download asset directly to Matrice/Assets/ =====
-function Matrice.DownloadAsset(Path)
-    -- Request from the Assets/ subfolder on GitHub
-    local Content, Error = Matrice.Get("Assets/" .. Path)
-    if not Content then
-        return false, Error
-    end
-
-    local AssetPath = "Matrice/Assets/" .. Path
-    local Folder = string.match(AssetPath, "(.+)/[^/]+$")
-    if Folder then
-        local Success, FolderError = Matrice.Create(Folder)
-        if not Success then
-            return false, FolderError
-        end
-    end
-
-    if isfile(AssetPath) then
-        local ReadSuccess, OldContent = pcall(readfile, AssetPath)
-        if ReadSuccess and OldContent == Content then
-            return true, Content
-        end
-    end
-
-    local WriteSuccess, WriteError = pcall(function()
-        writefile(AssetPath, Content)
-    end)
-    if not WriteSuccess then
-        return false, "Failed caching asset " .. Path .. ": " .. tostring(WriteError)
-    end
-
-    return true, Content
-end
-
--- Fetch GitHub tree and download all files under Assets/
-function Matrice.DownloadAssets()
-    local success, treeData = pcall(function()
-        local response = game:HttpGet("https://api.github.com/repos/matrice-softworks/matrice-hub/git/trees/main?recursive=1")
-        return game:GetService("HttpService"):JSONDecode(response)
-    end)
-
-    if not success or not treeData or not treeData.tree then
-        warn("Failed to fetch repository tree for assets")
-        return
-    end
-
-    for _, item in ipairs(treeData.tree) do
-        if item.type == "blob" and string.sub(item.path, 1, 7) == "Assets/" then
-            local assetPath = string.sub(item.path, 8) -- remove "Assets/"
-            if assetPath ~= "" then
-                local success, err = Matrice.DownloadAsset(assetPath)
-                if not success then
-                    warn("Failed to download asset:", assetPath, err)
-                end
-            end
-        end
-    end
+    return game:HttpGet(Matrice.Source .. Path)
 end
 
 function Matrice.Load(Path)
-    local Success, Content = Matrice.Download(Path)
-    if not Success then
-        return false, Content
+    local CachePath = "Matrice/Cache/" .. Path
+    local Content
+
+    if isfile(CachePath) then
+        Content = readfile(CachePath)
+    else
+        Content = Matrice.Get(Path)
+
+        local Folder = CachePath:match("(.+)/[^/]+$")
+        if Folder then
+            pcall(makefolder, Folder)
+        end
+
+        pcall(writefile, CachePath, Content)
     end
 
-    local Chunk, CompileError = loadstring(Content, Path)
+    local Chunk, Error = loadstring(Content, Path)
+
     if not Chunk then
-        return false, CompileError
+        error(Error)
     end
 
-    local RunSuccess, Result = pcall(Chunk)
-    if not RunSuccess then
-        return false, Result
+    return Chunk()
+end
+
+function Matrice.Download(Path)
+    local Content = Matrice.Get(Path)
+
+    local CachePath = "Matrice/Cache/" .. Path
+
+    local Folder = CachePath:match("(.+)/[^/]+$")
+
+    if Folder then
+        pcall(makefolder, Folder)
     end
 
-    return true, Result
+    pcall(writefile, CachePath, Content)
+
+    return Content
 end
 
 function Matrice.Asset(Name)
-    local AssetPath = "Matrice/Assets/" .. Name .. ".png"
-    if isfile(AssetPath) then
-        return getcustomasset(AssetPath)
+    local Path = "Matrice/Assets/" .. Name
+
+    if isfile(Path) then
+        return getcustomasset(Path)
     end
+
     return "rbxassetid://12974454446"
 end
 
--- ==== Configuration Helpers ====
-function Matrice.SaveConfiguration(Config, FilePath)
-    local Success, Error = Matrice.Create("Matrice")
-    if not Success then
-        return false, "Failed to create Matrice folder: " .. tostring(Error)
-    end
-
-    local json = game:GetService("HttpService"):JSONEncode(Config)
-    local WriteSuccess, WriteError = pcall(function()
-        writefile("Matrice/" .. FilePath, json)
-    end)
-
-    if not WriteSuccess then
-        return false, "Failed to write config: " .. tostring(WriteError)
-    end
-
-    return true
-end
-
-function Matrice.LoadConfiguration(FilePath)
-    local Path = "Matrice/" .. FilePath
-    if not isfile(Path) then
-        return nil, "Config file not found"
-    end
-
-    local ReadSuccess, Content = pcall(readfile, Path)
-    if not ReadSuccess then
-        return nil, "Failed to read config: " .. tostring(Content)
-    end
-
-    local DecodeSuccess, Data = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(Content)
-    end)
-
-    if not DecodeSuccess then
-        return nil, "Failed to parse config: " .. tostring(Data)
-    end
-
-    return Data
-end
-
-function Matrice.ResetConfiguration(FilePath)
-    local Path = "Matrice/" .. FilePath
-    if not isfile(Path) then
-        return true, "File already removed"
-    end
-
-    local DeleteSuccess, DeleteError = pcall(delfile, Path)
-    if not DeleteSuccess then
-        return false, "Failed to delete config: " .. tostring(DeleteError)
-    end
-
-    return true
-end
--- ==== End Configuration Helpers ====
-
-function Matrice.GetLocalVersion()
-    if not isfile("Matrice/Versions.luau") then
+function Matrice.Version()
+    if not isfile("Matrice/Versions.json") then
         return nil
     end
 
-    local Success, Result = pcall(function()
-        return loadstring(readfile("Matrice/Versions.luau"), "Versions.luau")()
-    end)
+    local Success, Content = pcall(
+        readfile,
+        "Matrice/Versions.json"
+    )
 
-    if Success then
-        return Result
+    if not Success or not Content then
+        return nil
     end
 
-    warn("Failed to load local version:", Result)
+    local Decode, Data = pcall(
+        HttpService.JSONDecode,
+        HttpService,
+        Content
+    )
+
+    if Decode then
+        return Data
+    end
+
     return nil
 end
 
-function Matrice.SaveVersion(Content)
-    local Success, Error = Matrice.Create("Matrice")
-    if not Success then
-        warn("Failed creating Matrice folder:", Error)
-        return false
+function Matrice.Game()
+    local Version = Matrice.Version()
+
+    if not Version or not Version.Games then
+        return nil
     end
 
-    local WriteSuccess, WriteError = pcall(function()
-        writefile("Matrice/Versions.luau", Content)
-    end)
+    local Game = Version.Games[Matrice.PlaceId]
 
-    if not WriteSuccess then
-        warn("Failed saving version:", WriteError)
-        return false
-    end
-
-    return true
-end
-
-function Matrice.DeleteFolder(Path)
-    if not isfolder(Path) then
-        return
-    end
-
-    for _, Item in ipairs(listfiles(Path)) do
-        if isfolder(Item) then
-            Matrice.DeleteFolder(Item)
-            pcall(function()
-                delfolder(Item)
-            end)
-        else
-            pcall(function()
-                delfile(Item)
-            end)
+    if Game and Game.Info and Game.Info.Enabled ~= false then
+        -- Publish check: if Publish is set, compare PlaceVersion
+        if Game.Info.Publish then
+            if tostring(game.PlaceVersion) ~= tostring(Game.Info.Publish) then
+                return nil
+            end
         end
+        return Game
     end
+
+    return nil
 end
 
-function Matrice.ClearCache()
-    if isfolder("Matrice/Cache") then
-        Matrice.DeleteFolder("Matrice/Cache")
+function Matrice.Update()
+    if Matrice.IsUpdating then
+        return false, "Update already running"
     end
 
-    Matrice.Create("Matrice/Cache")
-end
+    Matrice.IsUpdating = true
 
-function Matrice.Update(RemoteVersion, RemoteContent)
-    local LocalVersion = Matrice.GetLocalVersion()
+    local TreeUrl =
+        "https://api.github.com/repos/matrice-softworks/matrice-hub/git/trees/"
+        .. Branch
+        .. "?recursive=1"
 
-    if LocalVersion
-        and LocalVersion.Matrice
-        and LocalVersion.Matrice.Version == RemoteVersion.Matrice.Version
-    then
-        return false
+    local TreeSuccess, TreeContent = pcall(
+        game.HttpGet,
+        game,
+        TreeUrl
+    )
+
+    if not TreeSuccess then
+        Matrice.IsUpdating = false
+        return false, "Failed to fetch GitHub tree"
     end
 
-    if LocalVersion then
-        warn(
-            "Matrice update:",
-            LocalVersion.Matrice.Version,
-            "->",
-            RemoteVersion.Matrice.Version
+    local TreeSuccess, Tree = pcall(
+        HttpService.JSONDecode,
+        HttpService,
+        TreeContent
+    )
+
+    if not TreeSuccess or not Tree.tree then
+        Matrice.IsUpdating = false
+        return false, "Invalid GitHub tree"
+    end
+
+    local SHAInfo = {
+        Branch = Branch,
+        Files = {}
+    }
+
+    if isfile("Matrice/CacheInfo.json") then
+        local Success, Content = pcall(
+            readfile,
+            "Matrice/CacheInfo.json"
         )
-    else
-        warn("First Matrice installation")
-    end
 
-    Matrice.ClearCache()
+        if Success then
+            local Decode, Data = pcall(
+                HttpService.JSONDecode,
+                HttpService,
+                Content
+            )
 
-    -- Download all assets from GitHub tree (now fixed)
-    Matrice.DownloadAssets()
+            if Decode
+                and Data.Branch == Branch
+                and Data.Files then
 
-    if RemoteContent then
-        Matrice.SaveVersion(RemoteContent)
-    end
-
-    return true
-end
-
-function Matrice.GetGame(Manifest)
-    local Game = Manifest.Games and Manifest.Games[Matrice.GameId]
-
-    if not Game then
-        warn("This game is not supported by Matrice.")
-        return nil
-    end
-
-    if Game.Info.Enabled == false then
-        warn(Game.Info.Name .. " is disabled.")
-        return nil
-    end
-
-    Game.Id = Matrice.GameId
-    return Game
-end
-
-local RemoteContent, Error = Matrice.Get("Versions.luau")
-if not RemoteContent then
-    warn("Failed to fetch remote version:", Error)
-    local Cached = Matrice.GetLocalVersion()
-    if not Cached then
-        return
-    end
-    Matrice.Version = Cached.Matrice.Version
-    Matrice.Game = Matrice.GetGame(Cached)
-    if not Matrice.Game then
-        return
-    end
-else
-    local Chunk, CompileError = loadstring(RemoteContent, "Versions.luau")
-    if not Chunk then
-        warn("Failed to compile remote version:", CompileError)
-        local Cached = Matrice.GetLocalVersion()
-        if not Cached then
-            return
+                SHAInfo = Data
+            end
         end
-        Matrice.Version = Cached.Matrice.Version
-        Matrice.Game = Matrice.GetGame(Cached)
-        if not Matrice.Game then
-            return
+    end
+
+    local RemoteFiles = {}
+
+    for _, File in ipairs(Tree.tree) do
+        if File.type == "blob" then
+            RemoteFiles[File.path] = true
         end
-    else
-        local Success, RemoteVersion = pcall(Chunk)
+    end
+
+    for Path,_ in pairs(SHAInfo.Files) do
+        if not RemoteFiles[Path] then
+            local DeletePath =
+                "Matrice/Cache/" .. Path
+
+            if isfile(DeletePath) then
+                pcall(delfile, DeletePath)
+            end
+
+            SHAInfo.Files[Path] = nil
+        end
+    end
+
+    local Changed = {}
+
+    for _, File in ipairs(Tree.tree) do
+        if File.type == "blob" then
+            local OldSHA =
+                SHAInfo.Files[File.path]
+
+            if not OldSHA
+                or OldSHA ~= File.sha then
+
+                table.insert(
+                    Changed,
+                    File
+                )
+            end
+        end
+    end
+
+    local Downloaded = 0
+    local Failed = {}
+
+    for _, File in ipairs(Changed) do
+        local Success = pcall(function()
+            local Content =
+                game:HttpGet(
+                    Matrice.Source .. File.path
+                )
+
+            local CachePath =
+                "Matrice/Cache/" .. File.path
+
+            local Folder =
+                CachePath:match("(.+)/[^/]+$")
+
+            if Folder then
+                pcall(makefolder, Folder)
+            end
+
+            writefile(
+                CachePath,
+                Content
+            )
+
+            if File.path:match("^Assets/") then
+                local AssetName =
+                    File.path:match("^Assets/(.+)$")
+
+                if AssetName then
+                    local AssetPath =
+                        "Matrice/Assets/" .. AssetName
+
+                    local AssetFolder =
+                        AssetPath:match("(.+)/[^/]+$")
+
+                    if AssetFolder then
+                        pcall(
+                            makefolder,
+                            AssetFolder
+                        )
+                    end
+
+                    pcall(
+                        writefile,
+                        AssetPath,
+                        Content
+                    )
+                end
+            end
+
+            SHAInfo.Files[File.path] =
+                File.sha
+
+            Downloaded += 1
+        end)
+
         if not Success then
-            warn("Failed to execute remote version:", RemoteVersion)
-            local Cached = Matrice.GetLocalVersion()
-            if not Cached then
-                return
-            end
-            Matrice.Version = Cached.Matrice.Version
-            Matrice.Game = Matrice.GetGame(Cached)
-            if not Matrice.Game then
-                return
-            end
-        else
-            Matrice.Game = Matrice.GetGame(RemoteVersion)
-            if not Matrice.Game then
-                return
-            end
-
-            Matrice.Update(RemoteVersion, RemoteContent)
-            Matrice.Version = RemoteVersion.Matrice.Version
+            table.insert(
+                Failed,
+                File.path
+            )
         end
     end
+
+    pcall(
+        makefolder,
+        "Matrice"
+    )
+
+    pcall(
+        writefile,
+        "Matrice/CacheInfo.json",
+        HttpService:JSONEncode(SHAInfo)
+    )
+
+    local RemoteVersion
+
+    local VersionSuccess, VersionContent =
+        pcall(
+            game.HttpGet,
+            game,
+            Matrice.Source .. "Versions.json"
+        )
+
+    if VersionSuccess and VersionContent then
+        local Decode, Data =
+            pcall(
+                HttpService.JSONDecode,
+                HttpService,
+                VersionContent
+            )
+
+        if Decode then
+            RemoteVersion = Data
+
+            pcall(
+                writefile,
+                "Matrice/Versions.json",
+                HttpService:JSONEncode(Data)
+            )
+        end
+    end
+
+    Matrice.IsUpdating = false
+
+    if #Failed > 0 then
+        return false,
+            "Failed files: "
+            .. table.concat(
+                Failed,
+                ", "
+            )
+    end
+
+    return true,
+        "Updated "
+        .. tostring(Downloaded)
+        .. " files"
 end
 
-local Success, UI = Matrice.Load("Libraries/AuraIS/Main.luau")
-if not Success then
-    warn("Failed to load UI:", UI)
+local Updated, UpdateMessage =
+    Matrice.Update()
+
+warn(
+    "Matrice:",
+    UpdateMessage
+)
+
+local Version =
+    Matrice.Version()
+
+if not Version then
     pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Matrice Error",
-            Text = "Failed to load UI library",
-            Duration = 5,
-        })
+        game:GetService("StarterGui")
+            :SetCore(
+                "SendNotification",
+                {
+                    Title = "Matrice",
+                    Text = "Missing Versions.json",
+                    Duration = 5
+                }
+            )
     end)
+
     return
 end
-Matrice.UI = UI
 
-local Success, Visuals = Matrice.Load("Libraries/VisualLibrary/Main.luau")
-if Success then
-    Matrice.Visuals = Visuals
-else
-    warn("Visuals library failed to load:", Visuals)
+local Game =
+    Matrice.Game()
+
+if not Game then
+    pcall(function()
+        game:GetService("StarterGui")
+            :SetCore(
+                "SendNotification",
+                {
+                    Title = "Matrice",
+                    Text = "This game is not supported by Matrice.",
+                    Duration = 5
+                }
+            )
+    end)
+
+    return
 end
 
-Matrice.UI:Notify("Normal", {
-    Title = "Matrice v" .. Matrice.Version,
-    Content = "Loading " .. Matrice.Game.Info.Name .. "...",
-    Duration = 3,
-    Image = Matrice.Asset("matrice"),
-})
+Matrice.Game = Game
 
-local Success, ScriptError = Matrice.Load(Matrice.Game.Script)
-if not Success then
-    Matrice.UI:Notify("Error", {
-        Title = "Load Failed",
-        Content = "Failed to load " .. Matrice.Game.Info.Name .. ": " .. tostring(ScriptError),
-        Duration = 5,
-        Image = Matrice.Asset("matrice"),
-    })
+pcall(function()
+    Matrice.UI =
+        Matrice.Load(
+            "Libraries/AuraIS/Main.luau"
+        )
+end)
+
+if not Matrice.UI then
+    pcall(function()
+        game:GetService("StarterGui")
+            :SetCore(
+                "SendNotification",
+                {
+                    Title = "Matrice Error",
+                    Text = "User interface failed to load!",
+                    Duration = 5
+                }
+            )
+    end)
+
+    return
+end
+
+pcall(function()
+    Matrice.Visuals =
+        Matrice.Load(
+            "Libraries/VisualLibrary/Main.luau"
+        )
+end)
+
+local Loaded, Error =
+    pcall(function()
+        Matrice.Load(
+            Game.Script
+        )
+    end)
+
+if not Loaded then
+    Matrice.UI:Notify(
+        "Error",
+        {
+            Title = "Load Failed",
+            Content =
+                "Failed to load "
+                .. Game.Info.Name
+                .. ": "
+                .. tostring(Error),
+            Duration = 5,
+            Image =
+                Matrice.Asset(
+                    "matrice.png"
+                )
+        }
+    )
+
     return
 end
 
 Matrice.IsLoaded = true
 
-Matrice.UI:Notify("Normal", {
-    Title = "Matrice v" .. Matrice.Version .. " Loaded",
-    Content = "Successfully loaded " .. Matrice.Game.Info.Name,
-    Duration = 3,
-    Image = Matrice.Asset("matrice"),
-})
+Matrice.UI:Notify(
+    "Normal",
+    {
+        Title =
+            "Matrice v"
+            .. Version.Matrice.Version
+            .. " Loaded",
+        Content =
+            "Successfully loaded "
+            .. Game.Info.Name,
+        Duration = 5,
+        Image =
+            Matrice.Asset(
+                "matrice.png"
+            )
+    }
+)

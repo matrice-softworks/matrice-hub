@@ -2,14 +2,13 @@ local a = "Alpha 0.1"
 local b = 5
 local c = "AuraIS"
 local Configurations = c .. "/Configurations/"
-local Assets = c .. "/Assets/"
 
 local Configuration = {
 	Toggles = {},
 	Dropdowns = {},
 	Sliders = {},
 	Keybinds = {},
-	Inputs = {},   -- for textboxes
+	Inputs = {},
 }
 
 local GetService = game.GetService
@@ -21,23 +20,17 @@ local Players = GetService(game, "Players")
 local CoreGui = cloneref(GetService(game, "CoreGui"))
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
-
--- ===== Mobile / Emulator detection =====
 local IsMobile = table.find({
 	Enum.Platform.IOS,
 	Enum.Platform.Android,
 }, UserInputService:GetPlatform())
-
-local IsEmulator = IsMobile and UserInputService.KeyboardEnabled   -- true if on mobile + keyboard (e.g., Bluestacks)
+local IsEmulator = IsMobile and UserInputService.KeyboardEnabled
 
 if not isfolder(c) then
 	makefolder(c)
 end
 if not isfolder(Configurations) then
 	makefolder(Configurations)
-end
-if not isfolder(Assets) then
-	makefolder(Assets)
 end
 
 local FilePath = Configurations .. "UI.json"
@@ -48,9 +41,9 @@ else
 	local Success, Decoded = pcall(HttpService.JSONDecode, HttpService, Content)
 	if Success then
 		Configuration = Decoded
-		-- Ensure Inputs exists in loaded config
 		if not Configuration.Inputs then
 			Configuration.Inputs = {}
+			writefile(FilePath, HttpService:JSONEncode(Configuration))
 		end
 	end
 end
@@ -59,23 +52,22 @@ local function SaveConfiguration()
 	writefile(FilePath, HttpService:JSONEncode(Configuration))
 end
 
--- Download click sound
-if not isfile(Assets .. "click.ogg") then
-	local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/click.ogg")
-	if Success and Content then
-		writefile(Assets .. "click.ogg", Content)
-	end
-end
-
 local ClickSound = Instance.new("Sound")
-ClickSound.SoundId = getcustomasset(Assets .. "click.ogg")
+ClickSound.SoundId = "rbxassetid://4630381528"
 ClickSound.Volume = 0.5
 ClickSound.Parent = workspace
 
 local function PlayClick()
-	if isfile(Assets .. "click.ogg") then
-		ClickSound:Play()
-	end
+	ClickSound:Play()
+end
+
+local NotificationSound = Instance.new("Sound")
+NotificationSound.SoundId = "rbxassetid://255881176"
+NotificationSound.Volume = 0.5
+NotificationSound.Parent = workspace
+
+local function PlayNotification()
+	NotificationSound:Play()
 end
 
 local e = {
@@ -102,9 +94,6 @@ local e = {
 
 local f = tostring(math.random(1, 100)) .. tostring(math.random(1, 50)) .. tostring(math.random(1, 100))
 
--- ====================================================================
--- DRAG FUNCTION – v2 style (uses cached UserInputService)
--- ====================================================================
 function e:DragFunc(g, h)
     h = h or g
     local i = false
@@ -142,13 +131,11 @@ function e:ToggleUI()
 	end
 end
 
--- ================================================================
--- WINDOW NOTIFICATION – auto‑close on action button click
--- ================================================================
 function e:Notify(x, y)
 	if not currentUIInstance then return end
 	
 	task.spawn(function()
+		PlayNotification()  
 		local z = y.Duration or b
 		local A = currentUIInstance.Notifications[x]:Clone()
 		A.Parent = currentUIInstance.Notifications
@@ -166,7 +153,7 @@ function e:Notify(x, y)
 				D.MouseButton1Click:Connect(function()
 					PlayClick()
 					local E, F = pcall(C.Callback)
-					z = 0  -- close notification immediately
+					z = 0
 				end)
 			end
 		end
@@ -206,7 +193,6 @@ function e:CreateLibrary(G, H)
 		w.Parent = CoreGui
 	end
 	
-	-- FIX: Prevent UI from blocking first‑person camera
 	for _, obj in ipairs(w:GetDescendants()) do
 		pcall(function()
 			if obj:IsA("GuiObject") then
@@ -227,10 +213,10 @@ function e:CreateLibrary(G, H)
 	
 	e:DragFunc(J, w.Main)
 	
-	-- ===== Mobile open button – only on real mobile, not emulators =====
 	if w:FindFirstChild("OpenButton") then
 		w.OpenButton.Icon.Image = I.Icon
-		w.OpenButton.Visible = IsMobile and not IsEmulator
+		w.OpenButton.Visible = IsMobile
+		
 		e:DragFunc(w.OpenButton)
 		w.OpenButton.MouseButton1Click:Connect(function()
 			e:ToggleUI()
@@ -252,14 +238,13 @@ function e:CreateLibrary(G, H)
 		end
 	end)
 	
-	-- SCROLL BLOCKER REMOVED – camera zoom now works as normal.
-	
 	local M = {}
 	
 	function M:Notify(y, N, O, P)
 		if not currentUIInstance then return end
 		
 		task.spawn(function()
+			PlayNotification()  
 			currentUIInstance.Main.Notifications.Visible = true
 			local z = typeof(y) == "table" and y.Duration or O or b
 			local A = currentUIInstance.Main.Notifications.Template:Clone()
@@ -286,7 +271,7 @@ function e:CreateLibrary(G, H)
 					D.MouseButton1Click:Connect(function()
 						PlayClick()
 						local E, F = pcall(C.Callback)
-						z = 0   -- close on action
+						z = 0
 					end)
 				end
 			end
@@ -303,6 +288,63 @@ function e:CreateLibrary(G, H)
 			A:Destroy()
 			currentUIInstance.Main.Notifications.Visible = false
 		end)
+	end
+	
+	local Advertisements = {}
+	local CurrentAdIndex = 1
+	local AdTimer = nil
+	local AdFrame = w.Main:FindFirstChild("Advertisement")
+	
+	local function SetAdvertisement(index)
+		if #Advertisements == 0 then
+			if AdFrame then AdFrame.Visible = false end
+			return
+		end
+		
+		CurrentAdIndex = ((index - 1) % #Advertisements) + 1
+		local ad = Advertisements[CurrentAdIndex]
+		if AdFrame and ad then
+			AdFrame.Visible = true
+			AdFrame.Image.Image = ad.image
+			AdFrame.Interact.MouseButton1Click:Connect(function()
+				if setclipboard then
+					setclipboard(ad.link)
+					M:Notify("Advertisement", ad.notificationText or "Link copied to clipboard!", 3, {
+						{Name = "OK", Callback = function() end}
+					})
+					PlayClick()
+				end
+			end)
+		end
+	end
+	
+	local function StartAdRotation()
+		if AdTimer then AdTimer:Disconnect() end
+		if #Advertisements <= 1 then return end
+		
+		AdTimer = task.spawn(function()
+			while true do
+				task.wait(300)
+				SetAdvertisement(CurrentAdIndex + 1)
+			end
+		end)
+	end
+	
+	function M:CreateAdvertisement(Name, Image, Link, NotificationText)
+		if not AdFrame then return end
+		
+		local ad = {
+			name = Name or "Advertisement",
+			image = Image or "rbxassetid://11432865001",
+			link = Link or "",
+			notificationText = NotificationText or "Link copied to clipboard!"
+		}
+		table.insert(Advertisements, ad)
+		
+		if #Advertisements == 1 then
+			SetAdvertisement(1)
+			StartAdRotation()
+		end
 	end
 	
 	local FirstTabCreated = false
@@ -482,9 +524,6 @@ function e:CreateLibrary(G, H)
 				return div
 			end
 			
-			-- ================================================================
-			-- TOGGLE – with task.spawn callback to prevent UI blocking
-			-- ================================================================
 			function _:CreateToggle(ad, ae)
 				local af = {}
 				local Flag = ae.Flag
@@ -526,20 +565,18 @@ function e:CreateLibrary(G, H)
 						}):Play()
 					end
 					
-					-- ===== Callback wrapped in task.spawn =====
-					task.spawn(function()
-						local success, err = pcall(function()
-							ae.Callback(value)
-						end)
-						if not success then
-							TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(103, 0, 0)}):Play()
-							ag.Title.Text = "Error occurred"
-							print("[AuraIS]: An error occurred: " .. tostring(err))
-							task.wait(0.5)
-							ag.Title.Text = ae.Name
-							TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = e.Theme.Dark.SecondaryColor}):Play()
-						end
+					local success, err = pcall(function()
+						ae.Callback(value)
 					end)
+					
+					if not success then
+						TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(103, 0, 0)}):Play()
+						ag.Title.Text = "Error occurred"
+						print("[AuraIS]: An error occurred: " .. tostring(err))
+						task.wait(0.5)
+						ag.Title.Text = ae.Name
+						TweenService:Create(ag, e.Theme.Dark.TweenInfo, {BackgroundColor3 = e.Theme.Dark.SecondaryColor}):Play()
+					end
 					
 					ae.CurrentValue = value
 				end
@@ -893,9 +930,6 @@ function e:CreateLibrary(G, H)
 				return aN
 			end
 			
-			-- ================================================================
-			-- DROPDOWN – with auto‑callback on load and auto‑close
-			-- ================================================================
 			function _:CreateDropdown(aX)
 				local aY = L.Template.Dropdown:Clone()
 				local Flag = aX.Flag
@@ -905,24 +939,6 @@ function e:CreateLibrary(G, H)
 					Configuration.Dropdowns[Flag] = CurrentOption
 					SaveConfiguration()
 				end
-				
-				-- Normalise to a table and sync with object
-				if typeof(CurrentOption) == "string" then
-					CurrentOption = {CurrentOption}
-				end
-				if not aX.MultipleOptions then
-					CurrentOption = {CurrentOption[1]}
-				end
-				aX.CurrentOption = CurrentOption
-				
-				-- ===== FEATURE 1: Auto‑callback on load (if Flag exists) =====
-				if Flag and Configuration.Dropdowns[Flag] then
-					task.spawn(function()
-						local callbackVal = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
-						pcall(aX.Callback, callbackVal)
-					end)
-				end
-				-- ============================================================
 				
 				if string.find(aX.Name, "closed") then
 					aY.Name = "Dropdown"
@@ -934,6 +950,13 @@ function e:CreateLibrary(G, H)
 				aY.Parent = a0
 				aY.Size = UDim2.new(1, -10, 0, 45)
 				aY.List.Visible = false
+				
+				if typeof(CurrentOption) == "string" then
+					CurrentOption = {CurrentOption}
+				end
+				if not aX.MultipleOptions then
+					CurrentOption = {CurrentOption[1]}
+				end
 				
 				if aX.MultipleOptions then
 					if #CurrentOption == 1 then
@@ -1034,10 +1057,6 @@ function e:CreateLibrary(G, H)
 							table.insert(CurrentOption, b3)
 						end
 						
-						-- Sync object property
-						aX.CurrentOption = CurrentOption
-						
-						-- Update display
 						if aX.MultipleOptions then
 							if #CurrentOption == 1 then
 								aY.Selected.Text = CurrentOption[1]
@@ -1059,7 +1078,6 @@ function e:CreateLibrary(G, H)
 							aX.Callback(aX.MultipleOptions == false and CurrentOption[1] or CurrentOption)
 						end)
 						
-						-- Update highlights
 						for B, b6 in next, aY.List:GetChildren() do
 							if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
 								if table.find(CurrentOption, b6.Name) then
@@ -1069,37 +1087,6 @@ function e:CreateLibrary(G, H)
 								end
 							end
 						end
-						
-						-- ===== FEATURE 2: Auto‑close after selection (single‑select only) =====
-						if not aX.MultipleOptions then
-							task.wait(0.1) -- allow visual feedback
-							local closeTween = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {
-								Size = UDim2.new(1, -10, 0, 45)
-							})
-							closeTween:Play()
-							
-							for B, b2 in next, aY.List:GetChildren() do
-								if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
-									TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-										BackgroundTransparency = 1
-									}):Play()
-									TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-										Transparency = 1
-									}):Play()
-									TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-										TextTransparency = 1
-									}):Play()
-								end
-							end
-							
-							TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {
-								Rotation = 180
-							}):Play()
-							task.wait(0.35)
-							aY.List.Visible = false
-							Debounce = false
-						end
-						-- ========================================================
 					end)
 				end
 				
@@ -1111,7 +1098,6 @@ function e:CreateLibrary(G, H)
 					if not aX.MultipleOptions then
 						CurrentOption = {CurrentOption[1]}
 					end
-					aX.CurrentOption = CurrentOption
 					
 					if aX.MultipleOptions then
 						if #CurrentOption == 1 then
@@ -1137,57 +1123,49 @@ function e:CreateLibrary(G, H)
 				
 				return aX
 			end
-			-- ================================================================
 			
-			-- ================================================================
-			-- TEXTBOX – with Flag support and Configuration.Inputs
-			-- ================================================================
 			function _:CreateTextbox(b8)
 				local aQ = L.Template.Input:Clone()
-				local Flag = b8.Flag
-				local CurrentValue = Flag and Configuration.Inputs[Flag] or ""
-				
-				if Flag and not Configuration.Inputs[Flag] then
-					Configuration.Inputs[Flag] = CurrentValue
-					SaveConfiguration()
-				end
-				
 				aQ.Name = b8.Name
 				aQ.Title.Text = b8.Name
 				aQ.Visible = true
 				aQ.Parent = a0
-				
-				aQ.InputFrame.InputBox.Text = CurrentValue
+
+				local Flag = b8.Flag
+				local CurrentValue = Flag and Configuration.Inputs[Flag]
+
+				if Flag and CurrentValue then
+					aQ.InputFrame.InputBox.Text = CurrentValue
+				end
+
+				a2()
 				aQ.InputFrame.InputBox.PlaceholderText = b8.PlaceholderText
 				aQ.InputFrame.Size = UDim2.new(0, aQ.InputFrame.InputBox.TextBounds.X + 24, 0, 30)
-				
-				a2()
 				
 				aQ.InputFrame.InputBox.FocusLost:Connect(function()
 					local text = aQ.InputFrame.InputBox.Text
 					if b8.RemoveTextAfterFocusLost then
 						aQ.InputFrame.InputBox.Text = ""
 					end
-					
-					-- Save to config if Flag present
+
+					local E, F = pcall(function()
+						b8.Callback(text)
+					end)
+
 					if Flag then
 						Configuration.Inputs[Flag] = text
 						SaveConfiguration()
 					end
-					
-					local E, F = pcall(function()
-						b8.Callback(text)
-					end)
-					
+
 					aQ.InputFrame.Size = UDim2.new(0, aQ.InputFrame.InputBox.TextBounds.X + 24, 0, 30)
 				end)
-				
+
 				aQ.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
 					TweenService:Create(aQ.InputFrame, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 						Size = UDim2.new(0, aQ.InputFrame.InputBox.TextBounds.X + 24, 0, 30)
 					}):Play()
 				end)
-				
+
 				local b8Obj = {}
 				function b8Obj:Set(b9)
 					aQ.InputFrame.InputBox.Text = b9
@@ -1198,7 +1176,6 @@ function e:CreateLibrary(G, H)
 				end
 				return b8Obj
 			end
-			-- ================================================================
 			
 			function _:CreateParagraph(ba)
 				local bb = L.Template.Paragraph:Clone()
@@ -1259,79 +1236,6 @@ function e:CreateLibrary(G, H)
 		end
 		
 		return X
-	end
-	
-	if not isfile(Assets .. "0001.png") then
-		local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/0001.png")
-		if Success and Content then writefile(Assets .. "0001.png", Content) end
-	end
-
-	if not isfile(Assets .. "0002.png") then
-		local Success, Content = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/matrice-softworks/matrice-hub/refs/heads/main/Libraries/AuraIS/Assets/0002.png")
-		if Success and Content then writefile(Assets .. "0002.png", Content) end
-	end
-	
-	local adFrame = w.Main.Advertisement
-	if adFrame then
-		local advertisements = {
-			{
-				image = "0001.png",
-				link = "https://bloxproducts.com/?affiliate_key=roe",
-				notificationText = "Link copied to clipboard!"
-			},
-			{
-				image = "0002.png",
-				link = "https://jjblox.xyz/products/695ee3ddc3be65bce8f9e827?ref=fusion",
-				notificationText = "Link copied to clipboard!"
-			}
-		}
-		
-		local currentAdIndex = 1
-		local adInteractButton = adFrame:FindFirstChild("Interact")
-		
-		local function setAdvertisement(index)
-			currentAdIndex = index
-			local ad = advertisements[currentAdIndex]
-			
-			if ad and isfile(Assets .. ad.image) then
-				adFrame.Image.Image = getcustomasset(Assets .. ad.image)
-			end
-		end
-		
-		local function onAdInteract()
-			if advertisements[currentAdIndex] then
-				local ad = advertisements[currentAdIndex]
-				
-				if setclipboard then
-					setclipboard(ad.link)
-					
-					M:Notify("Advertisement", ad.notificationText, 3, {
-						{Name = "OK", Callback = function() end}
-					})
-				end
-				
-				PlayClick()
-			end
-		end
-		
-		if adInteractButton then
-			adInteractButton.MouseButton1Click:Connect(onAdInteract)
-		end
-		
-		setAdvertisement(1)
-		
-		task.spawn(function()
-			while true do
-				task.wait(300)
-				
-				local nextIndex = currentAdIndex + 1
-				if nextIndex > #advertisements then
-					nextIndex = 1
-				end
-				
-				setAdvertisement(nextIndex)
-			end
-		end)
 	end
 	
 	return M

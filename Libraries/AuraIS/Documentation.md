@@ -1,766 +1,515 @@
-# Aura Interface Suite (AuraIS)
+mporting
+Place the script in your game’s ServerScriptService or ReplicatedStorage (if using modules).
+Require it wherever you need to build UI:
 
-> A powerful, feature-rich UI library for Roblox with persistent configuration, smooth animations, and a modern dark theme.  
-> Built for performance, flexibility, and a professional user experience.
-
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/c075d655-f42e-4445-870d-f6579ae0c0b0)
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/53caccd0-2d9f-47f1-bfdd-a109549ff680)
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/1fde4956-cdd6-41c0-94ec-ab60225673ef)
-
----
-
-## Table of Contents
-
-- [Features](#features)
-- [Importing](#importing)
-- [Creating Library](#creating-library)
-  - [Window](#create-window)
-  - [Tab](#create-tab)
-  - [Section](#create-sections)
-- [Creating Elements](#creating-elements)
-  - [Button](#button)
-  - [Toggle](#toggle)
-  - [Keybind](#keybind)
-  - [Textbox](#textbox)
-  - [Slider](#slider)
-  - [Dropdown](#dropdown)
-  - [Color Picker](#color-picker)
-- [Other Elements](#other-elements)
-  - [Text Label](#text-label)
-  - [Paragraph](#paragraph)
-  - [Card](#card)
-  - [Divider](#divider)
-- [Notifications](#notifications)
-  - [Side Notifications](#side-notifications)
-  - [Window Notifications](#window-notifications)
-- [Utility Methods](#utility-methods)
-- [Configuration System](#configuration-system)
-
----
-
-## Importing
-
-### 1. Import the module:
-```lua
+lua
 local AuraIS = require(path.to.AuraIS)
-```
+If you’re using it directly as a script, the library returns a table with all the methods.
 
-### 2. Optional: Pre-load assets
-The library will automatically download required assets (sounds, images) from GitHub when needed.
+Note: All audio and image assets are now served directly from Roblox using rbxassetid:// – no external downloads are required.
 
----
+Creating Library
+CreateLibrary
+Creates the main UI window and returns a library object with methods to manage tabs, notifications, and advertisements.
 
-## Creating Library
-
-### Create Window
-
+lua
+local Library = AuraIS:CreateLibrary(
+    Name,      -- string or table: window title (or table with Name and Icon)
+    Icon       -- string (optional): asset ID for the window icon
+)
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/b9ec4810-8e2f-4b7a-89b6-134cc3fca0a8)
-
-```lua
+lua
 local Library = AuraIS:CreateLibrary({
-    Name = "Example", -- Window title
-    Icon = "rbxassetid://11432865001" -- Window icon (optional)
+    Name = "My Awesome Script",
+    Icon = "rbxassetid://11432865001"
 })
-```
+Returns: A table with the following methods:
 
-**Returns:** Library object with methods for creating tabs and notifications.
+CreateTab(Title, Icon?) – creates a new tab.
 
-**Parameters:**
-- `Name` (string): The title displayed on the window
-- `Icon` (string, optional): Image asset ID for the window icon
+Notify(y, N, O, P?) – displays a window notification.
 
----
+CreateAdvertisement(Name, Image, Link, NotificationText?) – adds a rotating ad.
 
-### Create Tab
+SwitchTab(TabName?) – switches to a tab by name (or to the first tab).
 
-Example:
+CreateTab
+Adds a new tab to the sidebar and a corresponding page in the main container.
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/ee9c99c6-de39-4646-ac9c-367fa887c9aa)
-
-```lua
+lua
 local Tab = Library:CreateTab(
-    "Hi", -- Title
-    "rbxassetid://11432859220" -- Icon (optional)
+    Title,      -- string or table: tab title (or table with Title and Icon)
+    Icon        -- string (optional): asset ID for the tab icon
 )
-```
-
-**Returns:** Tab object with methods for creating sections.
-
-**Parameters:**
-- `Title` (string): The name displayed on the tab
-- `Icon` (string, optional): Image asset ID for the tab icon
-
-> **Note:** The first tab created will automatically be selected.
-
----
-
-### Create Sections
-
-#### Normal Section:
-
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/1d58fd6e-dcaa-4a17-bf80-b13614483522)
+lua
+local MainTab = Library:CreateTab("Main", "rbxassetid://11432859220")
+local SettingsTab = Library:CreateTab("Settings")
+Returns: A tab object with the following method:
 
-```lua
+CreateSection(Title, Type) – creates a section inside this tab.
+
+CreateSection
+Organises UI elements into collapsible (foldable) or normal sections.
+
+lua
 local Section = Tab:CreateSection(
-    "Section 1", -- Section title
-    "Normal" -- Section type: "Normal" or "Foldable"
+    Title,      -- string: section title
+    Type        -- string: "Normal" or "Foldable"
 )
-```
-
-#### Foldable Section:
-
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/f273bb51-ce58-4052-88d1-5a437aea2aef)
+lua
+local General = MainTab:CreateSection("General", "Normal")
+local Advanced = MainTab:CreateSection("Advanced", "Foldable")
+Returns: A section object with methods to create all UI elements.
 
-```lua
-local FoldableSection = Tab:CreateSection(
-    "Section 2", -- Section title
-    "Foldable" -- Click to collapse/expand
-)
-```
+Creating Elements
+Button
+Creates a clickable button with error handling and animation.
 
-**Returns:** Section object with methods for creating UI elements.
-
-**Parameters:**
-- `Title` (string): The section title
-- `Type` (string): "Normal" or "Foldable" - Foldable sections can be collapsed
-
----
-
-## Creating Elements
-
-### Button
-
-Example:
-
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/a52452ff-4eb6-4959-a336-5caaf0b4668a)
-
-```lua
+lua
 local Button = Section:CreateButton({
-    Name = "Button Example",
+    Name = "Button Name",
     Callback = function()
-        print("Button clicked!")
-    end,
+        -- your code
+    end
 })
-```
+Methods:
 
-**Methods:**
-```lua
--- Update button text dynamically
-Button:SetName("New Button Name")
+SetCallback(newCallback) – updates the button’s action.
 
--- Update callback function
-Button:SetCallback(function()
-    print("New callback!")
+SetName(newName) – changes the button label.
+
+Remove() – removes the button from the UI.
+
+Example:
+
+lua
+local myButton = Section:CreateButton({
+    Name = "Click Me",
+    Callback = function()
+        Library:Notify("Hello", "You clicked the button!", 3)
+    end
+})
+
+-- Later, change its behaviour:
+myButton:SetCallback(function()
+    print("New action!")
 end)
+Toggle
+Switch‑style toggles with two modes: “Normal” (slide) and “Radio” (indicator dot). Both support persistent Flags.
 
--- Remove button from UI
-Button:Remove()
-```
+lua
+local Toggle = Section:CreateToggle(Type, {
+    Name = "Toggle Label",
+    CurrentValue = false,       -- initial state (default false)
+    Flag = "MyFeature",         -- optional, for configuration saving
+    Callback = function(Value) end
+})
+Types:
 
-**Features:**
-- Error handling - Button turns red if callback errors
-- Success animation on click
-- Dynamic name and callback updates
-- Clean removal from UI
-- Click sound feedback
+"Normal" – standard slide toggle.
 
----
+"Radio" – round indicator toggle (transparent when off, filled when on).
 
-### Toggle
+Methods:
 
-#### Switch Toggle
+SetToggle(value) – programmatically set the state (triggers callback and saves).
 
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/28959316-2284-42e1-92fa-ec63c39e0782)
-
-```lua
-local Toggle = Section:CreateToggle("Normal", {
-    Name = "Toggle Example",
-    CurrentValue = false, -- Initial state
-    Flag = "ToggleExample", -- Unique identifier for config saving
-    Callback = function(Value)
-        print("Toggle is now: " .. tostring(Value))
-    end,
+lua
+local autoSave = Section:CreateToggle("Normal", {
+    Name = "Auto‑Save",
+    Flag = "AutoSave",
+    Callback = function(v)
+        print("Auto‑save is now " .. (v and "ON" or "OFF"))
+    end
 })
-```
+Keybind
+Allows users to set a keyboard key for an action, with “Press” or “Hold” behaviour.
+Persists via Configuration.Keybinds using a Flag.
 
-**Methods:**
-```lua
--- Programmatically set toggle state
-Toggle:SetToggle(true)
-```
-
-#### Radio Toggle
-
-Example:
-
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/d7c0f1a9-9aa5-4969-bca4-d720ed60a585)
-
-```lua
-local RadioToggle = Section:CreateToggle("Radio", {
-    Name = "Radio Toggle Example",
-    CurrentValue = false,
-    Flag = "RadioExample",
-    Callback = function(Value)
-        print("Radio value: " .. tostring(Value))
-    end,
-})
-```
-
-**Methods:**
-```lua
-RadioToggle:SetToggle(true)
-```
-
-**Features:**
-- Auto-saves state using Flag
-- Smooth toggle animations
-- Hover effects with size and color changes
-- Error handling with visual feedback
-- Callback wrapped in `task.spawn` to prevent UI blocking
-- Click sound feedback
-
----
-
-### Keybind
-
-Create customizable keybind controls for your scripts.
-
-```lua
+lua
 local Keybind = Section:CreateKeybind({
-    Name = "Keybind Example",
-    Flag = "MyKeybind", -- Unique identifier for config saving
-    Keybind = "F", -- Default key (optional)
-    Type = "Press", -- "Press" or "Hold"
-    Callback = function(Active)
-        print("Keybind state: " .. tostring(Active))
-    end,
+    Name = "Keybind Label",
+    Flag = "MyKeybind",          -- optional, for configuration saving
+    Keybind = "F",               -- default key (optional)
+    Type = "Press",              -- "Press" or "Hold"
+    Callback = function(Active) end
 })
-```
+Types:
 
-**Methods:**
-```lua
--- Programmatically set keybind
-Keybind:Set("G")
-```
+"Press" – toggles the state on each key press.
 
-**Types:**
-- **Press:** Toggles on each key press
-- **Hold:** Active while key is held down
+"Hold" – active while the key is held down.
 
-**Features:**
-- Click to rebind (shows "..." while waiting for input)
-- Auto-saves to configuration
-- Visual feedback for key selection
-- Click sound on the keybind box
+Methods:
 
----
-
-### Textbox
+Set(newKey) – programmatically change the bound key.
 
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/ecc9407c-138e-4e2c-921e-a9c2b4227e9a)
+lua
+local speedBoost = Section:CreateKeybind({
+    Name = "Speed Boost",
+    Flag = "BoostKey",
+    Keybind = "F",
+    Type = "Hold",
+    Callback = function(active)
+        Player.Character.Humanoid.WalkSpeed = active and 50 or 16
+    end
+})
+Textbox
+Single‑line input field with placeholder and optional Flag persistence.
+Saves to Configuration.Inputs.
 
-```lua
+lua
 local Textbox = Section:CreateTextbox({
-    Name = "Input Example",
-    PlaceholderText = "Enter text here...",
-    RemoveTextAfterFocusLost = true, -- Clear after input
-    Flag = "MyInput", -- Optional: saves to Configuration.Inputs
-    Callback = function(Text)
-        print("User entered: " .. Text)
-    end,
+    Name = "Input Label",
+    PlaceholderText = "Type here...",
+    RemoveTextAfterFocusLost = true,  -- clear after input (optional)
+    Flag = "MyInput",                 -- optional, saves to Configuration.Inputs
+    Callback = function(Text) end
 })
-```
+Methods:
 
-**Methods:**
-```lua
--- Programmatically set text
-Textbox:Set("New text")
--- Also updates the saved configuration if Flag is provided.
-```
-
-**Features:**
-- Auto-resizing input box
-- Placeholder text support
-- Optional text clearing after input
-- **Flag support** – saves to `Configuration.Inputs` for persistence
-- Click sound feedback (on interaction)
-
----
-
-### Slider
+Set(newText) – programmatically set the text; also updates the saved config if a Flag is provided.
 
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/5e074ca0-0600-4192-b926-66914c46a625)
+lua
+local usernameBox = Section:CreateTextbox({
+    Name = "Username",
+    PlaceholderText = "Enter your username",
+    Flag = "Username",
+    Callback = function(text)
+        print("Username set to: " .. text)
+    end
+})
+Slider
+Draggable slider with a numeric value, step increment, and optional suffix.
+Persists via Configuration.Sliders.
 
-```lua
+lua
 local Slider = Section:CreateSlider({
-    Name = "Slider Example",
-    Value = {0, 100}, -- {Min, Max}
-    Increment = 10, -- Step size
-    Suffix = "Dragons", -- Displayed after value
-    CurrentValue = 10, -- Initial value
-    Flag = "Slider1", -- Unique identifier for config saving
-    Callback = function(Value)
-        print("Slider value: " .. Value)
-    end,
+    Name = "Slider Label",
+    Value = {0, 100},            -- {min, max}
+    Increment = 5,               -- step size
+    Suffix = "%",                -- optional unit displayed after value
+    CurrentValue = 50,           -- initial value
+    Flag = "MySlider",           -- optional, saves to Configuration.Sliders
+    Callback = function(Value) end
 })
-```
+Methods:
 
-**Methods:**
-```lua
--- Programmatically set value
-Slider:Set(50)
-```
-
-**Features:**
-- Smooth drag interaction
-- Display suffix (e.g., "%", "ms", "Dragons")
-- Auto-saves using Flag
-- Visual progress bar with theme colour
-- Click sound on drag start
-
----
-
-### Dropdown
+Set(newValue) – programmatically set the slider value.
 
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/699ef030-f26f-48bd-b9ea-c07fb4839674)
+lua
+local volume = Section:CreateSlider({
+    Name = "Volume",
+    Value = {0, 100},
+    Increment = 1,
+    Suffix = "%",
+    CurrentValue = 75,
+    Flag = "Volume",
+    Callback = function(v)
+        game:GetService("SoundService").Volume = v / 100
+    end
+})
+Dropdown
+Select one or multiple options from a list. Supports single‑ and multi‑select.
+Persists via Configuration.Dropdowns.
 
-```lua
+lua
 local Dropdown = Section:CreateDropdown({
-    Name = "Dropdown Example",
-    Options = {"Cake", "Pie", "Milkshake", "Cupcake"},
-    CurrentOption = "Cake", -- Initial selection (or table for multi)
-    MultipleOptions = false, -- true for multi-select
-    Flag = "Dropdown1", -- Unique identifier for config saving
-    Callback = function(Value)
-        print("Selected: " .. tostring(Value))
-    end,
+    Name = "Dropdown Label",
+    Options = {"Option1", "Option2", "Option3"},
+    CurrentOption = "Option1",       -- initial selection (or table for multi)
+    MultipleOptions = false,         -- set true for multi‑select
+    Flag = "MyDropdown",             -- optional, saves to Configuration.Dropdowns
+    Callback = function(Selected) end
 })
-```
+Methods:
 
-**Methods:**
-```lua
--- Programmatically set selection
-Dropdown:Set("Cake") -- For single-select
-Dropdown:Set({"Cake", "Pie"}) -- For multi-select
-```
-
-**Features:**
-- Single and multi-select modes
-- Auto-saves using Flag
-- Animated expand/collapse
-- Hover effects on options
-- **Auto‑callback on load** – if Flag exists, the callback is triggered with the saved value on creation.
-- **Auto‑close** – for single‑select, the dropdown closes automatically after selection.
-- Click sound on interaction.
-
----
-
-### Color Picker
+Set(newSelection) – programmatically set the selected option(s).
 
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/9a17431d-c3b0-49b0-89c4-aef07e6568f4)
+lua
+local food = Section:CreateDropdown({
+    Name = "Favourite Food",
+    Options = {"Pizza", "Sushi", "Tacos", "Burger"},
+    CurrentOption = "Pizza",
+    Flag = "FavoriteFood",
+    Callback = function(choice)
+        print("You chose: " .. tostring(choice))
+    end
+})
+Color Picker
+Interactive colour selector with hue/saturation picker, brightness slider, and rainbow toggle.
 
-```lua
+lua
 local ColorPicker = Section:CreateColorPicker({
-    Name = "Color Picker",
-    Callback = function(newColor)
-        print("New color: " .. tostring(newColor))
-    end,
+    Name = "Color Picker Label",
+    Callback = function(newColor) end
 })
-```
+Features:
 
-**Features:**
-- Interactive RGB color selection
-- Darkness slider
-- Click and drag to select colors
-- Real-time color updates
-- Rainbow toggle (click the switch for animated cycling)
+Click and drag on the colour field to pick hue/saturation.
 
----
+Drag the brightness slider (right side) to adjust lightness.
 
-## Other Elements
-
-### Text Label
+Click the rainbow switch to cycle colours automatically.
 
 Example:
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/6a5e977a-2f48-4e40-be1a-c195ed8fa400)
+lua
+local colorPicker = Section:CreateColorPicker({
+    Name = "Theme Color",
+    Callback = function(color)
+        script.Parent.BackgroundColor3 = color
+    end
+})
+Other Elements
+Label
+A simple text label (non‑interactive).
 
-```lua
+lua
 local Label = Section:CreateLabel({
-    Description = "This is a sample description"
+    Description = "This is a label"
 })
-```
+Methods:
 
-### Paragraph
+ChangeText(newText) – updates the label text.
 
-Example:
+Paragraph
+A larger block of text with a title and content, supporting rich text.
 
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/6d0e58c8-88d3-4c17-9131-59ccfd378e71)
-
-```lua
+lua
 local Paragraph = Section:CreateParagraph({
-    Title = "My Paragraph",
-    Description = "This is a sample paragraph. Supports <b>rich text</b> formatting."
+    Title = "Paragraph Title",
+    Description = "Supports <b>bold</b>, <i>italics</i>, etc."
 })
-```
+Card
+A card‑style container with a preview image, title, description, state text, and up to two action buttons.
 
-**Note:** Description supports rich text formatting.
-
----
-
-### Card
-
-Example:
-
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/b6601685-a168-4c17-a2a6-6ddbe3db856a)
-
-```lua
+lua
 local Card = Section:CreateCard({
-    Title = "My Card",
-    Description = "This is a sample card.",
-    SecondaryTitle = "Card State",
-    Image = "rbxassetid://14167800463",
+    Title = "Card Title",
+    Description = "Card description",
+    SecondaryTitle = "Status",          -- optional
+    Image = "rbxassetid://14167800463", -- optional
     Buttons = {
         Button1 = {
-            Name = "Button 1",
-            Callback = function()
-                print("Button 1 clicked")
-            end
+            Name = "Action 1",
+            Callback = function() end
         },
         Button2 = {
-            Name = "Button 2",
-            Callback = function()
-                print("Button 2 clicked")
-            end
+            Name = "Action 2",
+            Callback = function() end
         }
     }
 })
-```
+Divider
+A horizontal line to visually separate sections.
 
-**Features:**
-- Preview image support
-- Multiple action buttons (up to 2)
-- State display
-
----
-
-### Divider
-
-Add visual separators between elements.
-
-```lua
+lua
 local Divider = Section:CreateDivider()
-```
+Notifications
+AuraIS provides two notification systems: Side Notifications (toast‑style) and Window Notifications (modal).
+Both support auto‑close on action – clicking any button immediately dismisses the notification.
 
-**Features:**
-- Clean visual separation
-- Full-width line with subtle style
+Side Notifications
+Call AuraIS:Notify(type, config).
 
----
-
-## Notifications
-
-AuraIS provides two notification systems: Side Notifications (toast-style) and Window Notifications (modal-style). Both support **auto‑close on action** – clicking a button dismisses the notification immediately.
-
-### Side Notifications
-
-Example:
-
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/a7c6312a-74e0-4cc1-8c9c-fc4632cfebea)
-
-**Types:** "Normal", "Warning", "Error" (affects styling)
-
-```lua
--- Normal notification
-AuraIS:Notify("Normal", {
-    Title = "Notification Title",
-    Content = "Notification Content",
-    Duration = 5, -- Seconds before auto-dismiss
-    Image = "rbxassetid://4483362458", -- Optional icon
-    Actions = {
-        {
-            Name = "Okay!",
-            Callback = function()
-                print("User tapped Okay!")
-            end
-        },
-        {
-            Name = "Cancel",
-            Callback = function()
-                print("User tapped Cancel!")
-            end
-        }
-    }
-})
-
--- Warning notification
-AuraIS:Notify("Warning", {
-    Title = "Warning!",
-    Content = "This is a warning notification",
+lua
+AuraIS:Notify(Type, {
+    Title = "Title",
+    Content = "Message",
     Duration = 5,
+    Image = "rbxassetid://4483362458", -- optional
     Actions = {
-        {
-            Name = "Dismiss",
-            Callback = function()
-                print("Warning dismissed!")
-            end
-        }
+        { Name = "OK", Callback = function() end },
+        { Name = "Cancel", Callback = function() end }
     }
 })
+Types: "Normal", "Warning", "Error" (affects styling).
 
--- Error notification
-AuraIS:Notify("Error", {
-    Title = "Error!",
-    Content = "Something went wrong",
-    Duration = 5,
-    Actions = {
-        {
-            Name = "Retry",
-            Callback = function()
-                print("Retrying...")
-            end
-        },
-        {
-            Name = "Ignore",
-            Callback = function()
-                print("Error ignored!")
-            end
-        }
-    }
-})
-```
+Window Notifications
+Call Library:Notify(config).
 
-**Parameters:**
-- `Type` (string): "Normal", "Warning", or "Error"
-- `Title` (string): Notification title
-- `Content` (string): Notification message
-- `Duration` (number): Time in seconds before auto-dismiss
-- `Image` (string, optional): Icon image asset ID
-- `Actions` (table, optional): Array of action objects with Name and Callback
-
-**Actions:**
-- Multiple actions supported
-- Each action appears as a clickable button
-- Auto-sizing based on text length
-- Triggers click sound when pressed
-- **Auto-close** – clicking any action immediately dismisses the notification (sets duration to 0)
-
----
-
-### Window Notifications
-
-Example:
-
-![image](https://github.com/GamingScripter/Darkrai-Y/assets/102379753/ca564ed2-149f-4fef-ae04-fcb6c7de331c)
-
-```lua
+lua
 Library:Notify({
-    Title = "Notification Title",
-    Content = "Notification Content",
+    Title = "Window Notification",
+    Content = "This is a modal notification.",
     Duration = 5,
-    Image = "rbxassetid://4483362458",
+    Image = "rbxassetid://4483362458", -- optional
     Actions = {
-        {
-            Name = "Okay!",
-            Callback = function()
-                print("User tapped Okay!")
-            end
-        },
-        {
-            Name = "Cancel",
-            Callback = function()
-                print("User tapped Cancel!")
-            end
-        }
+        { Name = "Confirm", Callback = function() end },
+        { Name = "Cancel",  Callback = function() end }
     }
 })
-```
+Note: Both notification methods now play a sound (rbxassetid://255881176) when they appear and immediately close when any action button is clicked.
 
-**Features:**
-- Modal-style overlay
-- Custom action buttons
-- Timer display with countdown
-- Auto-dismiss on timer end
-- **Auto-close on action** – button press dismisses immediately
+Advertisements
+The library includes a built‑in advertisement frame that rotates through a list of ads. You can add ads using the CreateAdvertisement method on the library object.
 
-**Actions:**
-- Multiple actions supported
-- Each action appears as a clickable button
-- Auto-sizing based on text length
-- Triggers click sound when pressed
-- Wrapped in pcall for error protection
+lua
+Library:CreateAdvertisement(
+    Name,           -- string (display name, used internally)
+    Image,          -- Roblox asset ID for the ad image
+    Link,           -- URL to copy to clipboard
+    NotificationText -- optional, shown when link is copied
+)
+Example:
 
----
+lua
+Library:CreateAdvertisement(
+    "Blox Products",
+    "rbxassetid://1234567890",
+    "https://bloxproducts.com/?affiliate_key=roe",
+    "Link copied to clipboard!"
+)
 
-## Utility Methods
+Library:CreateAdvertisement(
+    "JJBlox",
+    "rbxassetid://0987654321",
+    "https://jjblox.xyz",
+    "Visit JJBlox!"
+)
+Ads rotate every 5 minutes automatically. If you add no ads, the advertisement frame is hidden.
 
-### UI Control
-```lua
--- Toggle UI visibility
+Utility Methods
+ToggleUI()
+Toggles the entire UI visibility.
+
+lua
 AuraIS:ToggleUI()
-```
+SwitchTab(TabName?)
+Switches to a specific tab by name. If no argument is given, jumps to the first created tab.
 
-### Tab Management
-```lua
--- Switch to a specific tab by name
-Library:SwitchTab("Tab Name")
+lua
+Library:SwitchTab("Settings")
+GetUIInstance()
+Returns the root GUI instance (useful for debugging or manual manipulation).
 
--- Switch to first tab
-Library:SwitchTab()
-```
+lua
+local uiRoot = AuraIS:GetUIInstance()
+Configuration System
+AuraIS automatically saves and loads all user settings to/from a JSON file located at:
 
-### Section Management
-```lua
--- Remove a section entirely
-Section:Remove()
+text
+[YourScriptFolder]/Configurations/UI.json
+Supported elements:
 
--- Update section name
-Section:SetName("New Section Name")
-```
+Element	Config Key	Persisted Data
+Toggle	Toggles	Boolean state
+Slider	Sliders	Numeric value
+Dropdown	Dropdowns	Selected option(s)
+Keybind	Keybinds	Key name (string)
+Textbox	Inputs	Entered text (string)
+To enable persistence, simply provide a unique Flag string when creating the element.
 
----
+Example with Textbox:
 
-## Configuration System
-
-AuraIS automatically saves and loads UI state using JSON files.
-
-### How it works:
-- Configuration saved to: `[ScriptFolder]/Configurations/UI.json`
-- Automatically loads on library creation
-- Saves on any state change
-- Supports: Toggles, Sliders, Dropdowns, Keybinds, Inputs (textboxes)
-
-### Using Flags:
-```lua
--- Toggle with Flag
-local Toggle = Section:CreateToggle("Normal", {
-    Flag = "MyFeature", -- This will be saved
-    -- ...
+lua
+local myTextbox = Section:CreateTextbox({
+    Flag = "UserInput", -- this will be saved
+    Callback = function(t) ... end
 })
+After the script runs, the configuration file will contain:
 
--- Slider with Flag
-local Slider = Section:CreateSlider({
-    Flag = "MySlider", -- This will be saved
-    -- ...
-})
-
--- Dropdown with Flag
-local Dropdown = Section:CreateDropdown({
-    Flag = "MyDropdown", -- This will be saved
-    -- ...
-})
-
--- Keybind with Flag
-local Keybind = Section:CreateKeybind({
-    Flag = "MyKeybind", -- This will be saved
-    -- ...
-})
-
--- Textbox with Flag
-local Textbox = Section:CreateTextbox({
-    Flag = "MyInput", -- This will be saved
-    -- ...
-})
-```
-
-### Configuration Structure:
-```json
+json
 {
-    "Toggles": {
-        "MyFeature": true,
-        "AnotherFeature": false
-    },
-    "Sliders": {
-        "MySlider": 50,
-        "SpeedValue": 75
-    },
-    "Dropdowns": {
-        "MyDropdown": "Cake",
-        "MultiDropdown": ["Option1", "Option2"]
-    },
-    "Keybinds": {
-        "MyKeybind": "F",
-        "ActionKey": "G"
-    },
-    "Inputs": {
-        "MyInput": "User entered text"
-    }
+    "Toggles": { "MyFeatureToggle": true },
+    "Sliders": { "SpeedValue": 75 },
+    "Dropdowns": { "FavoriteFood": "Pizza" },
+    "Keybinds": { "BoostKey": "F" },
+    "Inputs": { "UserInput": "Hello world" }
 }
-```
-
----
-
-## Example: Complete Script Setup
-
-```lua
+Complete Example
+lua
+-- Import the library
 local AuraIS = require(path.to.AuraIS)
 
--- Create Library
+-- Create the main window
 local Library = AuraIS:CreateLibrary({
     Name = "My Script",
     Icon = "rbxassetid://11432865001"
 })
 
--- Create Tab
+-- Add a couple of ads
+Library:CreateAdvertisement(
+    "Blox Products",
+    "rbxassetid://1234567890",
+    "https://bloxproducts.com",
+    "Ad link copied!"
+)
+
+-- Create tabs
 local MainTab = Library:CreateTab("Main", "rbxassetid://11432859220")
+local SettingsTab = Library:CreateTab("Settings")
 
--- Create Section
-local Settings = MainTab:CreateSection("Settings", "Normal")
+-- Main tab sections
+local General = MainTab:CreateSection("General", "Normal")
+local About = MainTab:CreateSection("About", "Foldable")
 
--- Create Toggle
-local Toggle = Settings:CreateToggle("Normal", {
+-- Toggle
+local featureToggle = General:CreateToggle("Normal", {
     Name = "Enable Feature",
     Flag = "FeatureEnabled",
     Callback = function(v)
-        print("Feature: " .. tostring(v))
+        print("Feature is now " .. (v and "ON" or "OFF"))
     end
 })
 
--- Create Slider
-local Slider = Settings:CreateSlider({
+-- Slider
+local speedSlider = General:CreateSlider({
     Name = "Speed",
     Value = {0, 100},
     Increment = 5,
     Suffix = "%",
+    CurrentValue = 50,
     Flag = "SpeedValue",
     Callback = function(v)
-        print("Speed: " .. v)
+        print("Speed set to " .. v)
     end
 })
 
--- Create Button
-local Button = Settings:CreateButton({
-    Name = "Click Me",
+-- Textbox with Flag
+local nameBox = General:CreateTextbox({
+    Name = "Your Name",
+    PlaceholderText = "Enter your name",
+    Flag = "UserName",
+    Callback = function(text)
+        print("Hello, " .. text)
+    end
+})
+
+-- Button that shows a window notification
+local btn = General:CreateButton({
+    Name = "Show Notification",
     Callback = function()
         Library:Notify({
             Title = "Hello!",
-            Content = "Button clicked!",
-            Duration = 3
+            Content = "This is a window notification.",
+            Duration = 4,
+            Actions = {
+                { Name = "OK", Callback = function() print("OK clicked") end }
+            }
         })
     end
 })
 
--- Notify user
+-- Side notification on script load
 AuraIS:Notify("Normal", {
     Title = "Welcome",
     Content = "Script loaded successfully!",
     Duration = 3
 })
-```
-
