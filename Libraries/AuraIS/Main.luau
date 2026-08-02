@@ -53,7 +53,7 @@ local function SaveConfiguration()
 	writefile(FilePath, HttpService:JSONEncode(Configuration))
 end
 
--- ===== Click Sound (direct Roblox asset) =====
+-- ===== Click Sound =====
 local ClickSound = Instance.new("Sound")
 ClickSound.SoundId = "rbxassetid://4630381528"
 ClickSound.Volume = 0.5
@@ -298,25 +298,24 @@ function e:CreateLibrary(G, H)
 		end)
 	end
 	
-	-- ===== Advertisement System (now using ImageButton) =====
+	-- ===== Advertisement System (corrected path) =====
 	local Advertisements = {}
 	local CurrentAdIndex = 1
 	local AdTimer = nil
-	local AdButton = w.Main:FindFirstChild("Advertisement")  -- now an ImageButton
+	local AdFrame = w.Main:FindFirstChild("Advertisement")      -- Frame
+	local AdImage = AdFrame and AdFrame:FindFirstChild("Image") -- ImageButton
 	
 	local function SetAdvertisement(index)
 		if #Advertisements == 0 then
-			if AdButton then AdButton.Visible = false end
+			if AdFrame then AdFrame.Visible = false end
 			return
 		end
 		
 		CurrentAdIndex = ((index - 1) % #Advertisements) + 1
 		local ad = Advertisements[CurrentAdIndex]
-		if AdButton and ad then
-			AdButton.Visible = true
-			AdButton.Image = ad.image
-			-- Replace any old click connection by clearing and reconnecting (simple approach: use a new connection)
-			-- We'll handle this in CreateAdvertisement by storing a connection variable.
+		if AdImage and ad then
+			AdFrame.Visible = true
+			AdImage.Image = ad.image
 		end
 	end
 	
@@ -332,11 +331,10 @@ function e:CreateLibrary(G, H)
 		end)
 	end
 	
-	-- We'll store the current click connection so we can clean it when the ad changes
 	local CurrentAdConnection = nil
 	
 	function M:CreateAdvertisement(Name, Image, Link, NotificationText)
-		if not AdButton then return end
+		if not AdImage then return end
 		
 		local ad = {
 			name = Name or "Advertisement",
@@ -351,19 +349,13 @@ function e:CreateLibrary(G, H)
 			StartAdRotation()
 		end
 		
-		-- Update the button's click event to point to the latest ad (or use a single connection that checks the current ad)
-		-- Simpler: we'll just connect a new event each time an ad is shown, but we need to avoid stacking connections.
-		-- We'll disconnect the old one and create a new one inside SetAdvertisement.
-		-- But we need to capture the ad correctly.
-		-- Let's refactor: Store a function that gets the current ad from the index.
-		-- We'll clear any previous connection and attach a new one.
+		-- Clean old connection and attach new one to the ImageButton
 		if CurrentAdConnection then
 			CurrentAdConnection:Disconnect()
 			CurrentAdConnection = nil
 		end
 		
-		-- Attach the click handler to the AdButton (now an ImageButton)
-		CurrentAdConnection = AdButton.MouseButton1Click:Connect(function()
+		CurrentAdConnection = AdImage.MouseButton1Click:Connect(function()
 			if setclipboard then
 				local currentAd = Advertisements[CurrentAdIndex]
 				if currentAd then
