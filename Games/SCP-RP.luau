@@ -101,7 +101,7 @@ local function ResetConfig()
         Title = "Config Reset",
         Content = "Settings reset to defaults. Please reload the script.",
         Duration = 5,
-        Image = "rbxassetid://4483362458",
+        Image = Matrice.Asset("circle-alert"),
     })
 end
 
@@ -135,15 +135,15 @@ LoadConfig()
 -- ===== UI Library =====
 local Library = UI:CreateLibrary({
     Name = "Matrice v" .. Matrice.Version .. " - " .. Matrice.Game.Info.Name,
-    Icon = "rbxassetid://12974454446"
+    Icon = Matrice.Asset("matrice")
 })
 
 -- ===== Tabs =====
-local HomeTab = Library:CreateTab("Home", "rbxassetid://12974454446")
-local CombatTab = Library:CreateTab("Combat", "rbxassetid://12974454446")
-local VisualsTab = Library:CreateTab("Visuals", "rbxassetid://12974454446")
-local MiscTab = Library:CreateTab("Miscellaneous", "rbxassetid://12974454446")
-local SettingsTab = Library:CreateTab("Settings", "rbxassetid://12974454446")
+local HomeTab = Library:CreateTab("Home", Matrice.Asset("house"))
+local CombatTab = Library:CreateTab("Combat", Matrice.Asset("crosshair"))
+local VisualsTab = Library:CreateTab("Visuals", Matrice.Asset("palette"))
+local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox"))
+local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings"))
 
 -- ===== Home Tab =====
 local HomeSection = HomeTab:CreateSection("Welcome", "Normal")
@@ -152,7 +152,7 @@ HomeSection:CreateCard({
     Title = "Matrice Hub",
     Description = "Matrice is a premium Roblox script hub delivering optimized, undetected, and high-quality scripts.",
     SecondaryTitle = "Version v" .. Matrice.Version,
-    Image = Matrice.Asset("Matrice"),
+    Image = Matrice.Asset("matrice-softworks"),
     Buttons = {
         Discord = {
             Name = "Join Discord",
@@ -162,7 +162,7 @@ HomeSection:CreateCard({
                     Title = "Copied",
                     Content = "Discord invite copied to clipboard.",
                     Duration = 3,
-                    Image = "rbxassetid://4483362458",
+                    Image = Matrice.Asset("discord"),
                 })
             end
         },
@@ -174,7 +174,7 @@ HomeSection:CreateCard({
                     Title = "Copied",
                     Content = "GitHub link copied to clipboard.",
                     Duration = 3,
-                    Image = "rbxassetid://4483362458",
+                    Image = Matrice.Asset("globe"),
                 })
             end
         }
@@ -821,9 +821,9 @@ MiscVizSection:CreateToggle("Normal", {
     end,
 })
 
--- ===== Miscellaneous Tab =====
+-- ===== Utilities Tab =====
 -- Moderator Detector
-local ModeratorSection = MiscTab:CreateSection("Moderator Detector", "Normal")
+local ModeratorSection = UtilitiesTab:CreateSection("Moderator Detector", "Normal")
 
 local ModeratorDetectorConnection = nil
 local ModNotifiedPlayers = {}
@@ -839,7 +839,7 @@ local function CheckModerators()
                     Title = "Moderator Detector",
                     Content = player.Name .. " (" .. role .. ") is online",
                     Duration = 5,
-                    Image = "rbxassetid://4483362458",
+                    Image = Matrice.Asset("user-shield"),
                 })
                 ModNotifiedPlayers[player] = true
             end
@@ -859,7 +859,7 @@ local function EnableModeratorDetector()
                     Title = "Moderator Detector",
                     Content = player.Name .. " (" .. role .. ") joined",
                     Duration = 5,
-                    Image = "rbxassetid://4483362458",
+                    Image = Matrice.Asset("user-shield"),
                 })
                 ModNotifiedPlayers[player] = true
             end
@@ -869,7 +869,7 @@ local function EnableModeratorDetector()
         Title = "Moderator Detector",
         Content = "Enabled",
         Duration = 3,
-        Image = "rbxassetid://4483362458",
+        Image = Matrice.Asset("user-shield"),
     })
 end
 
@@ -883,7 +883,7 @@ local function DisableModeratorDetector()
         Title = "Moderator Detector",
         Content = "Disabled",
         Duration = 3,
-        Image = "rbxassetid://4483362458",
+        Image = Matrice.Asset("user-shield"),
     })
 end
 
@@ -908,7 +908,7 @@ if getgenv().ModeratorDetector then
 end
 
 -- ===== Character Modifications Section =====
-local CharModSection = MiscTab:CreateSection("Character Modifications", "Normal")
+local CharModSection = UtilitiesTab:CreateSection("Character Modifications", "Normal")
 
 -- ===== Movement Spoof (undetected) =====
 local MovementSpoof = {}
@@ -1186,7 +1186,7 @@ local function EnableNoClip()
         Title = "NoClip",
         Content = "Enabled",
         Duration = 2,
-        Image = "rbxassetid://4483362458",
+        Image = Matrice.Asset("info"),
     })
 end
 
@@ -1202,7 +1202,7 @@ local function DisableNoClip()
         Title = "NoClip",
         Content = "Disabled",
         Duration = 2,
-        Image = "rbxassetid://4483362458",
+        Image = Matrice.Asset("circle-alert"),
     })
 end
 
@@ -1297,7 +1297,7 @@ local function StartFly()
         Title = "Fly",
         Content = "Enabled",
         Duration = 2,
-        Image = "rbxassetid://4483362458",
+        Image = Matrice.Asset("info"),
     })
 end
 
@@ -1324,7 +1324,7 @@ local function StopFly()
         Title = "Fly",
         Content = "Disabled",
         Duration = 2,
-        Image = "rbxassetid://4483362458",
+        Image = Matrice.Asset("circle-alert"),
     })
 end
 
@@ -1449,7 +1449,7 @@ SettingsSection:CreateButton({
             Title = "Config Loaded",
             Content = "Settings loaded successfully.",
             Duration = 5,
-            Image = "rbxassetid://4483362458",
+            Image = Matrice.Asset("clipboard"),
         })
     end,
 })
@@ -1466,7 +1466,7 @@ UI:Notify("Normal", {
     Title = "Matrice v" .. Matrice.Version,
     Content = "SCP Roleplay loaded successfully.",
     Duration = 5,
-    Image = "rbxassetid://12974454446",
+    Image = Matrice.Asset("matrice"),
     Actions = {
         {
             Name = "Okay!",
