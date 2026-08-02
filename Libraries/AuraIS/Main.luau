@@ -1196,6 +1196,274 @@ function _:CreateDropdown(aX)
 	end
 
 	return aX
+endfunction _:CreateDropdown(aX)
+	local aY = L.Template.Dropdown:Clone()
+	local Flag = aX.Flag
+	local CurrentOption = Flag and Configuration.Dropdowns[Flag] or aX.CurrentOption
+
+	if Flag and not Configuration.Dropdowns[Flag] then
+		Configuration.Dropdowns[Flag] = CurrentOption
+		SaveConfiguration()
+	end
+
+	if string.find(aX.Name, "closed") then
+		aY.Name = "Dropdown"
+	else
+		aY.Name = aX.Name
+	end
+	aY.Title.Text = aX.Name
+	aY.Visible = true
+	aY.Parent = a0
+	aY.Size = UDim2.new(1, -10, 0, 45)
+	aY.List.Visible = false
+
+	if typeof(CurrentOption) == "string" then
+		CurrentOption = {CurrentOption}
+	end
+	if not aX.MultipleOptions then
+		CurrentOption = {CurrentOption[1]}
+	end
+
+	-- Ensure CurrentOption is a table
+	if type(CurrentOption) ~= "table" then
+		CurrentOption = {CurrentOption}
+	end
+
+	-- Locate the Selected label (debug)
+	local SelectedLabel = aY:FindFirstChild("Selected")
+	if not SelectedLabel then
+		warn("[AuraIS] Dropdown: 'Selected' label not found in template!")
+		-- Fallback: try to find any TextLabel inside aY
+		SelectedLabel = aY:FindFirstChildWhichIsA("TextLabel")
+		if SelectedLabel then
+			warn("[AuraIS] Using fallback label:", SelectedLabel.Name)
+		else
+			error("[AuraIS] Cannot find a TextLabel for dropdown selection.")
+		end
+	end
+
+	-- Helper to update the selected text
+	local function UpdateSelectedText()
+		local newText
+		if aX.MultipleOptions then
+			if #CurrentOption == 1 then
+				newText = CurrentOption[1]
+			elseif #CurrentOption == 0 then
+				newText = "None"
+			else
+				newText = #CurrentOption .. " item" .. (#CurrentOption > 1 and "s" or "")
+			end
+		else
+			newText = CurrentOption[1] or "None"
+		end
+
+		-- Set the text with a refresh trick
+		SelectedLabel.Text = ""
+		SelectedLabel.Text = newText
+		print("[AuraIS] Dropdown updated to:", newText)  -- debug
+	end
+
+	UpdateSelectedText()  -- initial set
+
+	aY.BackgroundTransparency = 1
+	aY.UIStroke.Transparency = 1
+	aY.Title.TextTransparency = 1
+	aY.Size = UDim2.new(1, -10, 0, 45)
+	a2()
+
+	TweenService:Create(aY, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(aY.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
+	TweenService:Create(aY.Title, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+
+	for B, aZ in next, aY.List:GetChildren() do
+		if aZ.ClassName == "Frame" and aZ.Name ~= "Placeholder" then
+			aZ:Destroy()
+		end
+	end
+
+	local Debounce = false
+
+	aY.Interact.MouseButton1Click:Connect(function()
+		PlayClick()
+		if Debounce then return end
+
+		if aY.List.Visible then
+			-- COLLAPSE
+			Debounce = true
+			local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 45)})
+			a_:Play()
+
+			for B, b2 in next, aY.List:GetChildren() do
+				if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
+					TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+					TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
+					TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+				end
+			end
+
+			TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
+			task.wait(0.35)
+			aY.List.Visible = false
+			Debounce = false
+			a2()
+		else
+			-- EXPAND
+			aY.List.Visible = true
+			local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 180)})
+			a_:Play()
+
+			local b1 = true
+			task.spawn(function()
+				while b1 do
+					a2()
+					task.wait()
+				end
+			end)
+			a_.Completed:Connect(function()
+				b1 = false
+				a2()
+			end)
+
+			TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 0}):Play()
+
+			for B, b2 in next, aY.List:GetChildren() do
+				if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
+					TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+					TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
+					TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+				end
+			end
+		end
+	end)
+
+	-- Populate options
+	for B, b3 in next, aX.Options do
+		local b4 = L.Template.Dropdown.List.Template:Clone()
+		b4.Name = b3
+		b4.Title.Text = b3
+		b4.Parent = aY.List
+		b4.Visible = true
+
+		if table.find(CurrentOption, b3) then
+			b4.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		end
+
+		b4.MouseEnter:Connect(function()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.921, 0, 0, 38)}):Play()
+		end)
+
+		b4.MouseLeave:Connect(function()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.921, 0, 0, 38)}):Play()
+		end)
+
+		b4.Interact.MouseButton1Click:Connect(function()
+			PlayClick()
+
+			-- Toggle selection
+			if not aX.MultipleOptions and table.find(CurrentOption, b3) then
+				return  -- already selected, do nothing
+			end
+
+			if table.find(CurrentOption, b3) then
+				table.remove(CurrentOption, table.find(CurrentOption, b3))
+			else
+				if not aX.MultipleOptions then
+					table.clear(CurrentOption)
+				end
+				table.insert(CurrentOption, b3)
+			end
+
+			-- Update selected text
+			UpdateSelectedText()
+
+			-- Update highlight colors
+			for B, b6 in next, aY.List:GetChildren() do
+				if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
+					if table.find(CurrentOption, b6.Name) then
+						b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+					else
+						b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+					end
+				end
+			end
+
+			-- Save configuration
+			if Flag then
+				Configuration.Dropdowns[Flag] = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
+				SaveConfiguration()
+			end
+
+			-- Callback
+			local E, F = pcall(function()
+				aX.Callback(aX.MultipleOptions == false and CurrentOption[1] or CurrentOption)
+			end)
+
+			-- If single-select, close dropdown automatically
+			if not aX.MultipleOptions then
+				task.wait(0.1)
+				local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 45)})
+				a_:Play()
+
+				for B, b2 in next, aY.List:GetChildren() do
+					if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
+						TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+						TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
+						TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+					end
+				end
+
+				TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
+				task.wait(0.35)
+				aY.List.Visible = false
+				a2()
+			end
+		end)
+	end
+
+	-- Initial highlight
+	for B, b6 in next, aY.List:GetChildren() do
+		if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
+			if table.find(CurrentOption, b6.Name) then
+				b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+			else
+				b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+			end
+		end
+	end
+
+	function aX:Set(b7)
+		CurrentOption = b7
+		if typeof(CurrentOption) == "string" then
+			CurrentOption = {CurrentOption}
+		end
+		if not aX.MultipleOptions then
+			CurrentOption = {CurrentOption[1]}
+		end
+		UpdateSelectedText()
+
+		if Flag then
+			Configuration.Dropdowns[Flag] = aX.MultipleOptions == false and CurrentOption[1] or CurrentOption
+			SaveConfiguration()
+		end
+
+		local E, F = pcall(function()
+			aX.Callback(b7)
+		end)
+
+		for B, b6 in next, aY.List:GetChildren() do
+			if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
+				if table.find(CurrentOption, b6.Name) then
+					b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+				else
+					b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+				end
+			end
+		end
+	end
+
+	return aX
 end
 			
 			function _:CreateTextbox(b8)
