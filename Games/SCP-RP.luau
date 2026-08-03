@@ -451,16 +451,13 @@ local Interface = SettingsTab:CreateSection("Interface", "Normal")
 Interface:CreateKeybind({
     Name = "Toggle Menu Key",
     Flag = "ToggleMenuKey",
-    Keybind = "RightShift",
+    Keybind = "LeftAlt",
     Type = "Press",
     Callback = function(active)
-        if active then
-            Matrice.UI:ToggleUI()
-        end
+        UI:ToggleUI()
     end
 })
 
--- Matrice Hub Info Card – fixed description, separate paragraph for version/changelog
 local gameVersion = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Version) or "N/A")
 local gameChangelog = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Changelog) or "No changelog available.")
 
@@ -497,7 +494,6 @@ Interface:CreateCard({
     }
 })
 
--- Paragraph for version and changelog
 Interface:CreateParagraph({
     Title = "Version " .. gameVersion,
     Description = "Changelog:\n" .. gameChangelog
