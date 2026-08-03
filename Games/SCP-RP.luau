@@ -1,9 +1,7 @@
 -- =============================================================
 --  SCP: Roleplay – Example UI using AuraIS
---  Presets: save/load/reset/auto-load
+--  All settings are automatically saved by AuraIS.
 -- =============================================================
-
-local HttpService = game:GetService("HttpService")
 
 -- Create main window
 local Library = Matrice.UI:CreateLibrary({
@@ -32,7 +30,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- =============================================================
---  COMBAT TAB (unchanged)
+--  COMBAT TAB
 -- =============================================================
 
 -- Targeting Section
@@ -172,7 +170,7 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- =============================================================
---  VISUALS TAB (unchanged)
+--  VISUALS TAB
 -- =============================================================
 
 -- ESP Section
@@ -300,7 +298,7 @@ Effects:CreateDropdown({
 })
 
 -- =============================================================
---  PLAYER TAB (unchanged)
+--  PLAYER TAB
 -- =============================================================
 
 -- Character Section
@@ -394,7 +392,7 @@ PlayerMods:CreateToggle("Normal", {
 })
 
 -- =============================================================
---  UTILITIES TAB (unchanged)
+--  UTILITIES TAB
 -- =============================================================
 
 -- Teleportation Section
@@ -505,225 +503,4 @@ Interface:CreateParagraph({
     Description = "Changelog:\n" .. gameChangelog
 })
 
--- =============================================================
---  PRESETS SECTION (fully functional)
--- =============================================================
-local Presets = SettingsTab:CreateSection("Presets", "Normal")
-
--- Get library name for config folder
-local LibraryName = "Matrice Hub - SCP:RP"
-local SanitisedName = LibraryName:gsub("[^%w%-_]", "_")
-local ConfigPath = "Matrice/Configurations/" .. SanitisedName .. ".json"
-local PresetsFolder = "Matrice/Configurations/" .. SanitisedName .. "/Presets/"
-
--- Ensure folders exist
-pcall(makefolder, "Matrice/Configurations")
-pcall(makefolder, PresetsFolder)
-
--- Textbox for preset name
-local PresetNameBox = Presets:CreateTextbox({
-    Name = "Preset Name",
-    PlaceholderText = "Enter preset name",
-    Flag = "CurrentPresetName",
-    Callback = function(text)
-        print("Preset name set to: " .. text)
-    end
-})
-
--- Helper: get current config data (read from file)
-local function GetCurrentConfig()
-    if not isfile(ConfigPath) then
-        return {
-            Toggles = {},
-            Dropdowns = {},
-            Sliders = {},
-            Keybinds = {},
-            Inputs = {}
-        }
-    end
-    local content = readfile(ConfigPath)
-    local success, data = pcall(HttpService.JSONDecode, HttpService, content)
-    if success and type(data) == "table" then
-        return data
-    end
-    return {
-        Toggles = {},
-        Dropdowns = {},
-        Sliders = {},
-        Keybinds = {},
-        Inputs = {}
-    }
-end
-
--- Helper: save config data to file
-local function SaveConfigData(data)
-    pcall(makefolder, "Matrice/Configurations")
-    writefile(ConfigPath, HttpService:JSONEncode(data))
-end
-
--- Helper: get default config (all empty)
-local function GetDefaultConfig()
-    return {
-        Toggles = {},
-        Dropdowns = {},
-        Sliders = {},
-        Keybinds = {},
-        Inputs = {}
-    }
-end
-
--- Helper: apply preset data to current config and save
-local function ApplyPreset(presetData)
-    if not presetData or type(presetData) ~= "table" then
-        return false, "Invalid preset data"
-    end
-    local current = GetCurrentConfig()
-    -- Merge preset into current (overwrite)
-    for _, key in next, {"Toggles", "Dropdowns", "Sliders", "Keybinds", "Inputs"} do
-        if presetData[key] then
-            for flag, value in next, presetData[key] do
-                current[key][flag] = value
-            end
-        end
-    end
-    SaveConfigData(current)
-    return true, "Preset applied. Restart script to see changes."
-end
-
--- Save Preset button
-Presets:CreateButton({
-    Name = "Save Preset",
-    Callback = function()
-        local name = PresetNameBox and PresetNameBox.Text or "default"
-        if name == "" then name = "default" end
-        local presetPath = PresetsFolder .. name .. ".json"
-        local config = GetCurrentConfig()
-        writefile(presetPath, HttpService:JSONEncode(config))
-        Matrice.UI:Notify("Normal", {
-            Title = "Preset Saved",
-            Content = "Preset '" .. name .. "' saved successfully!",
-            Duration = 3,
-            Image = Matrice.Asset("info.png")
-        })
-        print("Preset saved to: " .. presetPath)
-    end
-})
-
--- Load Preset button
-Presets:CreateButton({
-    Name = "Load Preset",
-    Callback = function()
-        local name = PresetNameBox and PresetNameBox.Text or "default"
-        if name == "" then name = "default" end
-        local presetPath = PresetsFolder .. name .. ".json"
-        if not isfile(presetPath) then
-            Matrice.UI:Notify("Error", {
-                Title = "Preset Not Found",
-                Content = "No preset named '" .. name .. "' exists.",
-                Duration = 3,
-                Image = Matrice.Asset("circle-x.png")
-            })
-            return
-        end
-        local content = readfile(presetPath)
-        local success, data = pcall(HttpService.JSONDecode, HttpService, content)
-        if not success or type(data) ~= "table" then
-            Matrice.UI:Notify("Error", {
-                Title = "Invalid Preset",
-                Content = "Preset file is corrupted.",
-                Duration = 3,
-                Image = Matrice.Asset("circle-x.png")
-            })
-            return
-        end
-        -- Apply the preset to the current config
-        local ok, msg = ApplyPreset(data)
-        if ok then
-            Matrice.UI:Notify("Normal", {
-                Title = "Preset Loaded",
-                Content = "Preset '" .. name .. "' loaded. Please restart the script to apply changes.",
-                Duration = 5,
-                Image = Matrice.Asset("info.png")
-            })
-        else
-            Matrice.UI:Notify("Error", {
-                Title = "Load Failed",
-                Content = msg or "Failed to apply preset.",
-                Duration = 3,
-                Image = Matrice.Asset("circle-x.png")
-            })
-        end
-    end
-})
-
--- Reset Preset button
-Presets:CreateButton({
-    Name = "Reset Preset",
-    Callback = function()
-        -- Ask for confirmation
-        Library:Notify({
-            Title = "Reset Settings",
-            Content = "Are you sure you want to reset all settings to default?",
-            Duration = 5,
-            Actions = {
-                {
-                    Name = "Yes",
-                    Callback = function()
-                        -- Reset to default config (empty tables)
-                        local default = GetDefaultConfig()
-                        SaveConfigData(default)
-                        Matrice.UI:Notify("Normal", {
-                            Title = "Reset",
-                            Content = "All settings reset to default. Restart script to apply.",
-                            Duration = 3,
-                            Image = Matrice.Asset("info.png")
-                        })
-                        print("Settings reset to default.")
-                    end
-                },
-                {
-                    Name = "No",
-                    Callback = function()
-                        print("Reset cancelled.")
-                    end
-                }
-            }
-        })
-    end
-})
-
--- Auto Load Preset toggle
-Presets:CreateToggle("Normal", {
-    Name = "Auto Load Preset",
-    Flag = "AutoLoadPreset",
-    CurrentValue = false,
-    Callback = function(v)
-        print("Auto Load Preset " .. (v and "ON" or "OFF"))
-        -- The toggle state is saved automatically via the library config
-    end
-})
-
--- =============================================================
---  AUTO-LOAD PRESET ON STARTUP
--- =============================================================
--- Check if auto-load is enabled and if preset file exists
-local autoLoadFlag = false
-local config = GetCurrentConfig()
-if config and config.Toggles then
-    autoLoadFlag = config.Toggles["AutoLoadPreset"] or false
-end
-
-if autoLoadFlag then
-    local presetName = "default"  -- you could also load from a saved name
-    -- If we had a textbox to store the current preset name, we could use it.
-    -- For now, we'll try to load "default" if auto-load is on.
-    local presetPath = PresetsFolder .. presetName .. ".json"
-    if isfile(presetPath) then
-        local content = readfile(presetPath)
-        local success, data = pcall(HttpService.JSONDecode, HttpService, content)
-        if success and type(data) == "table" then
-            ApplyPreset(data)
-            print("Auto-loaded preset: " .. presetName)
-        end
-    end
-end
+print("SCP:RP UI loaded.")
