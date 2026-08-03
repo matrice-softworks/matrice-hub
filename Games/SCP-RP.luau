@@ -17,13 +17,12 @@ local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
-local Visuals = Matrice.Visuals  -- VisualLibrary from loader
+local Visuals = Matrice.Visuals
 
 -- ============================================================
 --  FEATURE MODULES
 -- ============================================================
 
--- Combat Features
 local SilentAim = {}
 SilentAim.Enabled = false
 SilentAim.WallCheck = true
@@ -61,7 +60,6 @@ TriggerDelay.Value = 50
 local AutoReload = {}
 AutoReload.Enabled = false
 
--- Visuals Features
 local ESP = {}
 ESP.Enabled = false
 ESP.Settings = {
@@ -96,7 +94,6 @@ local Greyscale = {}
 Greyscale.Enabled = false
 Greyscale.Effect = nil
 
--- Player Features
 local WalkSpeed = {}
 WalkSpeed.Enabled = false
 WalkSpeed.Value = 16
@@ -119,7 +116,6 @@ Fly.Active = false
 Fly.Connection = nil
 Fly.CharacterConnection = nil
 
--- Utilities Features
 local ModeratorDetector = {}
 ModeratorDetector.Enabled = false
 ModeratorDetector.Connection = nil
@@ -130,7 +126,6 @@ local AntiAFK = {}
 AntiAFK.Enabled = false
 AntiAFK.Connection = nil
 
--- Movement Spoof (advanced feature)
 local MovementSpoof = {}
 MovementSpoof.Enabled = false
 MovementSpoof.Active = false
@@ -667,13 +662,13 @@ local function CreatePlayerESP(Player)
     local Box = nil
     if ESP.Settings.Box then
         Box = Visuals:CreateVisual("Drawing", {Type="Square", Thickness=1, Color=TeamColor, Filled=false, Transparency=1})
-        Box:StartTracking(Player)  -- track position, but we will manually set size
+        Box:StartTracking(Player)
     end
 
     local Tracer = nil
     if TracerLines.Enabled then
         Tracer = Visuals:CreateVisual("Drawing", {Type="Line", Thickness=1, Color=TeamColor, Transparency=1})
-        Tracer:StartTracking(Player) -- track to set To position
+        Tracer:StartTracking(Player)
     end
 
     local Skeleton = nil
@@ -810,8 +805,6 @@ local function StartESP()
                 if OnScreen and TracerLines.Enabled then
                     local Viewport = workspace.CurrentCamera.ViewportSize
                     Data.Tracer.Object.From = Vector2.new(Viewport.X / 2, Viewport.Y)
-                    -- To is set by tracking, but we need to ensure it's updated. Actually tracking updates To to the player's position.
-                    -- We'll just keep it visible; tracking will handle To.
                     Data.Tracer.Object.Visible = true
                 else
                     Data.Tracer.Object.Visible = false
@@ -1194,6 +1187,38 @@ Targeting:CreateSlider({
     end
 })
 
+local FOVSection = CombatTab:CreateSection("FOV", "Normal")
+
+FOVSection:CreateToggle("Normal", {
+    Name = "Show FOV",
+    Flag = "ShowFOV",
+    Callback = function(Enabled)
+        FOV.Enabled = Enabled
+        print("Show FOV " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+FOVSection:CreateSlider({
+    Name = "FOV Radius",
+    Value = {25, 500},
+    Increment = 5,
+    Suffix = "px",
+    CurrentValue = FOV.Radius,
+    Flag = "FOVRadius",
+    Callback = function(Value)
+        FOV.Radius = Value
+        print("FOV Radius set to " .. Value)
+    end
+})
+
+FOVSection:CreateColorPicker({
+    Name = "FOV Color",
+    Callback = function(Color)
+        FOV.Color = Color
+        print("FOV color changed to", Color)
+    end
+})
+
 local Checks = CombatTab:CreateSection("Checks", "Normal")
 
 Checks:CreateToggle("Normal", {
@@ -1253,9 +1278,9 @@ Weapons:CreateToggle("Normal", {
 --  VISUALS TAB
 -- ============================================================
 
-local ESP = VisualsTab:CreateSection("ESP", "Normal")
+local ESPSection = VisualsTab:CreateSection("ESP", "Normal")
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Enable ESP",
     Flag = "ESPEnabled",
     Callback = function(Enabled)
@@ -1264,7 +1289,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Box ESP",
     Flag = "ESPBox",
     Callback = function(Enabled)
@@ -1274,7 +1299,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Name ESP",
     Flag = "ESPName",
     Callback = function(Enabled)
@@ -1284,7 +1309,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Distance ESP",
     Flag = "ESPDistance",
     Callback = function(Enabled)
@@ -1294,7 +1319,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Weapon ESP",
     Flag = "ESPWeapon",
     Callback = function(Enabled)
@@ -1304,7 +1329,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Health Bar",
     Flag = "ESPHealthBar",
     Callback = function(Enabled)
@@ -1314,7 +1339,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Skeleton ESP",
     Flag = "ESPSkeleton",
     Callback = function(Enabled)
@@ -1324,7 +1349,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Team Check",
     Flag = "ESPTeamCheck",
     Callback = function(Enabled)
@@ -1334,7 +1359,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateToggle("Normal", {
+ESPSection:CreateToggle("Normal", {
     Name = "Friend Check",
     Flag = "FriendCheck",
     Callback = function(Enabled)
@@ -1344,7 +1369,7 @@ ESP:CreateToggle("Normal", {
     end
 })
 
-ESP:CreateSlider({
+ESPSection:CreateSlider({
     Name = "Distance Limit",
     Value = {50, 2000},
     Increment = 50,
