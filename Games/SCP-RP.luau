@@ -19,8 +19,20 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
 -- ============================================================
---  STARTUP CLEANUP
+--  NETWORK PAUSE CLEANUP
 -- ============================================================
+
+local NetworkPauseConnection = nil
+
+pcall(function()
+    NetworkPauseConnection:Disconnect()
+end)
+
+NetworkPauseConnection = CoreGui.RobloxGui.ChildAdded:Connect(function(Object)
+    if Object.Name == "CoreScripts/NetworkPause" then
+        Object:Destroy()
+    end
+end)
 
 pcall(function()
     CoreGui.RobloxGui["CoreScripts/NetworkPause"]:Destroy()
@@ -576,7 +588,7 @@ Miscellaneous:CreateButton({
         local UpperTorso = Character:FindFirstChild("UpperTorso")
         if UpperTorso then
             UpperTorso.Anchored = true
-            task.wait(3)
+            task.wait(1)
             UpperTorso.Anchored = false
         end
         print("SCP-008 Infection applied.")
