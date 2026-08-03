@@ -21,7 +21,7 @@ Library:CreateAdvertisement(
 -- =============================================================
 local CombatTab   = Library:CreateTab("Combat",   Matrice.Asset("crosshair.png"))
 local VisualsTab  = Library:CreateTab("Visuals",  Matrice.Asset("palette.png"))
-local PlayerTab   = Library:CreateTab("Player",   Matrice.Asset("user-shield.png"))
+local PlayerTab   = Library:CreateTab("Player",   Matrice.Asset("user.png"))
 local MiscTab     = Library:CreateTab("Misc",     Matrice.Asset("toolbox.png"))
 local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
@@ -278,13 +278,6 @@ Effects:CreateToggle("Normal", {
     end
 })
 
-Effects:CreateColorPicker({
-    Name = "Highlight Color",
-    Callback = function(color)
-        print("Highlight color changed to", color)
-    end
-})
-
 Effects:CreateToggle("Normal", {
     Name = "Tracer Lines",
     Flag = "TracerLines",
@@ -303,44 +296,101 @@ Effects:CreateDropdown({
     end
 })
 
-Effects:CreateColorPicker({
-    Name = "Tracer Color",
-    Callback = function(color)
-        print("Tracer color changed to", color)
-    end
-})
-
 -- =============================================================
 --  PLAYER TAB
 -- =============================================================
-local PlayerGeneral = PlayerTab:CreateSection("General", "Normal")
-local PlayerMods    = PlayerTab:CreateSection("Moderator Detector", "Foldable")
+
+-- Character Section
+local Character = PlayerTab:CreateSection("Character", "Normal")
+
+Character:CreateToggle("Normal", {
+    Name = "Enable Walk Speed",
+    Flag = "EnableWalkSpeed",
+    Callback = function(v)
+        print("Enable Walk Speed " .. (v and "ON" or "OFF"))
+    end
+})
+
+Character:CreateSlider({
+    Name = "Walk Speed",
+    Value = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 16,
+    Flag = "WalkSpeed",
+    Callback = function(v)
+        print("Walk Speed set to " .. v)
+    end
+})
+
+Character:CreateToggle("Normal", {
+    Name = "Enable Jump Power",
+    Flag = "EnableJumpPower",
+    Callback = function(v)
+        print("Enable Jump Power " .. (v and "ON" or "OFF"))
+    end
+})
+
+Character:CreateSlider({
+    Name = "Jump Power",
+    Value = {0, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = 50,
+    Flag = "JumpPower",
+    Callback = function(v)
+        print("Jump Power set to " .. v)
+    end
+})
+
+Character:CreateToggle("Normal", {
+    Name = "No Clip",
+    Flag = "NoClip",
+    Callback = function(v)
+        print("No Clip " .. (v and "ON" or "OFF"))
+    end
+})
+
+Character:CreateKeybind({
+    Name = "No Clip Keybind",
+    Flag = "NoClipKeybind",
+    Keybind = "N",
+    Type = "Press",
+    Callback = function(active)
+        print("No Clip key " .. (active and "pressed" or "released"))
+    end
+})
+
+Character:CreateToggle("Normal", {
+    Name = "Fly",
+    Flag = "Fly",
+    Callback = function(v)
+        print("Fly " .. (v and "ON" or "OFF"))
+    end
+})
+
+Character:CreateKeybind({
+    Name = "Fly Keybind",
+    Flag = "FlyKeybind",
+    Keybind = "F",
+    Type = "Press",
+    Callback = function(active)
+        print("Fly key " .. (active and "pressed" or "released"))
+    end
+})
+
+Character:CreateLabel({
+    Description = "Character Settings"
+})
+
+-- Moderator Detector Section (kept as foldable)
+local PlayerMods = PlayerTab:CreateSection("Moderator Detector", "Foldable")
 
 PlayerMods:CreateToggle("Normal", {
     Name = "Detect Moderators",
     Flag = "ModDetect",
     Callback = function(v)
         print("Moderator detection " .. (v and "ON" or "OFF"))
-    end
-})
-
-PlayerGeneral:CreateTextbox({
-    Name = "Your Name Override",
-    PlaceholderText = "Enter custom name",
-    Flag = "CustomName",
-    Callback = function(text)
-        print("Custom name set to " .. text)
-    end
-})
-
-PlayerGeneral:CreateButton({
-    Name = "Teleport to Player",
-    Callback = function()
-        Library:Notify({
-            Title = "Not Implemented",
-            Content = "Teleport functionality coming soon.",
-            Duration = 3
-        })
     end
 })
 
