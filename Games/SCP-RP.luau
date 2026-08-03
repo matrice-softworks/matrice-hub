@@ -176,7 +176,7 @@ Effects:CreateDropdown({
 })
 
 -- =============================
--- SPOOF ENGINE (unified for WalkSpeed, JumpPower, NoClip, Fly)
+-- SPOOF ENGINE (unified)
 -- =============================
 local cloneref = cloneref or function(x) return x end
 local Players = cloneref(game:GetService("Players"))
@@ -243,7 +243,6 @@ local function CreatePropertySpoof(property, defaultValue)
             cached[id] = c
         end
         c.spoofed = value
-        -- also set the actual property to bypass any checks?
         humanoid[property] = value
     end
 
@@ -269,7 +268,7 @@ local function CreatePropertySpoof(property, defaultValue)
     return { Set = Set, Reset = Reset, Disable = Disable }
 end
 
--- Feature factory for toggles (NoClip, Fly) - similar interface
+-- Feature factory for toggles (NoClip, Fly)
 local function CreateToggleFeature(enableCallback, disableCallback)
     local enabled = false
     local function Enable()
@@ -290,13 +289,12 @@ local function CreateToggleFeature(enableCallback, disableCallback)
     return { Enable = Enable, Disable = Disable, Toggle = Toggle, IsEnabled = function() return enabled end }
 end
 
--- Initialize spoofers
+-- WalkSpeed & JumpPower spoofers
 local walkSpoof = CreatePropertySpoof("WalkSpeed", 16)
 local jumpSpoof = CreatePropertySpoof("JumpPower", 50)
 
--- NoClip feature
-local noclipFeature
-local noclipConnection
+-- NoClip
+local noclipConnection = nil
 local function enableNoclip()
     if noclipConnection then noclipConnection:Disconnect() end
     noclipConnection = RunService.Heartbeat:Connect(function()
@@ -324,10 +322,9 @@ local function disableNoclip()
         end
     end
 end
-noclipFeature = CreateToggleFeature(enableNoclip, disableNoclip)
+local noclipFeature = CreateToggleFeature(enableNoclip, disableNoclip)
 
--- Fly feature
-local flyFeature
+-- Fly
 local flyBodyVelocity = nil
 local flyConnection = nil
 local flySpeed = 50
@@ -372,7 +369,7 @@ local function disableFly()
         flyBodyVelocity = nil
     end
 end
-flyFeature = CreateToggleFeature(enableFly, disableFly)
+local flyFeature = CreateToggleFeature(enableFly, disableFly)
 
 -- =============================================================
 --  PLAYER TAB UI
@@ -380,6 +377,7 @@ flyFeature = CreateToggleFeature(enableFly, disableFly)
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
 -- Walk Speed
+local currentWalkSpeed = 16
 local walkSpeedToggle
 local walkSpeedSlider
 
@@ -387,12 +385,7 @@ walkSpeedToggle = Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "EnableWalkSpeed",
     Callback = function(v)
-        if v then
-            local val = walkSpeedSlider and walkSpeedSlider.CurrentValue or 16
-            walkSpoof.Set(val)
-        else
-            walkSpoof.Reset()
-        end
+        if v then walkSpoof.Set(currentWalkSpeed) else walkSpoof.Reset() end
     end
 })
 
@@ -404,6 +397,7 @@ walkSpeedSlider = Character:CreateSlider({
     CurrentValue = 16,
     Flag = "WalkSpeed",
     Callback = function(v)
+        currentWalkSpeed = v
         if walkSpeedToggle and walkSpeedToggle.CurrentValue then
             walkSpoof.Set(v)
         end
@@ -411,6 +405,7 @@ walkSpeedSlider = Character:CreateSlider({
 })
 
 -- Jump Power
+local currentJumpPower = 50
 local jumpPowerToggle
 local jumpPowerSlider
 
@@ -418,12 +413,7 @@ jumpPowerToggle = Character:CreateToggle("Normal", {
     Name = "Enable Jump Power",
     Flag = "EnableJumpPower",
     Callback = function(v)
-        if v then
-            local val = jumpPowerSlider and jumpPowerSlider.CurrentValue or 50
-            jumpSpoof.Set(val)
-        else
-            jumpSpoof.Reset()
-        end
+        if v then jumpSpoof.Set(currentJumpPower) else jumpSpoof.Reset() end
     end
 })
 
@@ -435,6 +425,7 @@ jumpPowerSlider = Character:CreateSlider({
     CurrentValue = 50,
     Flag = "JumpPower",
     Callback = function(v)
+        currentJumpPower = v
         if jumpPowerToggle and jumpPowerToggle.CurrentValue then
             jumpSpoof.Set(v)
         end
@@ -442,8 +433,7 @@ jumpPowerSlider = Character:CreateSlider({
 })
 
 -- No Clip
-local noclipToggle
-noclipToggle = Character:CreateToggle("Normal", {
+local noclipToggle = Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
     Callback = function(v)
@@ -459,17 +449,13 @@ Character:CreateKeybind({
     Callback = function(active)
         if active then
             noclipFeature.Toggle()
-            -- sync UI toggle
-            if noclipToggle then
-                noclipToggle:SetToggle(noclipFeature.IsEnabled())
-            end
+            if noclipToggle then noclipToggle:SetToggle(noclipFeature.IsEnabled()) end
         end
     end
 })
 
 -- Fly
-local flyToggle
-flyToggle = Character:CreateToggle("Normal", {
+local flyToggle = Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "Fly",
     Callback = function(v)
@@ -485,9 +471,7 @@ Character:CreateKeybind({
     Callback = function(active)
         if active then
             flyFeature.Toggle()
-            if flyToggle then
-                flyToggle:SetToggle(flyFeature.IsEnabled())
-            end
+            if flyToggle then flyToggle:SetToggle(flyFeature.IsEnabled()) end
         end
     end
 })
