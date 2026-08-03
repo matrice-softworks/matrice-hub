@@ -175,221 +175,320 @@ Effects:CreateDropdown({
     Callback = function(choice) print("Tracer Origin set to " .. choice) end
 })
 
--- =============================
--- SPOOF ENGINE (unified)
--- =============================
-local cloneref = cloneref or function(x) return x end
+-- ----------------------------------------------------------------------
+-- SPOOFED CHARACTER FUNCTIONS (WalkSpeed, JumpPower, NoClip, Fly)
+-- ----------------------------------------------------------------------
+local cloneref = cloneref or function(...) return ... end
 local Players = cloneref(game:GetService("Players"))
-if not Players.LocalPlayer then Players:GetPropertyChangedSignal("LocalPlayer"):Wait() end
-local lp = cloneref(Players.LocalPlayer)
-local RunService = cloneref(game:GetService("RunService"))
-local UserInputService = cloneref(game:GetService("UserInputService"))
+local lp = Players.LocalPlayer or Players:WaitForChild("LocalPlayer")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
-local function CreatePropertySpoof(property, defaultValue)
-    local debugHandler = Instance.new("BindableFunction")
-    local tempInstance = Instance.new("Humanoid")
+local Spoof = {}
+Spoof.WalkSpeed = {}
+Spoof.JumpPower = {}
+Spoof.NoClip = {}
+Spoof.Fly = {}
+
+-- helpers
+local function GetDebugIdHandler()
+    local handler = Instance.new("BindableFunction")
+    handler.OnInvoke = function(obj) return obj:GetDebugId() end
+    return handler
+end
+
+local function GetHumanoid()
+    local char = lp.Character
+    return char and char:FindFirstChildWhichIsA("Humanoid")
+end
+
+local function GetRootPart()
+    local char = lp.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+-- WalkSpeed spoof (using provided method)
+do
+    local TempHumanoid = Instance.new("Humanoid")
+    local GetDebugId = GetDebugIdHandler()
     local cached = {}
+    local CurrentHumanoid
+    local indexhook, newindexhook
 
-    function debugHandler.OnInvoke(obj) return obj:GetDebugId() end
-    local function GetDebugId(obj) return debugHandler:Invoke(obj) end
-
-    local function GetSpoofedValue(obj)
-        tempInstance[property] = obj
-        return tempInstance[property]
+    local function GetWalkSpeed(obj)
+        TempHumanoid.WalkSpeed = obj
+        return TempHumanoid.WalkSpeed
     end
 
-    local indexHook = hookmetamethod(game, "__index", function(self, index)
+    indexhook = hookmetamethod(game, "__index", function(self, index)
         if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
             local id = GetDebugId(self)
-            local c = cached[id]
-            if self:IsDescendantOf(lp.Character) or c then
-                if type(index) == "string" and index == property then
-                    if not c then
-                        c = { original = self[property], spoofed = nil }
-                        cached[id] = c
+            local entry = cached[id]
+            if self:IsDescendantOf(lp.Character) or entry then
+                if index == "WalkSpeed" then
+                    if not entry then
+                        entry = { current = self.WalkSpeed, last = nil }
+                        cached[id] = entry
                     end
-                    return c.spoofed or c.original
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    return entry.last or entry.current
                 end
             end
         end
-        return indexHook(self, index)
+        return indexhook(self, index)
     end)
 
-    local newIndexHook = hookmetamethod(game, "__newindex", function(self, index, new)
+    newindexhook = hookmetamethod(game, "__newindex", function(self, index, value)
         if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
             local id = GetDebugId(self)
-            local c = cached[id]
-            if self:IsDescendantOf(lp.Character) or c then
-                if type(index) == "string" and index == property then
-                    if not c then
-                        c = { original = self[property], spoofed = nil }
-                        cached[id] = c
+            local entry = cached[id]
+            if self:IsDescendantOf(lp.Character) or entry then
+                if index == "WalkSpeed" then
+                    if not entry then
+                        entry = { current = self.WalkSpeed, last = nil }
+                        cached[id] = entry
                     end
-                    c.spoofed = GetSpoofedValue(new)
-                    return
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    entry.last = GetWalkSpeed(value)
+                    return CurrentHumanoid.WalkSpeed
                 end
             end
         end
-        return newIndexHook(self, index, new)
+        return newindexhook(self, index, value)
     end)
 
-    local function Set(value)
-        local humanoid = lp.Character and lp.Character:FindFirstChildWhichIsA("Humanoid")
-        if not humanoid then return end
-        local id = GetDebugId(humanoid)
-        local c = cached[id]
-        if not c then
-            c = { original = humanoid[property], spoofed = nil }
-            cached[id] = c
-        end
-        c.spoofed = value
-        humanoid[property] = value
-    end
-
-    local function Reset()
-        local humanoid = lp.Character and lp.Character:FindFirstChildWhichIsA("Humanoid")
-        if not humanoid then return end
-        local id = GetDebugId(humanoid)
-        local c = cached[id]
-        if c then
-            humanoid[property] = c.original
-            c.spoofed = nil
+    function Spoof.WalkSpeed:Set(speed)
+        local h = GetHumanoid()
+        if h then
+            local id = GetDebugId(h)
+            local entry = cached[id]
+            if not entry then
+                entry = { current = h.WalkSpeed, last = nil }
+                cached[id] = entry
+            end
+            local connections = {}
+            local function DisableConnection(conn)
+                if conn.State then conn:Disable() table.insert(connections, conn) end
+            end
+            for _, conn in getconnections(h.Changed) do DisableConnection(conn) end
+            for _, conn in getconnections(h:GetPropertyChangedSignal("WalkSpeed")) do DisableConnection(conn) end
+            h.WalkSpeed = speed
+            for _, conn in connections do conn:Enable() end
         end
     end
 
-    local function Disable()
-        Reset()
-        debugHandler:Destroy()
-        tempInstance:Destroy()
-        hookmetamethod(game, "__index", indexHook)
-        hookmetamethod(game, "__newindex", newIndexHook)
+    function Spoof.WalkSpeed:Restore()
+        local h = GetHumanoid()
+        if h then
+            local id = GetDebugId(h)
+            local entry = cached[id]
+            if entry then
+                Spoof.WalkSpeed:Set(entry.last or entry.current)
+            end
+        end
     end
 
-    return { Set = Set, Reset = Reset, Disable = Disable }
+    function Spoof.WalkSpeed:Disable()
+        Spoof.WalkSpeed:Restore()
+        -- reset hooks? not needed since we keep them active
+    end
 end
 
--- Feature factory for toggles (NoClip, Fly)
-local function CreateToggleFeature(enableCallback, disableCallback)
-    local enabled = false
-    local function Enable()
-        if not enabled then
-            enabled = true
-            enableCallback()
-        end
-    end
-    local function Disable()
-        if enabled then
-            enabled = false
-            disableCallback()
-        end
-    end
-    local function Toggle()
-        if enabled then Disable() else Enable() end
-    end
-    return { Enable = Enable, Disable = Disable, Toggle = Toggle, IsEnabled = function() return enabled end }
-end
+-- JumpPower spoof (same pattern as WalkSpeed)
+do
+    local TempHumanoid = Instance.new("Humanoid")
+    local GetDebugId = GetDebugIdHandler()
+    local cached = {}
+    local CurrentHumanoid
+    local indexhook, newindexhook
 
--- WalkSpeed & JumpPower spoofers
-local walkSpoof = CreatePropertySpoof("WalkSpeed", 16)
-local jumpSpoof = CreatePropertySpoof("JumpPower", 50)
+    local function GetJumpPower(obj)
+        TempHumanoid.JumpPower = obj
+        return TempHumanoid.JumpPower
+    end
 
--- NoClip
-local noclipConnection = nil
-local function enableNoclip()
-    if noclipConnection then noclipConnection:Disconnect() end
-    noclipConnection = RunService.Heartbeat:Connect(function()
-        local char = lp.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
+    indexhook = hookmetamethod(game, "__index", function(self, index)
+        if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
+            local id = GetDebugId(self)
+            local entry = cached[id]
+            if self:IsDescendantOf(lp.Character) or entry then
+                if index == "JumpPower" then
+                    if not entry then
+                        entry = { current = self.JumpPower, last = nil }
+                        cached[id] = entry
+                    end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    return entry.last or entry.current
                 end
             end
         end
+        return indexhook(self, index)
     end)
-end
-local function disableNoclip()
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
+
+    newindexhook = hookmetamethod(game, "__newindex", function(self, index, value)
+        if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
+            local id = GetDebugId(self)
+            local entry = cached[id]
+            if self:IsDescendantOf(lp.Character) or entry then
+                if index == "JumpPower" then
+                    if not entry then
+                        entry = { current = self.JumpPower, last = nil }
+                        cached[id] = entry
+                    end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    entry.last = GetJumpPower(value)
+                    return CurrentHumanoid.JumpPower
+                end
+            end
+        end
+        return newindexhook(self, index, value)
+    end)
+
+    function Spoof.JumpPower:Set(speed)
+        local h = GetHumanoid()
+        if h then
+            local id = GetDebugId(h)
+            local entry = cached[id]
+            if not entry then
+                entry = { current = h.JumpPower, last = nil }
+                cached[id] = entry
+            end
+            local connections = {}
+            local function DisableConnection(conn)
+                if conn.State then conn:Disable() table.insert(connections, conn) end
+            end
+            for _, conn in getconnections(h.Changed) do DisableConnection(conn) end
+            for _, conn in getconnections(h:GetPropertyChangedSignal("JumpPower")) do DisableConnection(conn) end
+            h.JumpPower = speed
+            for _, conn in connections do conn:Enable() end
+        end
     end
-    local char = lp.Character
-    if char then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = true
+
+    function Spoof.JumpPower:Restore()
+        local h = GetHumanoid()
+        if h then
+            local id = GetDebugId(h)
+            local entry = cached[id]
+            if entry then
+                Spoof.JumpPower:Set(entry.last or entry.current)
             end
         end
     end
 end
-local noclipFeature = CreateToggleFeature(enableNoclip, disableNoclip)
 
--- Fly
-local flyBodyVelocity = nil
-local flyConnection = nil
-local flySpeed = 50
-local function enableFly()
-    if flyConnection then flyConnection:Disconnect() end
-    local char = lp.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local hrp = char.HumanoidRootPart
-        if not flyBodyVelocity then
-            flyBodyVelocity = Instance.new("BodyVelocity")
-            flyBodyVelocity.MaxForce = Vector3.new(1, 1, 1) * 1e9
-            flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            flyBodyVelocity.Parent = hrp
+-- NoClip spoof (simple collision toggle)
+do
+    local NoclipActive = false
+    local NoclipConnection
+    local function UpdateNoclip()
+        local root = GetRootPart()
+        if root then
+            root.CanCollide = not NoclipActive
+        end
+    end
+    function Spoof.NoClip:Set(state)
+        NoclipActive = state
+        if NoclipConnection then NoclipConnection:Disconnect() end
+        if state then
+            NoclipConnection = RunService.Heartbeat:Connect(UpdateNoclip)
         else
-            flyBodyVelocity.Parent = hrp
+            NoclipConnection = nil
+            UpdateNoclip()
         end
-        flyConnection = RunService.Heartbeat:Connect(function()
-            if not flyFeature.IsEnabled() then return end
-            local move = Vector3.new()
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + Vector3.new(0, 0, -1) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move + Vector3.new(0, 0, 1) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move + Vector3.new(-1, 0, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + Vector3.new(1, 0, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move + Vector3.new(0, -1, 0) end
-            if move.Magnitude > 0 then
-                move = move.Unit * flySpeed
-            end
-            if hrp and flyBodyVelocity then
-                flyBodyVelocity.Velocity = move
-            end
-        end)
+    end
+    function Spoof.NoClip:Toggle()
+        Spoof.NoClip:Set(not NoclipActive)
     end
 end
-local function disableFly()
-    if flyConnection then
-        flyConnection:Disconnect()
-        flyConnection = nil
-    end
-    if flyBodyVelocity then
-        flyBodyVelocity:Destroy()
-        flyBodyVelocity = nil
-    end
-end
-local flyFeature = CreateToggleFeature(enableFly, disableFly)
 
--- =============================================================
---  PLAYER TAB UI
--- =============================================================
+-- Fly spoof (BodyVelocity)
+do
+    local FlyActive = false
+    local FlyConnection, FlyBV
+    local FlySpeed = 50
+
+    local function CreateFlyBV()
+        local root = GetRootPart()
+        if not root then return end
+        local bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(1, 1, 1) * 1e6
+        bv.Velocity = Vector3.new(0, 0, 0)
+        bv.Parent = root
+        return bv
+    end
+
+    local function UpdateFly()
+        if not FlyActive then return end
+        local root = GetRootPart()
+        if not root then return end
+        local direction = Vector3.new()
+        local forward = root.CFrame.LookVector
+        local right = root.CFrame.RightVector
+        local up = root.CFrame.UpVector
+
+        local move = Vector3.new(
+            (UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0),
+            (UserInputService:IsKeyDown(Enum.KeyCode.Space) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and 1 or 0),
+            (UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
+        )
+        direction = (forward * move.Z + right * move.X + up * move.Y).Unit * FlySpeed
+        if FlyBV then
+            FlyBV.Velocity = direction
+        end
+    end
+
+    function Spoof.Fly:Set(state)
+        FlyActive = state
+        if FlyConnection then FlyConnection:Disconnect() end
+        if FlyBV then FlyBV:Destroy() end
+        if state then
+            FlyBV = CreateFlyBV()
+            FlyConnection = RunService.Heartbeat:Connect(UpdateFly)
+        else
+            FlyBV = nil
+            FlyConnection = nil
+        end
+    end
+
+    function Spoof.Fly:SetSpeed(speed)
+        FlySpeed = speed
+    end
+end
+
+-- ----------------------------------------------------------------------
+-- PLAYER TAB UI ELEMENTS (using spoofed functions)
+-- ----------------------------------------------------------------------
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
--- Walk Speed
-local currentWalkSpeed = 16
-local walkSpeedToggle
-local walkSpeedSlider
+local walkSpeedEnabled = false
+local jumpPowerEnabled = false
+local noClipEnabled = false
+local flyEnabled = false
 
-walkSpeedToggle = Character:CreateToggle("Normal", {
+Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "EnableWalkSpeed",
     Callback = function(v)
-        if v then walkSpoof.Set(currentWalkSpeed) else walkSpoof.Reset() end
+        walkSpeedEnabled = v
+        if v then
+            local speed = tonumber(WalkSpeedSlider.CurrentValue) or 16
+            Spoof.WalkSpeed:Set(speed)
+        else
+            Spoof.WalkSpeed:Restore()
+        end
     end
 })
 
-walkSpeedSlider = Character:CreateSlider({
+local WalkSpeedSlider = Character:CreateSlider({
     Name = "Walk Speed",
     Value = {0, 100},
     Increment = 1,
@@ -397,27 +496,27 @@ walkSpeedSlider = Character:CreateSlider({
     CurrentValue = 16,
     Flag = "WalkSpeed",
     Callback = function(v)
-        currentWalkSpeed = v
-        if walkSpeedToggle and walkSpeedToggle.CurrentValue then
-            walkSpoof.Set(v)
+        if walkSpeedEnabled then
+            Spoof.WalkSpeed:Set(v)
         end
     end
 })
 
--- Jump Power
-local currentJumpPower = 50
-local jumpPowerToggle
-local jumpPowerSlider
-
-jumpPowerToggle = Character:CreateToggle("Normal", {
+Character:CreateToggle("Normal", {
     Name = "Enable Jump Power",
     Flag = "EnableJumpPower",
     Callback = function(v)
-        if v then jumpSpoof.Set(currentJumpPower) else jumpSpoof.Reset() end
+        jumpPowerEnabled = v
+        if v then
+            local power = tonumber(JumpSlider.CurrentValue) or 50
+            Spoof.JumpPower:Set(power)
+        else
+            Spoof.JumpPower:Restore()
+        end
     end
 })
 
-jumpPowerSlider = Character:CreateSlider({
+local JumpSlider = Character:CreateSlider({
     Name = "Jump Power",
     Value = {0, 100},
     Increment = 1,
@@ -425,19 +524,18 @@ jumpPowerSlider = Character:CreateSlider({
     CurrentValue = 50,
     Flag = "JumpPower",
     Callback = function(v)
-        currentJumpPower = v
-        if jumpPowerToggle and jumpPowerToggle.CurrentValue then
-            jumpSpoof.Set(v)
+        if jumpPowerEnabled then
+            Spoof.JumpPower:Set(v)
         end
     end
 })
 
--- No Clip
-local noclipToggle = Character:CreateToggle("Normal", {
+Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
     Callback = function(v)
-        if v then noclipFeature.Enable() else noclipFeature.Disable() end
+        noClipEnabled = v
+        Spoof.NoClip:Set(v)
     end
 })
 
@@ -448,18 +546,18 @@ Character:CreateKeybind({
     Type = "Press",
     Callback = function(active)
         if active then
-            noclipFeature.Toggle()
-            if noclipToggle then noclipToggle:SetToggle(noclipFeature.IsEnabled()) end
+            noClipEnabled = not noClipEnabled
+            Spoof.NoClip:Set(noClipEnabled)
         end
     end
 })
 
--- Fly
-local flyToggle = Character:CreateToggle("Normal", {
+Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "Fly",
     Callback = function(v)
-        if v then flyFeature.Enable() else flyFeature.Disable() end
+        flyEnabled = v
+        Spoof.Fly:Set(v)
     end
 })
 
@@ -470,8 +568,8 @@ Character:CreateKeybind({
     Type = "Press",
     Callback = function(active)
         if active then
-            flyFeature.Toggle()
-            if flyToggle then flyToggle:SetToggle(flyFeature.IsEnabled()) end
+            flyEnabled = not flyEnabled
+            Spoof.Fly:Set(flyEnabled)
         end
     end
 })
@@ -525,8 +623,7 @@ Interface:CreateKeybind({
     Keybind = "LeftAlt",
     Type = "Press",
     Callback = function(active)
-        print("Toggle UI triggered")
-        Matrice.UI:ToggleUI()
+        if active then Matrice.UI:ToggleUI() end
     end
 })
 
