@@ -22,7 +22,7 @@ Library:CreateAdvertisement(
 local CombatTab   = Library:CreateTab("Combat",   Matrice.Asset("crosshair.png"))
 local VisualsTab  = Library:CreateTab("Visuals",  Matrice.Asset("palette.png"))
 local PlayerTab   = Library:CreateTab("Player",   Matrice.Asset("user.png"))
-local MiscTab     = Library:CreateTab("Misc",     Matrice.Asset("toolbox.png"))
+local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox.png"))
 local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
 -- Activate the first tab
@@ -395,38 +395,105 @@ PlayerMods:CreateToggle("Normal", {
 })
 
 -- =============================================================
---  MISC TAB
+--  UTILITIES TAB
 -- =============================================================
-local MiscGeneral = MiscTab:CreateSection("General", "Normal")
-local MiscAds     = MiscTab:CreateSection("Advertisements", "Foldable")
 
-MiscGeneral:CreateButton({
-    Name = "Copy Discord Link",
+-- Teleportation Section
+local Teleportation = UtilitiesTab:CreateSection("Teleportation", "Normal")
+
+Teleportation:CreateLabel({
+    Description = "Provides quick access to useful locations."
+})
+
+Teleportation:CreateButton({
+    Name = "Class D-Zone",
     Callback = function()
-        setclipboard("https://discord.gg/matrice")
-        Matrice.UI:Notify("Normal", {
-            Title = "Copied!",
-            Content = "Discord link copied to clipboard.",
-            Duration = 2,
-            Image = Matrice.Asset("clipboard.png")
-        })
+        print("Teleported to Class D-Zone")
     end
 })
 
-MiscAds:CreateLabel({
-    Description = "Support us by checking our ad below!"
+Teleportation:CreateButton({
+    Name = "Security Department",
+    Callback = function()
+        print("Teleported to Security Department")
+    end
 })
 
-MiscAds:CreateCard({
-    Title = "Rocheats",
-    Description = "Best cheating tools for SCP:RP",
-    SecondaryTitle = "v2.0",
-    Image = Matrice.Asset("rocheats_banner.png"),
+-- Miscellaneous Section
+local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
+
+Miscellaneous:CreateLabel({
+    Description = "Contains additional utility features."
+})
+
+Miscellaneous:CreateButton({
+    Name = "Become A Zombie",
+    Callback = function()
+        print("Became a zombie!")
+    end
+})
+
+Miscellaneous:CreateToggle("Normal", {
+    Name = "Moderator Detector",
+    Flag = "ModDetectUtil",
+    Callback = function(v)
+        print("Moderator Detector " .. (v and "ON" or "OFF"))
+    end
+})
+
+-- Anti AFK Section
+local AntiAFK = UtilitiesTab:CreateSection("Anti AFK", "Normal")
+
+AntiAFK:CreateToggle("Normal", {
+    Name = "Enable Anti AFK",
+    Flag = "AntiAFK",
+    Callback = function(v)
+        print("Anti AFK " .. (v and "ON" or "OFF"))
+    end
+})
+
+-- =============================================================
+--  SETTINGS TAB
+-- =============================================================
+
+-- Interface Section
+local Interface = SettingsTab:CreateSection("Interface", "Normal")
+
+Interface:CreateKeybind({
+    Name = "Toggle Menu Key",
+    Flag = "ToggleMenuKey",
+    Keybind = "RightShift",
+    Type = "Press",
+    Callback = function(active)
+        if active then
+            Matrice.UI:ToggleUI()
+        end
+    end
+})
+
+-- Matrice Hub Info Card
+Interface:CreateCard({
+    Title = "Matrice Hub",
+    Description = "Version " .. (Matrice.Version or "0.0.0") .. "\n" .. (Matrice.Changelog or "No changelog available."),
+    SecondaryTitle = "A script hub packed with high-quality undetectable scripts",
+    Image = Matrice.Asset("matrice.png"),
     Buttons = {
         Button1 = {
-            Name = "Visit Website",
+            Name = "Discord",
             Callback = function()
-                setclipboard("https://rocheats.com/?ref=matrice")
+                setclipboard("https://discord.gg/matrice")
+                Matrice.UI:Notify("Normal", {
+                    Title = "Copied!",
+                    Content = "Link copied to your clipboard. Thanks for supporting Matrice <3",
+                    Duration = 3,
+                    Image = Matrice.Asset("discord.png")
+                })
+            end
+        },
+        Button2 = {
+            Name = "Website",
+            Callback = function()
+                setclipboard("https://getmatrice.xyz")
                 Matrice.UI:Notify("Normal", {
                     Title = "Copied!",
                     Content = "Link copied to your clipboard. Thanks for supporting Matrice <3",
@@ -438,33 +505,62 @@ MiscAds:CreateCard({
     }
 })
 
--- =============================================================
---  SETTINGS TAB
--- =============================================================
-local SettingsGeneral = SettingsTab:CreateSection("General", "Normal")
-local SettingsConfig  = SettingsTab:CreateSection("Configuration", "Foldable")
+-- Presets Section
+local Presets = SettingsTab:CreateSection("Presets", "Normal")
 
-SettingsGeneral:CreateToggle("Normal", {
-    Name = "Show UI on Startup",
-    Flag = "ShowUIOnStartup",
-    CurrentValue = true,
-    Callback = function(v)
-        print("Show UI on startup " .. (v and "ON" or "OFF"))
+Presets:CreateButton({
+    Name = "Save Preset",
+    Callback = function()
+        print("Preset saved!")
+        Matrice.UI:Notify("Normal", {
+            Title = "Saved",
+            Content = "Preset saved successfully!",
+            Duration = 2,
+            Image = Matrice.Asset("info.png")
+        })
     end
 })
 
-SettingsConfig:CreateButton({
-    Name = "Reset All Settings",
+Presets:CreateButton({
+    Name = "Load Preset",
+    Callback = function()
+        print("Preset loaded!")
+        Matrice.UI:Notify("Normal", {
+            Title = "Loaded",
+            Content = "Preset loaded successfully!",
+            Duration = 2,
+            Image = Matrice.Asset("info.png")
+        })
+    end
+})
+
+Presets:CreateToggle("Normal", {
+    Name = "Auto Load Preset",
+    Flag = "AutoLoadPreset",
+    CurrentValue = false,
+    Callback = function(v)
+        print("Auto Load Preset " .. (v and "ON" or "OFF"))
+    end
+})
+
+Presets:CreateButton({
+    Name = "Reset Preset",
     Callback = function()
         Library:Notify({
-            Title = "Reset Settings",
-            Content = "Are you sure you want to reset all settings?",
+            Title = "Reset Preset",
+            Content = "Are you sure you want to reset to default settings?",
             Duration = 5,
             Actions = {
                 {
                     Name = "Yes",
                     Callback = function()
-                        print("Settings reset!")
+                        print("Preset reset to defaults!")
+                        Matrice.UI:Notify("Normal", {
+                            Title = "Reset",
+                            Content = "Settings restored to default.",
+                            Duration = 2,
+                            Image = Matrice.Asset("info.png")
+                        })
                     end
                 },
                 {
@@ -474,18 +570,6 @@ SettingsConfig:CreateButton({
                     end
                 }
             }
-        })
-    end
-})
-
-SettingsConfig:CreateButton({
-    Name = "Save Configuration",
-    Callback = function()
-        Matrice.UI:Notify("Normal", {
-            Title = "Saved",
-            Content = "Configuration saved successfully!",
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
         })
     end
 })
