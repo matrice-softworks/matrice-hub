@@ -399,6 +399,9 @@ warn(
 local Version =
     Matrice.Version()
 
+-- ✅ FIX: Store VersionData so UI can access it
+Matrice.VersionData = Version
+
 if not Version then
     pcall(function()
         game:GetService("StarterGui")

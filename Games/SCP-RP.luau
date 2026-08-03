@@ -1,5 +1,6 @@
 -- =============================================================
 --  SCP: Roleplay – Example UI using AuraIS
+--  Reads version from Matrice.VersionData (set by the loader)
 -- =============================================================
 
 -- Create main window
@@ -471,12 +472,9 @@ Interface:CreateKeybind({
     end
 })
 
--- Matrice Hub Info Card – FIXED with tostring
-local version = tostring(Matrice.Version or "0.0.0")
-local changelog = "No changelog available."
-if Matrice.VersionData and Matrice.VersionData.Matrice then
-    changelog = tostring(Matrice.VersionData.Matrice.Changelog) or "No changelog available."
-end
+-- Matrice Hub Info Card – reads from Matrice.VersionData
+local version = tostring((Matrice.VersionData and Matrice.VersionData.Matrice and Matrice.VersionData.Matrice.Version) or "0.0.0")
+local changelog = tostring((Matrice.VersionData and Matrice.VersionData.Matrice and Matrice.VersionData.Matrice.Changelog) or "No changelog available.")
 
 Interface:CreateCard({
     Title = "Matrice Hub",
