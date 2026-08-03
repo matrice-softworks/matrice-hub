@@ -1,7 +1,7 @@
 -- Matrice Softworks
 
 -- ============================================================
---  SERVICES
+-- SERVICES
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -12,211 +12,229 @@ local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
 -- ============================================================
---  VARIABLES
+-- REFERENCES
 -- ============================================================
 
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 
-local ModeratorDetectorEnabled = false
-local ModeratorDetectorAddedConnection = nil
-local ModeratorDetectorRemovingConnection = nil
-
-local AntiAFKEnabled = false
-local AntiAFKConnection = nil
-
-local WalkSpeedEnabled = false
-local WalkSpeedValue = 16
-
-local JumpPowerEnabled = false
-local JumpPowerValue = 50
-
-local NoclipEnabled = false
-local NoclipConnection = nil
-local NoclipParts = {}
-
-local FlyEnabled = false
-local FlyConnection = nil
-local FlySpeed = 50
-
--- UI toggle references for keybind toggling
-local WalkSpeedToggleRef = nil
-local JumpPowerToggleRef = nil
-local NoclipToggleRef = nil
-local FlyToggleRef = nil
-
 -- ============================================================
---  HELPERS
+-- STARTUP CLEANUP
 -- ============================================================
 
--- WalkSpeed Spoof (complex method)
-do
-    local WalkSpeedSpoof = getgenv().WalkSpeedSpoof
-    local Disable = WalkSpeedSpoof and WalkSpeedSpoof.Disable
-    if Disable then Disable() end
-
-    local cloneref = cloneref or function(...) return ... end
-
-    WalkSpeedSpoof = {}
-
-    local PlayersService = cloneref(Players)
-    if not PlayersService.LocalPlayer then
-        PlayersService:GetPropertyChangedSignal("LocalPlayer"):Wait()
-    end
-    local lp = cloneref(PlayersService.LocalPlayer)
-
-    local split = string.split
-
-    local GetDebugIdHandler = Instance.new("BindableFunction")
-    local TempHumanoid = Instance.new("Humanoid")
-
-    local cachedhumanoids = {}
-
-    local CurrentHumanoid
-    local newindexhook
-    local indexhook
-
-    function GetDebugIdHandler.OnInvoke(obj)
-        return obj:GetDebugId()
-    end
-
-    local function GetDebugId(obj)
-        return GetDebugIdHandler:Invoke(obj)
-    end
-
-    local function GetWalkSpeed(obj)
-        TempHumanoid.WalkSpeed = obj
-        return TempHumanoid.WalkSpeed
-    end
-
-    function cachedhumanoids:cacheHumanoid(DebugId, Humanoid)
-        cachedhumanoids[DebugId] = {
-            currentindex = indexhook(Humanoid, "WalkSpeed"),
-            lastnewindex = nil
-        }
-        return self[DebugId]
-    end
-
-    indexhook = hookmetamethod(game, "__index", function(self, index)
-        if not checkcaller() and typeof(self) == "Instance" then
-            if self:IsA("Humanoid") then
-                local DebugId = GetDebugId(self)
-                local cached = cachedhumanoids[DebugId]
-
-                if self:IsDescendantOf(lp.Character) or cached then
-                    if type(index) == "string" then
-                        local cleanindex = split(index, "\0")[1]
-
-                        if cleanindex == "WalkSpeed" then
-                            if not cached then
-                                cached = cachedhumanoids:cacheHumanoid(DebugId, self)
-                            end
-
-                            if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                                CurrentHumanoid = cloneref(self)
-                            end
-
-                            return cached.lastnewindex or cached.currentindex
-                        end
-                    end
-                end
-            end
-        end
-
-        return indexhook(self, index)
-    end)
-
-    newindexhook = hookmetamethod(game, "__newindex", function(self, index, newindex)
-        if not checkcaller() and typeof(self) == "Instance" then
-            if self:IsA("Humanoid") then
-                local DebugId = GetDebugId(self)
-                local cached = cachedhumanoids[DebugId]
-
-                if self:IsDescendantOf(lp.Character) or cached then
-                    if type(index) == "string" then
-                        local cleanindex = split(index, "\0")[1]
-
-                        if cleanindex == "WalkSpeed" then
-                            if not cached then
-                                cached = cachedhumanoids:cacheHumanoid(DebugId, self)
-                            end
-
-                            if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                                CurrentHumanoid = cloneref(self)
-                            end
-                            cached.lastnewindex = GetWalkSpeed(newindex)
-                            return CurrentHumanoid.WalkSpeed
-                        end
-                    end
-                end
-            end
-        end
-
-        return newindexhook(self, index, newindex)
-    end)
-
-    function WalkSpeedSpoof:Disable()
-        WalkSpeedSpoof:RestoreWalkSpeed()
-        hookmetamethod(game, "__index", indexhook)
-        hookmetamethod(game, "__newindex", newindexhook)
-        GetDebugIdHandler:Destroy()
-        TempHumanoid:Destroy()
-        table.clear(WalkSpeedSpoof)
-        getgenv().WalkSpeedSpoof = nil
-    end
-
-    function WalkSpeedSpoof:GetHumanoid()
-        return CurrentHumanoid or (function()
-            local char = lp.Character
-            local Humanoid = char and char:FindFirstChildWhichIsA("Humanoid") or nil
-            if Humanoid then
-                cachedhumanoids:cacheHumanoid(Humanoid:GetDebugId(), Humanoid)
-                return cloneref(Humanoid)
-            end
-        end)()
-    end
-
-    function WalkSpeedSpoof:SetWalkSpeed(speed)
-        local Humanoid = WalkSpeedSpoof:GetHumanoid()
-        if Humanoid then
-            local connections = {}
-            local function AddConnectionsFromSignal(Signal)
-                for _, v in getconnections(Signal) do
-                    if v.State then
-                        v:Disable()
-                        table.insert(connections, v)
-                    end
-                end
-            end
-            AddConnectionsFromSignal(Humanoid.Changed)
-            AddConnectionsFromSignal(Humanoid:GetPropertyChangedSignal("WalkSpeed"))
-            Humanoid.WalkSpeed = speed
-            for _, v in connections do
-                v:Enable()
-            end
-        end
-    end
-
-    function WalkSpeedSpoof:RestoreWalkSpeed()
-        local Humanoid = WalkSpeedSpoof:GetHumanoid()
-        if Humanoid then
-            local cached = cachedhumanoids[Humanoid:GetDebugId()]
-            if cached then
-                WalkSpeedSpoof:SetWalkSpeed(cached.lastnewindex or cached.currentindex)
-            end
-        end
-    end
-
-    getgenv().WalkSpeedSpoof = WalkSpeedSpoof
-end
-
--- Startup Cleanup
 pcall(function()
     CoreGui.RobloxGui["CoreScripts/NetworkPause"]:Destroy()
 end)
 
+-- ============================================================
+-- WALKSPEED SPOOF (complex method)
+-- ============================================================
+
+local WalkSpeedSpoof = getgenv().WalkSpeedSpoof
+local Disable = WalkSpeedSpoof and WalkSpeedSpoof.Disable
+if Disable then Disable() end
+
+local cloneref = cloneref or function(...) return ... end
+
+WalkSpeedSpoof = {}
+
+local PlayersService = cloneref(Players)
+if not PlayersService.LocalPlayer then
+    PlayersService:GetPropertyChangedSignal("LocalPlayer"):Wait()
+end
+local lp = cloneref(PlayersService.LocalPlayer)
+
+local split = string.split
+
+local GetDebugIdHandler = Instance.new("BindableFunction")
+local TempHumanoid = Instance.new("Humanoid")
+
+local cachedhumanoids = {}
+
+local CurrentHumanoid
+local newindexhook
+local indexhook
+
+function GetDebugIdHandler.OnInvoke(obj)
+    return obj:GetDebugId()
+end
+
+local function GetDebugId(obj)
+    return GetDebugIdHandler:Invoke(obj)
+end
+
+local function GetWalkSpeed(obj)
+    TempHumanoid.WalkSpeed = obj
+    return TempHumanoid.WalkSpeed
+end
+
+function cachedhumanoids:cacheHumanoid(DebugId, Humanoid)
+    cachedhumanoids[DebugId] = {
+        currentindex = indexhook(Humanoid, "WalkSpeed"),
+        lastnewindex = nil
+    }
+    return self[DebugId]
+end
+
+indexhook = hookmetamethod(game, "__index", function(self, index)
+    if not checkcaller() and typeof(self) == "Instance" then
+        if self:IsA("Humanoid") then
+            local DebugId = GetDebugId(self)
+            local cached = cachedhumanoids[DebugId]
+
+            if self:IsDescendantOf(lp.Character) or cached then
+                if type(index) == "string" then
+                    local cleanindex = split(index, "\0")[1]
+
+                    if cleanindex == "WalkSpeed" then
+                        if not cached then
+                            cached = cachedhumanoids:cacheHumanoid(DebugId, self)
+                        end
+
+                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                            CurrentHumanoid = cloneref(self)
+                        end
+
+                        return cached.lastnewindex or cached.currentindex
+                    end
+                end
+            end
+        end
+    end
+
+    return indexhook(self, index)
+end)
+
+newindexhook = hookmetamethod(game, "__newindex", function(self, index, newindex)
+    if not checkcaller() and typeof(self) == "Instance" then
+        if self:IsA("Humanoid") then
+            local DebugId = GetDebugId(self)
+            local cached = cachedhumanoids[DebugId]
+
+            if self:IsDescendantOf(lp.Character) or cached then
+                if type(index) == "string" then
+                    local cleanindex = split(index, "\0")[1]
+
+                    if cleanindex == "WalkSpeed" then
+                        if not cached then
+                            cached = cachedhumanoids:cacheHumanoid(DebugId, self)
+                        end
+
+                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                            CurrentHumanoid = cloneref(self)
+                        end
+                        cached.lastnewindex = GetWalkSpeed(newindex)
+                        return CurrentHumanoid.WalkSpeed
+                    end
+                end
+            end
+        end
+    end
+
+    return newindexhook(self, index, newindex)
+end)
+
+function WalkSpeedSpoof:Disable()
+    WalkSpeedSpoof:RestoreWalkSpeed()
+    hookmetamethod(game, "__index", indexhook)
+    hookmetamethod(game, "__newindex", newindexhook)
+    GetDebugIdHandler:Destroy()
+    TempHumanoid:Destroy()
+    table.clear(WalkSpeedSpoof)
+    getgenv().WalkSpeedSpoof = nil
+end
+
+function WalkSpeedSpoof:GetHumanoid()
+    return CurrentHumanoid or (function()
+        local char = lp.Character
+        local Humanoid = char and char:FindFirstChildWhichIsA("Humanoid") or nil
+        if Humanoid then
+            cachedhumanoids:cacheHumanoid(Humanoid:GetDebugId(), Humanoid)
+            return cloneref(Humanoid)
+        end
+    end)()
+end
+
+function WalkSpeedSpoof:SetWalkSpeed(speed)
+    local Humanoid = WalkSpeedSpoof:GetHumanoid()
+    if Humanoid then
+        local connections = {}
+        local function AddConnectionsFromSignal(Signal)
+            for _, v in getconnections(Signal) do
+                if v.State then
+                    v:Disable()
+                    table.insert(connections, v)
+                end
+            end
+        end
+        AddConnectionsFromSignal(Humanoid.Changed)
+        AddConnectionsFromSignal(Humanoid:GetPropertyChangedSignal("WalkSpeed"))
+        Humanoid.WalkSpeed = speed
+        for _, v in connections do
+            v:Enable()
+        end
+    end
+end
+
+function WalkSpeedSpoof:RestoreWalkSpeed()
+    local Humanoid = WalkSpeedSpoof:GetHumanoid()
+    if Humanoid then
+        local cached = cachedhumanoids[Humanoid:GetDebugId()]
+        if cached then
+            WalkSpeedSpoof:SetWalkSpeed(cached.lastnewindex or cached.currentindex)
+        end
+    end
+end
+
+getgenv().WalkSpeedSpoof = WalkSpeedSpoof
+
+-- ============================================================
+-- FEATURES
+-- ============================================================
+
+local ModeratorDetector = {}
+ModeratorDetector.Enabled = false
+ModeratorDetector.PlayerAddedConnection = nil
+ModeratorDetector.PlayerRemovingConnection = nil
+
+local AntiAFK = {}
+AntiAFK.Enabled = false
+AntiAFK.Connection = nil
+
+local WalkSpeed = {}
+WalkSpeed.Enabled = false
+WalkSpeed.Value = 16
+WalkSpeed.Active = false
+
+local JumpPower = {}
+JumpPower.Enabled = false
+JumpPower.Value = 50
+JumpPower.Active = false
+
+local NoClip = {}
+NoClip.Enabled = false
+NoClip.Connection = nil
+NoClip.Parts = {}
+NoClip.Active = false
+
+local Fly = {}
+Fly.Enabled = false
+Fly.Connection = nil
+Fly.Speed = 50
+Fly.Active = false
+
+-- UI toggle references for keybind checking
+local WalkSpeedToggleRef = nil
+local JumpPowerToggleRef = nil
+local NoClipToggleRef = nil
+local FlyToggleRef = nil
+
+-- ============================================================
+-- HELPER FUNCTIONS
+-- ============================================================
+
 local function DetectModerator(Enabled)
-    ModeratorDetectorEnabled = Enabled
+    ModeratorDetector.Enabled = Enabled
     if Enabled then
         Matrice.UI:Notify("Normal", {
             Title = "Moderator Detector",
@@ -248,12 +266,12 @@ local function DetectModerator(Enabled)
             end
         end
 
-        if ModeratorDetectorAddedConnection then
-            ModeratorDetectorAddedConnection:Disconnect()
-            ModeratorDetectorAddedConnection = nil
+        if ModeratorDetector.PlayerAddedConnection then
+            ModeratorDetector.PlayerAddedConnection:Disconnect()
+            ModeratorDetector.PlayerAddedConnection = nil
         end
-        ModeratorDetectorAddedConnection = Players.PlayerAdded:Connect(function(Player)
-            if ModeratorDetectorEnabled then
+        ModeratorDetector.PlayerAddedConnection = Players.PlayerAdded:Connect(function(Player)
+            if ModeratorDetector.Enabled then
                 task.wait(1)
                 local Success, Rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
                 if Success and Rank and Rank >= 248 then
@@ -276,12 +294,12 @@ local function DetectModerator(Enabled)
             end
         end)
 
-        if ModeratorDetectorRemovingConnection then
-            ModeratorDetectorRemovingConnection:Disconnect()
-            ModeratorDetectorRemovingConnection = nil
+        if ModeratorDetector.PlayerRemovingConnection then
+            ModeratorDetector.PlayerRemovingConnection:Disconnect()
+            ModeratorDetector.PlayerRemovingConnection = nil
         end
-        ModeratorDetectorRemovingConnection = Players.PlayerRemoving:Connect(function(Player)
-            if ModeratorDetectorEnabled then
+        ModeratorDetector.PlayerRemovingConnection = Players.PlayerRemoving:Connect(function(Player)
+            if ModeratorDetector.Enabled then
                 local Success, Rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
                 if Success and Rank and Rank >= 248 then
                     local Role = Player:GetRoleInGroup(game.CreatorId)
@@ -303,13 +321,13 @@ local function DetectModerator(Enabled)
             end
         end)
     else
-        if ModeratorDetectorAddedConnection then
-            ModeratorDetectorAddedConnection:Disconnect()
-            ModeratorDetectorAddedConnection = nil
+        if ModeratorDetector.PlayerAddedConnection then
+            ModeratorDetector.PlayerAddedConnection:Disconnect()
+            ModeratorDetector.PlayerAddedConnection = nil
         end
-        if ModeratorDetectorRemovingConnection then
-            ModeratorDetectorRemovingConnection:Disconnect()
-            ModeratorDetectorRemovingConnection = nil
+        if ModeratorDetector.PlayerRemovingConnection then
+            ModeratorDetector.PlayerRemovingConnection:Disconnect()
+            ModeratorDetector.PlayerRemovingConnection = nil
         end
 
         Matrice.UI:Notify("Normal", {
@@ -322,7 +340,7 @@ local function DetectModerator(Enabled)
 end
 
 local function AntiAFK(Enabled)
-    AntiAFKEnabled = Enabled
+    AntiAFK.Enabled = Enabled
     if Enabled then
         if getconnections then
             for _, Connection in ipairs(getconnections(LocalPlayer.Idled)) do
@@ -333,12 +351,12 @@ local function AntiAFK(Enabled)
             end
         end
 
-        if AntiAFKConnection then
-            AntiAFKConnection:Disconnect()
-            AntiAFKConnection = nil
+        if AntiAFK.Connection then
+            AntiAFK.Connection:Disconnect()
+            AntiAFK.Connection = nil
         end
 
-        AntiAFKConnection = LocalPlayer.Idled:Connect(function()
+        AntiAFK.Connection = LocalPlayer.Idled:Connect(function()
             VirtualUser:CaptureController()
             VirtualUser:ClickButton2(Vector2.new())
         end)
@@ -350,9 +368,9 @@ local function AntiAFK(Enabled)
             Image = Matrice.Asset("info.png")
         })
     else
-        if AntiAFKConnection then
-            AntiAFKConnection:Disconnect()
-            AntiAFKConnection = nil
+        if AntiAFK.Connection then
+            AntiAFK.Connection:Disconnect()
+            AntiAFK.Connection = nil
         end
         Matrice.UI:Notify("Normal", {
             Title = "Anti AFK",
@@ -364,12 +382,13 @@ local function AntiAFK(Enabled)
 end
 
 local function ToggleWalkSpeed(Enabled)
-    WalkSpeedEnabled = Enabled
-    if Enabled then
-        WalkSpeedSpoof:SetWalkSpeed(WalkSpeedValue)
+    WalkSpeed.Enabled = Enabled
+    WalkSpeed.Active = Enabled
+    if WalkSpeed.Enabled and WalkSpeed.Active then
+        WalkSpeedSpoof:SetWalkSpeed(WalkSpeed.Value)
         Matrice.UI:Notify("Normal", {
             Title = "Walk Speed",
-            Content = "Walk Speed set to " .. WalkSpeedValue,
+            Content = "Walk Speed set to " .. WalkSpeed.Value,
             Duration = 2,
             Image = Matrice.Asset("info.png")
         })
@@ -385,14 +404,15 @@ local function ToggleWalkSpeed(Enabled)
 end
 
 local function ToggleJumpPower(Enabled)
-    JumpPowerEnabled = Enabled
+    JumpPower.Enabled = Enabled
+    JumpPower.Active = Enabled
     local Humanoid = WalkSpeedSpoof:GetHumanoid()
     if Humanoid then
-        if Enabled then
-            Humanoid.JumpPower = JumpPowerValue
+        if JumpPower.Enabled and JumpPower.Active then
+            Humanoid.JumpPower = JumpPower.Value
             Matrice.UI:Notify("Normal", {
                 Title = "Jump Power",
-                Content = "Jump Power set to " .. JumpPowerValue,
+                Content = "Jump Power set to " .. JumpPower.Value,
                 Duration = 2,
                 Image = Matrice.Asset("info.png")
             })
@@ -408,41 +428,42 @@ local function ToggleJumpPower(Enabled)
     end
 end
 
-local function ToggleNoclip(Enabled)
-    NoclipEnabled = Enabled
-    if Enabled then
-        if NoclipConnection then NoclipConnection:Disconnect() end
-        NoclipConnection = RunService.Stepped:Connect(function()
-            if not NoclipEnabled then return end
+local function ToggleNoClip(Enabled)
+    NoClip.Enabled = Enabled
+    NoClip.Active = Enabled
+    if NoClip.Enabled and NoClip.Active then
+        if NoClip.Connection then NoClip.Connection:Disconnect() end
+        NoClip.Connection = RunService.Stepped:Connect(function()
+            if not (NoClip.Enabled and NoClip.Active) then return end
             local Character = LocalPlayer.Character
             if not Character then return end
             for _, Part in ipairs(Character:GetDescendants()) do
                 if Part:IsA("BasePart") and Part.CanCollide == true and Part.Name ~= "Head" then
                     Part.CanCollide = false
-                    NoclipParts[Part] = true
+                    NoClip.Parts[Part] = true
                 end
             end
         end)
         Matrice.UI:Notify("Normal", {
-            Title = "Noclip",
-            Content = "Noclip enabled.",
+            Title = "No Clip",
+            Content = "No Clip enabled.",
             Duration = 2,
             Image = Matrice.Asset("info.png")
         })
     else
-        if NoclipConnection then
-            NoclipConnection:Disconnect()
-            NoclipConnection = nil
+        if NoClip.Connection then
+            NoClip.Connection:Disconnect()
+            NoClip.Connection = nil
         end
-        for Part, _ in pairs(NoclipParts) do
+        for Part, _ in pairs(NoClip.Parts) do
             if typeof(Part) == "Instance" and Part:IsA("BasePart") and Part.Parent then
                 Part.CanCollide = true
             end
         end
-        NoclipParts = {}
+        NoClip.Parts = {}
         Matrice.UI:Notify("Normal", {
-            Title = "Noclip",
-            Content = "Noclip disabled.",
+            Title = "No Clip",
+            Content = "No Clip disabled.",
             Duration = 2,
             Image = Matrice.Asset("info.png")
         })
@@ -450,8 +471,9 @@ local function ToggleNoclip(Enabled)
 end
 
 local function ToggleFly(Enabled)
-    FlyEnabled = Enabled
-    if Enabled then
+    Fly.Enabled = Enabled
+    Fly.Active = Enabled
+    if Fly.Enabled and Fly.Active then
         local Character = LocalPlayer.Character
         if not Character then
             LocalPlayer.CharacterAdded:Wait()
@@ -465,15 +487,15 @@ local function ToggleFly(Enabled)
         if Head then
             Head.Anchored = true
         end
-        if FlyConnection then FlyConnection:Disconnect() end
-        FlyConnection = RunService.Heartbeat:Connect(function(DeltaTime)
-            if not FlyEnabled then return end
+        if Fly.Connection then Fly.Connection:Disconnect() end
+        Fly.Connection = RunService.Heartbeat:Connect(function(DeltaTime)
+            if not (Fly.Enabled and Fly.Active) then return end
             local Character = LocalPlayer.Character
             if not Character then return end
             local Humanoid = Character:FindFirstChildOfClass("Humanoid")
             local Head = Character:FindFirstChild("Head")
             if not Humanoid or not Head then return end
-            local MoveDirection = Humanoid.MoveDirection * (FlySpeed * DeltaTime)
+            local MoveDirection = Humanoid.MoveDirection * (Fly.Speed * DeltaTime)
             local HeadCFrame = Head.CFrame
             local Camera = workspace.CurrentCamera
             local CameraCFrame = Camera.CFrame
@@ -491,9 +513,9 @@ local function ToggleFly(Enabled)
             Image = Matrice.Asset("info.png")
         })
     else
-        if FlyConnection then
-            FlyConnection:Disconnect()
-            FlyConnection = nil
+        if Fly.Connection then
+            Fly.Connection:Disconnect()
+            Fly.Connection = nil
         end
         local Character = LocalPlayer.Character
         if Character then
@@ -516,7 +538,7 @@ local function ToggleFly(Enabled)
 end
 
 -- ============================================================
---  UI ELEMENTS
+-- UI ELEMENTS
 -- ============================================================
 
 local Library = Matrice.UI:CreateLibrary({
@@ -540,7 +562,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB
+-- COMBAT TAB
 -- ============================================================
 
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
@@ -695,7 +717,7 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB
+-- VISUALS TAB
 -- ============================================================
 
 local ESP = VisualsTab:CreateSection("ESP", "Normal")
@@ -821,7 +843,7 @@ Effects:CreateDropdown({
 })
 
 -- ============================================================
---  PLAYER TAB
+-- PLAYER TAB
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
@@ -839,11 +861,11 @@ Character:CreateSlider({
     Value = {0, 100},
     Increment = 1,
     Suffix = "",
-    CurrentValue = WalkSpeedValue,
+    CurrentValue = WalkSpeed.Value,
     Flag = "WalkSpeed",
     Callback = function(Value)
-        WalkSpeedValue = Value
-        if WalkSpeedEnabled then
+        WalkSpeed.Value = Value
+        if WalkSpeed.Enabled and WalkSpeed.Active then
             WalkSpeedSpoof:SetWalkSpeed(Value)
         end
         print("Walk Speed set to " .. Value)
@@ -863,11 +885,11 @@ Character:CreateSlider({
     Value = {0, 100},
     Increment = 1,
     Suffix = "",
-    CurrentValue = JumpPowerValue,
+    CurrentValue = JumpPower.Value,
     Flag = "JumpPower",
     Callback = function(Value)
-        JumpPowerValue = Value
-        if JumpPowerEnabled then
+        JumpPower.Value = Value
+        if JumpPower.Enabled and JumpPower.Active then
             local Humanoid = WalkSpeedSpoof:GetHumanoid()
             if Humanoid then
                 Humanoid.JumpPower = Value
@@ -877,11 +899,11 @@ Character:CreateSlider({
     end
 })
 
-NoclipToggleRef = Character:CreateToggle("Normal", {
+NoClipToggleRef = Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
     Callback = function(Enabled)
-        ToggleNoclip(Enabled)
+        ToggleNoClip(Enabled)
     end
 })
 
@@ -891,10 +913,9 @@ Character:CreateKeybind({
     Keybind = "N",
     Type = "Press",
     Callback = function(State)
-        if State then
-            if NoclipToggleRef then
-                NoclipToggleRef:SetToggle(not NoclipEnabled)
-            end
+        if State and NoClip.Enabled then
+            NoClip.Active = not NoClip.Active
+            ToggleNoClip(NoClip.Enabled) -- this will reapply state based on Enabled and Active
         end
     end
 })
@@ -913,10 +934,9 @@ Character:CreateKeybind({
     Keybind = "F",
     Type = "Press",
     Callback = function(State)
-        if State then
-            if FlyToggleRef then
-                FlyToggleRef:SetToggle(not FlyEnabled)
-            end
+        if State and Fly.Enabled then
+            Fly.Active = not Fly.Active
+            ToggleFly(Fly.Enabled) -- this will reapply state based on Enabled and Active
         end
     end
 })
@@ -926,16 +946,16 @@ Character:CreateSlider({
     Value = {1, 200},
     Increment = 1,
     Suffix = "",
-    CurrentValue = FlySpeed,
+    CurrentValue = Fly.Speed,
     Flag = "FlySpeed",
     Callback = function(Value)
-        FlySpeed = Value
+        Fly.Speed = Value
         print("Fly Speed set to " .. Value)
     end
 })
 
 -- ============================================================
---  UTILITIES TAB
+-- UTILITIES TAB
 -- ============================================================
 
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
@@ -959,7 +979,7 @@ AntiAFKSection:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  SETTINGS TAB
+-- SETTINGS TAB
 -- ============================================================
 
 local Interface = SettingsTab:CreateSection("Interface", "Normal")
