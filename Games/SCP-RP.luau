@@ -183,12 +183,47 @@ PlayerGeneral:CreateTextbox({
 })
 
 PlayerGeneral:CreateButton({
-    Name = "Teleport to Player",
+    Name = "Test Teleport",
     Callback = function()
         Library:Notify({
-            Title = "Not Implemented",
-            Content = "Teleport functionality coming soon.",
-            Duration = 3
+            Title = "Teleport",
+            Content = "Do you want to teleport to spawn?",
+            Duration = 5,
+            Actions = {
+                {
+                    Name = "Confirm",
+                    Callback = function()
+                        local character = game.Players.LocalPlayer.Character
+                        if character and character:FindFirstChild("HumanoidRootPart") then
+                            character.HumanoidRootPart.CFrame = CFrame.new(0, 5, 0)
+                            AuraIS:Notify("Normal", {
+                                Title = "Teleported",
+                                Content = "You have been teleported to spawn!",
+                                Duration = 2,
+                                Image = Asset("info")
+                            })
+                        else
+                            AuraIS:Notify("Error", {
+                                Title = "Failed",
+                                Content = "Character not found!",
+                                Duration = 2,
+                                Image = Asset("circle-x")
+                            })
+                        end
+                    end
+                },
+                {
+                    Name = "Cancel",
+                    Callback = function()
+                        AuraIS:Notify("Normal", {
+                            Title = "Cancelled",
+                            Content = "Teleport cancelled.",
+                            Duration = 2,
+                            Image = Asset("circle-x")
+                        })
+                    end
+                }
+            }
         })
     end
 })
