@@ -147,7 +147,6 @@ VisualsChams:CreateDropdown({
     Name = "Chams Material",
     Options = {"ForceField", "Glass", "Neon", "Plastic"},
     CurrentOption = "ForceField",
-    Flag = "ChamsMaterial",
     Callback = function(choice)
         print("Chams material set to " .. choice)
     end
