@@ -17,6 +17,7 @@ local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
+local Visuals = Matrice.Visuals  -- VisualLibrary from loader
 
 -- ============================================================
 --  FEATURE MODULES
@@ -623,7 +624,7 @@ local function ToggleFly(Enabled)
 end
 
 -- ============================================================
---  ESP FUNCTIONS
+--  ESP FUNCTIONS (using VisualLibrary)
 -- ============================================================
 
 local function ClearPlayerESP(Player)
@@ -632,12 +633,12 @@ local function ClearPlayerESP(Player)
         if Data.Skeleton then Data.Skeleton:Remove() end
         if Data.Box then Data.Box:Remove() end
         if Data.Tracer then Data.Tracer:Remove() end
+        if Data.Highlight then Data.Highlight:Remove() end
         if Data.HealthBarOutline then Data.HealthBarOutline:Remove() end
         if Data.HealthBarFill then Data.HealthBarFill:Remove() end
         if Data.HealthBarTicks then
             for _, Tick in ipairs(Data.HealthBarTicks) do Tick:Remove() end
         end
-        if Data.Highlight then Data.Highlight:Remove() end
         if Data.Chams then
             for Part, OriginalMaterial in pairs(Data.Chams) do
                 if Part and Part.Parent then
@@ -665,33 +666,31 @@ local function CreatePlayerESP(Player)
 
     local Box = nil
     if ESP.Settings.Box then
-        Box = Drawing.new("Square")
-        Box.Thickness = 1
-        Box.Color = TeamColor
-        Box.Filled = false
-        Box.Transparency = 1
-        Box.Visible = false
-    end
-
-    local HighlightObj = nil
-    if Highlight.Enabled then
-        HighlightObj = Drawing.new("Square") -- Placeholder until VisualLibrary is integrated
-        HighlightObj.Visible = false
-    end
-
-    local Skeleton = nil
-    if ESP.Settings.Skeleton then
-        Skeleton = Drawing.new("Square") -- Placeholder until VisualLibrary is integrated
-        Skeleton.Visible = false
+        Box = Visuals:CreateVisual("Drawing", {Type="Square", Thickness=1, Color=TeamColor, Filled=false, Transparency=1})
+        Box:StartTracking(Player)  -- track position, but we will manually set size
     end
 
     local Tracer = nil
     if TracerLines.Enabled then
-        Tracer = Drawing.new("Line")
-        Tracer.Thickness = 1
-        Tracer.Color = TeamColor
-        Tracer.Transparency = 1
-        Tracer.Visible = false
+        Tracer = Visuals:CreateVisual("Drawing", {Type="Line", Thickness=1, Color=TeamColor, Transparency=1})
+        Tracer:StartTracking(Player) -- track to set To position
+    end
+
+    local Skeleton = nil
+    if ESP.Settings.Skeleton then
+        Skeleton = Visuals:CreateVisual("Drawing", {Type="Skeleton", Player=Player, Color=TeamColor, Thickness=1})
+        Skeleton:StartTracking(true)
+    end
+
+    local HighlightObj = nil
+    if Highlight.Enabled then
+        HighlightObj = Visuals:CreateVisual("Highlight", {
+            Target = Player.Character,
+            Color = TeamColor,
+            Transparency = 0.5,
+            StrokeColor = Color3.new(1,1,1),
+            OutlineTransparency = 0
+        })
     end
 
     local HealthBarOutline = nil
@@ -735,10 +734,10 @@ local function CreatePlayerESP(Player)
         Skeleton = Skeleton,
         Box = Box,
         Tracer = Tracer,
+        Highlight = HighlightObj,
         HealthBarOutline = HealthBarOutline,
         HealthBarFill = HealthBarFill,
         HealthBarTicks = HealthBarTicks,
-        Highlight = HighlightObj,
         Chams = Chams,
         Character = Player.Character
     }
@@ -746,24 +745,24 @@ local function CreatePlayerESP(Player)
     ESP.Connections[Player.Name .. "_TeamColor"] = Player:GetPropertyChangedSignal("TeamColor"):Connect(function()
         if ESP.PlayerData[Player] then
             local NewColor = Player.TeamColor and Player.TeamColor.Color or Color3.new(1, 1, 1)
-            if ESP.PlayerData[Player].Box then ESP.PlayerData[Player].Box.Color = NewColor end
-            if ESP.PlayerData[Player].Tracer then ESP.PlayerData[Player].Tracer.Color = NewColor end
+            local Data = ESP.PlayerData[Player]
+            if Data.Box and Data.Box.Object then Data.Box.Object.Color = NewColor end
+            if Data.Tracer and Data.Tracer.Object then Data.Tracer.Object.Color = NewColor end
+            if Data.Skeleton then Data.Skeleton:SetColor(NewColor) end
+            if Data.Highlight and Data.Highlight.Object then Data.Highlight.Object.FillColor = NewColor end
         end
     end)
 end
 
 local function RebuildAllESP()
     if not ESP.Enabled then return end
-    local LocalRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not LocalRoot then return end
-
     for _, Player in ipairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer then
             ClearPlayerESP(Player)
             local TargetRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
             local TargetHumanoid = Player.Character and Player.Character:FindFirstChild("Humanoid")
             if TargetRoot and TargetHumanoid and TargetHumanoid.Health > 0 and Player.Parent == Players then
-                local Distance = (LocalRoot.Position - TargetRoot.Position).Magnitude
+                local Distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position and (LocalPlayer.Character.HumanoidRootPart.Position - TargetRoot.Position).Magnitude) or math.huge
                 if Distance <= ESP.Settings.DistanceLimit then
                     CreatePlayerESP(Player)
                 end
@@ -776,77 +775,84 @@ local function StartESP()
     if ESP.RenderConnection then return end
 
     ESP.RenderConnection = RunService.RenderStepped:Connect(function()
-        if not ESP.Enabled then return end
+        if not ESP.Enabled then
+            for _, Data in pairs(ESP.PlayerData) do
+                if Data.Box and Data.Box.Object then Data.Box.Object.Visible = false end
+                if Data.Tracer and Data.Tracer.Object then Data.Tracer.Object.Visible = false end
+                if Data.HealthBarOutline then Data.HealthBarOutline.Visible = false end
+                if Data.HealthBarFill then Data.HealthBarFill.Visible = false end
+                if Data.HealthBarTicks then for _, Tick in ipairs(Data.HealthBarTicks) do Tick.Visible = false end end
+            end
+            return
+        end
+
         for Player, Data in pairs(ESP.PlayerData) do
-            if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and
-               Player.Character:FindFirstChild("Humanoid") and
-               Player.Character.Humanoid.Health > 0 then
-                local OnScreen, Size, Pos = pcall(function()
-                    return workspace.CurrentCamera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position)
-                end)
-                if not OnScreen then
-                    OnScreen = false
+            if not Player or not Player.Parent then
+                ClearPlayerESP(Player)
+                continue
+            end
+
+            local OnScreen, Size, Pos = Visuals:GetBoundingBox(Player)
+            local TeamColor = Player.TeamColor and Player.TeamColor.Color or Color3.new(1, 1, 1)
+
+            if Data.Box and Data.Box.Object then
+                if OnScreen and ESP.Settings.Box then
+                    Data.Box.Object.Position = Pos
+                    Data.Box.Object.Size = Size
+                    Data.Box.Object.Color = TeamColor
+                    Data.Box.Object.Visible = true
+                else
+                    Data.Box.Object.Visible = false
                 end
+            end
 
-                if OnScreen then
-                    local TeamColor = Player.TeamColor and Player.TeamColor.Color or Color3.new(1, 1, 1)
+            if Data.Tracer and Data.Tracer.Object then
+                if OnScreen and TracerLines.Enabled then
+                    local Viewport = workspace.CurrentCamera.ViewportSize
+                    Data.Tracer.Object.From = Vector2.new(Viewport.X / 2, Viewport.Y)
+                    -- To is set by tracking, but we need to ensure it's updated. Actually tracking updates To to the player's position.
+                    -- We'll just keep it visible; tracking will handle To.
+                    Data.Tracer.Object.Visible = true
+                else
+                    Data.Tracer.Object.Visible = false
+                end
+            end
 
-                    if Data.Box then
-                        Data.Box.Size = Vector2.new(50, 100)
-                        Data.Box.Position = Vector2.new(Pos.X - 25, Pos.Y - 50)
-                        Data.Box.Color = TeamColor
-                        Data.Box.Visible = ESP.Settings.Box
-                    end
-
-                    if Data.Tracer then
-                        local Viewport = workspace.CurrentCamera.ViewportSize
-                        Data.Tracer.From = Vector2.new(Viewport.X / 2, Viewport.Y)
-                        Data.Tracer.To = Vector2.new(Pos.X, Pos.Y)
-                        Data.Tracer.Color = TeamColor
-                        Data.Tracer.Visible = TracerLines.Enabled
-                    end
-
-                    if Data.HealthBarOutline and Data.HealthBarFill then
-                        local Humanoid = Player.Character.Humanoid
+            if Data.HealthBarOutline and Data.HealthBarFill then
+                if OnScreen and ESP.Settings.HealthBar then
+                    local Humanoid = Player.Character and Player.Character:FindFirstChild("Humanoid")
+                    if Humanoid and Humanoid.Health > 0 then
                         local HealthPercent = math.clamp(Humanoid.Health / math.max(Humanoid.MaxHealth, 1), 0, 1)
-                        local BarHeight = 100
-                        local BarX = Pos.X - 38
-                        local BarY = Pos.Y - 50
+                        local BarHeight = Size.Y
+                        local BarX = Pos.X - 8
+                        local BarY = Pos.Y
 
                         Data.HealthBarOutline.Position = Vector2.new(BarX - 1, BarY - 2)
                         Data.HealthBarOutline.Size = Vector2.new(5, BarHeight + 4)
-                        Data.HealthBarOutline.Visible = ESP.Settings.HealthBar
+                        Data.HealthBarOutline.Visible = true
 
                         Data.HealthBarFill.Position = Vector2.new(BarX, BarY + BarHeight * (1 - HealthPercent))
                         Data.HealthBarFill.Size = Vector2.new(3, math.max(BarHeight * HealthPercent, 1))
                         Data.HealthBarFill.Color = Color3.fromHSV(HealthPercent * 0.33, 0.9, 1)
-                        Data.HealthBarFill.Visible = ESP.Settings.HealthBar
+                        Data.HealthBarFill.Visible = true
 
                         if Data.HealthBarTicks then
                             for Index, Tick in ipairs(Data.HealthBarTicks) do
                                 local Y = BarY + (BarHeight * Index / 5)
                                 Tick.From = Vector2.new(BarX - 1, Y)
                                 Tick.To = Vector2.new(BarX + 4, Y)
-                                Tick.Visible = ESP.Settings.HealthBar
+                                Tick.Visible = true
                             end
                         end
+                    else
+                        Data.HealthBarOutline.Visible = false
+                        Data.HealthBarFill.Visible = false
+                        if Data.HealthBarTicks then for _, Tick in ipairs(Data.HealthBarTicks) do Tick.Visible = false end end
                     end
                 else
-                    if Data.Box then Data.Box.Visible = false end
-                    if Data.Tracer then Data.Tracer.Visible = false end
-                    if Data.HealthBarOutline then Data.HealthBarOutline.Visible = false end
-                    if Data.HealthBarFill then Data.HealthBarFill.Visible = false end
-                    if Data.HealthBarTicks then
-                        for _, Tick in ipairs(Data.HealthBarTicks) do Tick.Visible = false end
-                    end
-                end
-            else
-                if Data.Box then Data.Box.Visible = false end
-                if Data.Tracer then Data.Tracer.Visible = false end
-                if Data.HealthBarOutline then Data.HealthBarOutline.Visible = false end
-                if Data.HealthBarFill then Data.HealthBarFill.Visible = false end
-                if Data.HealthBarTicks then
-                    for _, Tick in ipairs(Data.HealthBarTicks) do Tick.Visible = false end
+                    Data.HealthBarOutline.Visible = false
+                    Data.HealthBarFill.Visible = false
+                    if Data.HealthBarTicks then for _, Tick in ipairs(Data.HealthBarTicks) do Tick.Visible = false end end
                 end
             end
         end
@@ -854,14 +860,14 @@ local function StartESP()
 
     ESP.UpdateConnection = RunService.Heartbeat:Connect(function()
         if ESP.Enabled then
-            local LocalRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not LocalRoot then return end
-
             for Player, _ in pairs(ESP.PlayerData) do
                 if not Player or Player.Parent ~= Players then
                     ClearPlayerESP(Player)
                 end
             end
+
+            local LocalRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not LocalRoot then return end
 
             for _, Player in ipairs(Players:GetPlayers()) do
                 if Player ~= LocalPlayer then
