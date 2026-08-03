@@ -10,7 +10,6 @@ local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ============================================================
 --  REFERENCES
@@ -149,54 +148,6 @@ local function AntiAFK(Enabled)
             AntiAFKConnection = nil
         end
     end
-end
-
-local function ApplySCP008Infection()
-    pcall(function()
-        -- Open cap if closed
-        local Cap = workspace:FindFirstChild("SCPs")
-        if Cap then
-            Cap = Cap:FindFirstChild("SCP-008")
-            if Cap then
-                Cap = Cap:FindFirstChild("Cap")
-                if Cap then
-                    local RotX = Cap.Rotation.X
-                    local IsClosed = math.abs(RotX - 105.002998) < 0.5
-                    if IsClosed then
-                        local Remote = ReplicatedStorage:FindFirstChild("Remotes")
-                        if Remote then
-                            Remote = Remote:FindFirstChild("Interact")
-                            if Remote then
-                                local LidKnob = workspace:WaitForChild("Sector 3"):WaitForChild("Biohazard"):WaitForChild("Bridge008Control"):WaitForChild("LidKnob")
-                                Remote:FireServer(LidKnob)
-                                task.wait(2)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        -- Teleport and anchor
-        local Player = LocalPlayer
-        if not Player then return end
-        local Character = Player.Character
-        if not Character then
-            Player.CharacterAdded:Wait()
-            Character = Player.Character
-        end
-        local RootPart = Character:FindFirstChild("HumanoidRootPart")
-        if RootPart then
-            RootPart.CFrame = CFrame.new(207.819214, 0.177170038, -1261.79102)
-        end
-        local UpperTorso = Character:FindFirstChild("UpperTorso")
-        if UpperTorso then
-            UpperTorso.Anchored = true
-            task.wait(1)
-            UpperTorso.Anchored = false
-        end
-        print("SCP-008 Infection applied.")
-    end)
 end
 
 -- ============================================================
@@ -611,7 +562,24 @@ local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 Miscellaneous:CreateButton({
     Name = "SCP-008 Infection",
     Callback = function()
-        ApplySCP008Infection()
+        local Player = LocalPlayer
+        if not Player then return end
+        local Character = Player.Character
+        if not Character then
+            Player.CharacterAdded:Wait()
+            Character = Player.Character
+        end
+        local RootPart = Character:FindFirstChild("HumanoidRootPart")
+        if RootPart then
+            RootPart.CFrame = CFrame.new(207.819214, 0.177170038, -1261.79102)
+        end
+        local UpperTorso = Character:FindFirstChild("UpperTorso")
+        if UpperTorso then
+            UpperTorso.Anchored = true
+            task.wait(3)
+            UpperTorso.Anchored = false
+        end
+        print("SCP-008 Infection applied.")
     end
 })
 
