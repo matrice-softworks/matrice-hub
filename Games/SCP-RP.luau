@@ -151,27 +151,9 @@ local function AntiAFK(Enabled)
     end
 end
 
-local function Get008Infection()
+local function ApplySCP008Infection()
     pcall(function()
-        local Player = LocalPlayer
-        if not Player then return end
-        local Character = Player.Character
-        if not Character then
-            Player.CharacterAdded:Wait()
-            Character = Player.Character
-        end
-
-        local RootPart = Character:FindFirstChild("HumanoidRootPart")
-        if not RootPart then return end
-
-        local Origin = RootPart.CFrame
-        local TargetCFrame = CFrame.new(207.819214, 0.177170038, -1261.79102)
-
-        -- Step 1: Teleport to target to load the area
-        RootPart.CFrame = TargetCFrame
-        task.wait(0.5)
-
-        -- Step 2: Check cap and open if closed
+        -- Open cap if closed
         local Cap = workspace:FindFirstChild("SCPs")
         if Cap then
             Cap = Cap:FindFirstChild("SCP-008")
@@ -195,25 +177,24 @@ local function Get008Infection()
             end
         end
 
-        -- Step 3: Teleport to target again (after cap opens)
-        RootPart.CFrame = TargetCFrame
-        task.wait(0.2)
-
-        -- Step 4: Teleport to origin (to reload)
-        RootPart.CFrame = Origin
-        task.wait(0.2)
-
-        -- Step 5: Teleport back to target (final position)
-        RootPart.CFrame = TargetCFrame
-
-        -- Anchor/unanchor for infection effect
+        -- Teleport and anchor
+        local Player = LocalPlayer
+        if not Player then return end
+        local Character = Player.Character
+        if not Character then
+            Player.CharacterAdded:Wait()
+            Character = Player.Character
+        end
+        local RootPart = Character:FindFirstChild("HumanoidRootPart")
+        if RootPart then
+            RootPart.CFrame = CFrame.new(207.819214, 0.177170038, -1261.79102)
+        end
         local UpperTorso = Character:FindFirstChild("UpperTorso")
         if UpperTorso then
             UpperTorso.Anchored = true
             task.wait(1)
             UpperTorso.Anchored = false
         end
-
         print("SCP-008 Infection applied.")
     end)
 end
@@ -630,7 +611,7 @@ local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 Miscellaneous:CreateButton({
     Name = "SCP-008 Infection",
     Callback = function()
-        Get008Infection()
+        ApplySCP008Infection()
     end
 })
 
