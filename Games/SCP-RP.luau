@@ -2,23 +2,16 @@
 --  SCP: Roleplay – Example UI using AuraIS
 -- =============================================================
 
-local AuraIS = Matrice.UI
-local Library
-
-local function Asset(name)
-    return Matrice.Asset(name .. ".png")
-end
-
 -- Create main window
-Library = AuraIS:CreateLibrary({
-    Name = "Matrice · SCP:RP",
-    Icon = Asset("matrice")
+local Library = Matrice.UI:CreateLibrary({
+    Name = "Matrice Hub",
+    Icon = Matrice.Asset("matrice.png")
 })
 
 -- Single advertisement – Rocheats
 Library:CreateAdvertisement(
     "Rocheats",
-    Asset("rocheats_banner"),
+    Matrice.Asset("rocheats_banner.png"),
     "https://rocheats.com/?ref=matrice",
     "Link copied to your clipboard. Thanks for supporting Matrice <3"
 )
@@ -26,11 +19,11 @@ Library:CreateAdvertisement(
 -- =============================================================
 --  CREATE TABS
 -- =============================================================
-local CombatTab   = Library:CreateTab("Combat",   Asset("crosshair"))
-local VisualsTab  = Library:CreateTab("Visuals",  Asset("palette"))
-local PlayerTab   = Library:CreateTab("Player",   Asset("user-shield"))
-local MiscTab     = Library:CreateTab("Misc",     Asset("toolbox"))
-local SettingsTab = Library:CreateTab("Settings", Asset("settings"))
+local CombatTab   = Library:CreateTab("Combat",   Matrice.Asset("crosshair.png"))
+local VisualsTab  = Library:CreateTab("Visuals",  Matrice.Asset("palette.png"))
+local PlayerTab   = Library:CreateTab("Player",   Matrice.Asset("user-shield.png"))
+local MiscTab     = Library:CreateTab("Misc",     Matrice.Asset("toolbox.png"))
+local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
 -- Activate the first tab
 Library:SwitchTab()
@@ -38,11 +31,11 @@ Library:SwitchTab()
 -- =============================================================
 --  COMBAT TAB
 -- =============================================================
-local CombatGeneral = CombatTab:CreateSection("General", "Normal")
-local CombatAimbot   = CombatTab:CreateSection("Aimbot",   "Foldable")
-local CombatTrigger  = CombatTab:CreateSection("Triggerbot", "Foldable")
 
-CombatGeneral:CreateToggle("Normal", {
+-- Targeting Section
+local Targeting = CombatTab:CreateSection("Targeting", "Normal")
+
+Targeting:CreateToggle("Normal", {
     Name = "Silent Aim",
     Flag = "SilentAim",
     Callback = function(v)
@@ -50,37 +43,102 @@ CombatGeneral:CreateToggle("Normal", {
     end
 })
 
-CombatGeneral:CreateSlider({
-    Name = "Aim FOV",
+Targeting:CreateDropdown({
+    Name = "Hit Part",
+    Options = {"Head", "Torso", "Random"},
+    CurrentOption = "Head",
+    Flag = "HitPart",
+    Callback = function(choice)
+        print("Hit Part set to " .. choice)
+    end
+})
+
+Targeting:CreateSlider({
+    Name = "Hit Chance",
+    Value = {0, 100},
+    Increment = 1,
+    Suffix = "%",
+    CurrentValue = 100,
+    Flag = "HitChance",
+    Callback = function(v)
+        print("Hit Chance set to " .. v .. "%")
+    end
+})
+
+Targeting:CreateDropdown({
+    Name = "Target Selection",
+    Options = {"Distance Priority", "Closest", "FOV Priority"},
+    CurrentOption = "Distance Priority",
+    Flag = "TargetSelection",
+    Callback = function(choice)
+        print("Target Selection set to " .. choice)
+    end
+})
+
+Targeting:CreateDropdown({
+    Name = "Target Priority",
+    Options = {"Closest", "Lowest Health", "Crosshair Distance"},
+    CurrentOption = "Closest",
+    Flag = "TargetPriority",
+    Callback = function(choice)
+        print("Target Priority set to " .. choice)
+    end
+})
+
+-- Checks Section
+local Checks = CombatTab:CreateSection("Checks", "Normal")
+
+Checks:CreateToggle("Normal", {
+    Name = "Wall Check",
+    Flag = "WallCheck",
+    Callback = function(v)
+        print("Wall Check " .. (v and "ON" or "OFF"))
+    end
+})
+
+Checks:CreateToggle("Normal", {
+    Name = "Team Check",
+    Flag = "TeamCheck",
+    Callback = function(v)
+        print("Team Check " .. (v and "ON" or "OFF"))
+    end
+})
+
+-- FOV Section
+local FOV = CombatTab:CreateSection("FOV", "Normal")
+
+FOV:CreateToggle("Normal", {
+    Name = "Show FOV",
+    Flag = "ShowFOV",
+    Callback = function(v)
+        print("Show FOV " .. (v and "ON" or "OFF"))
+    end
+})
+
+FOV:CreateSlider({
+    Name = "FOV Radius",
     Value = {1, 360},
     Increment = 1,
     Suffix = "°",
     CurrentValue = 120,
-    Flag = "AimFOV",
+    Flag = "FOVRadius",
     Callback = function(v)
-        print("FOV set to " .. v)
+        print("FOV Radius set to " .. v)
     end
 })
 
-CombatGeneral:CreateKeybind({
-    Name = "Aim Key",
-    Flag = "AimKey",
-    Keybind = "RightShift",
-    Type = "Hold",
-    Callback = function(active)
-        print("Aim key " .. (active and "held" or "released"))
-    end
-})
+-- Automation Section
+local Automation = CombatTab:CreateSection("Automation", "Normal")
 
-CombatTrigger:CreateToggle("Normal", {
-    Name = "Triggerbot",
-    Flag = "Triggerbot",
+Automation:CreateToggle("Normal", {
+    Name = "Auto Trigger",
+    Flag = "AutoTrigger",
     Callback = function(v)
-        print("Triggerbot " .. (v and "ON" or "OFF"))
+        print("Auto Trigger " .. (v and "ON" or "OFF"))
     end
 })
 
-CombatTrigger:CreateSlider({
+Automation:CreateSlider({
     Name = "Trigger Delay",
     Value = {0, 500},
     Increment = 10,
@@ -88,7 +146,18 @@ CombatTrigger:CreateSlider({
     CurrentValue = 50,
     Flag = "TriggerDelay",
     Callback = function(v)
-        print("Trigger delay " .. v)
+        print("Trigger Delay set to " .. v .. "ms")
+    end
+})
+
+-- Weapons Section
+local Weapons = CombatTab:CreateSection("Weapons", "Normal")
+
+Weapons:CreateToggle("Normal", {
+    Name = "Auto Reload",
+    Flag = "AutoReload",
+    Callback = function(v)
+        print("Auto Reload " .. (v and "ON" or "OFF"))
     end
 })
 
@@ -196,11 +265,11 @@ MiscGeneral:CreateButton({
     Name = "Copy Discord Link",
     Callback = function()
         setclipboard("https://discord.gg/matrice")
-        AuraIS:Notify("Normal", {
+        Matrice.UI:Notify("Normal", {
             Title = "Copied!",
             Content = "Discord link copied to clipboard.",
             Duration = 2,
-            Image = Asset("clipboard")
+            Image = Matrice.Asset("clipboard.png")
         })
     end
 })
@@ -213,17 +282,17 @@ MiscAds:CreateCard({
     Title = "Rocheats",
     Description = "Best cheating tools for SCP:RP",
     SecondaryTitle = "v2.0",
-    Image = Asset("rocheats_banner"),
+    Image = Matrice.Asset("rocheats_banner.png"),
     Buttons = {
         Button1 = {
             Name = "Visit Website",
             Callback = function()
                 setclipboard("https://rocheats.com/?ref=matrice")
-                AuraIS:Notify("Normal", {
+                Matrice.UI:Notify("Normal", {
                     Title = "Copied!",
                     Content = "Link copied to your clipboard. Thanks for supporting Matrice <3",
                     Duration = 3,
-                    Image = Asset("globe")
+                    Image = Matrice.Asset("globe.png")
                 })
             end
         }
@@ -273,11 +342,11 @@ SettingsConfig:CreateButton({
 SettingsConfig:CreateButton({
     Name = "Save Configuration",
     Callback = function()
-        AuraIS:Notify("Normal", {
+        Matrice.UI:Notify("Normal", {
             Title = "Saved",
             Content = "Configuration saved successfully!",
             Duration = 2,
-            Image = Asset("info")
+            Image = Matrice.Asset("info.png")
         })
     end
 })
