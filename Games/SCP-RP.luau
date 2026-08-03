@@ -15,19 +15,12 @@ Library = AuraIS:CreateLibrary({
     Icon = Asset("matrice")
 })
 
--- Ads
+-- Single advertisement – Rocheats
 Library:CreateAdvertisement(
-    "Matrice Hub",
-    Asset("matrice-softworks"),
-    "https://discord.gg/matrice",
-    "Join our Discord!"
-)
-
-Library:CreateAdvertisement(
-    "SCP:RP Tools",
-    Asset("toolbox"),
-    "https://example.com",
-    "Check out our tools"
+    "Rocheats",
+    Asset("rocheats_banner"),
+    "https://rocheats.com/?ref=matrice",
+    "Link copied to your clipboard. Thanks for supporting Matrice <3"
 )
 
 -- =============================================================
@@ -39,7 +32,7 @@ local PlayerTab   = Library:CreateTab("Player",   Asset("user-shield"))
 local MiscTab     = Library:CreateTab("Misc",     Asset("toolbox"))
 local SettingsTab = Library:CreateTab("Settings", Asset("settings"))
 
--- ✅ Activate the first tab so content appears
+-- Activate the first tab
 Library:SwitchTab()
 
 -- =============================================================
@@ -182,26 +175,15 @@ PlayerGeneral:CreateTextbox({
     end
 })
 
-
-Library:Notify({
-    Title = "Notification Title",
-    Content = "Notification Content",
-    Duration = 5,
-    Image = "rbxassetid://4483362458",
-    Actions = {
-        {
-            Name = "Okay!",
-            Callback = function()
-                print("User tapped Okay!")
-            end
-        },
-        {
-            Name = "Cancel",
-            Callback = function()
-                print("User tapped Cancel!")
-            end
-        }
-    }
+PlayerGeneral:CreateButton({
+    Name = "Teleport to Player",
+    Callback = function()
+        Library:Notify({
+            Title = "Not Implemented",
+            Content = "Teleport functionality coming soon.",
+            Duration = 3
+        })
+    end
 })
 
 -- =============================================================
@@ -224,36 +206,24 @@ MiscGeneral:CreateButton({
 })
 
 MiscAds:CreateLabel({
-    Description = "Support us by checking our ads below!"
+    Description = "Support us by checking our ad below!"
 })
 
 MiscAds:CreateCard({
-    Title = "Matrice Hub",
-    Description = "Best SCP:RP scripts",
-    SecondaryTitle = "v0.1.0",
-    Image = Asset("matrice-softworks"),
+    Title = "Rocheats",
+    Description = "Best cheating tools for SCP:RP",
+    SecondaryTitle = "v2.0",
+    Image = Asset("rocheats_banner"),
     Buttons = {
         Button1 = {
-            Name = "Website",
+            Name = "Visit Website",
             Callback = function()
-                setclipboard("https://matrice-softworks.com")
+                setclipboard("https://rocheats.com/?ref=matrice")
                 AuraIS:Notify("Normal", {
                     Title = "Copied!",
-                    Content = "Website URL copied.",
-                    Duration = 2,
+                    Content = "Link copied to your clipboard. Thanks for supporting Matrice <3",
+                    Duration = 3,
                     Image = Asset("globe")
-                })
-            end
-        },
-        Button2 = {
-            Name = "Discord",
-            Callback = function()
-                setclipboard("https://discord.gg/matrice")
-                AuraIS:Notify("Normal", {
-                    Title = "Copied!",
-                    Content = "Discord invite copied.",
-                    Duration = 2,
-                    Image = Asset("discord")
                 })
             end
         }
