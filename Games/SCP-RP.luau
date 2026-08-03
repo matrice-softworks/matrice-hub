@@ -454,7 +454,8 @@ Interface:CreateKeybind({
     Keybind = "LeftAlt",
     Type = "Press",
     Callback = function(active)
-        UI:ToggleUI()
+        print("Toggle UI triggered")
+        Matrice.UI:ToggleUI()  -- always toggles on each key press
     end
 })
 
@@ -494,6 +495,7 @@ Interface:CreateCard({
     }
 })
 
+-- Paragraph for version and changelog
 Interface:CreateParagraph({
     Title = "Version " .. gameVersion,
     Description = "Changelog:\n" .. gameChangelog
