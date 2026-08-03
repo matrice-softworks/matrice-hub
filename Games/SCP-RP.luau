@@ -551,9 +551,26 @@ Teleportation:CreateButton({
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
 Miscellaneous:CreateButton({
-    Name = "Become A Zombie",
+    Name = "SCP-008 Infection",
     Callback = function()
-        print("Became a zombie!")
+        local Player = LocalPlayer
+        if not Player then return end
+        local Character = Player.Character
+        if not Character then
+            Player.CharacterAdded:Wait()
+            Character = Player.Character
+        end
+        local RootPart = Character:FindFirstChild("HumanoidRootPart")
+        if RootPart then
+            RootPart.CFrame = CFrame.new(207.819214, 0.177170038, -1261.79102)
+        end
+        local UpperTorso = Character:FindFirstChild("UpperTorso")
+        if UpperTorso then
+            UpperTorso.Anchored = true
+            task.wait(1)
+            UpperTorso.Anchored = false
+        end
+        print("SCP-008 Infection applied.")
     end
 })
 
