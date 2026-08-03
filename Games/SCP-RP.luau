@@ -16,7 +16,6 @@ local VirtualUser = game:GetService("VirtualUser")
 
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
-local CreatorGroupId = game.CreatorId
 
 -- ============================================================
 --  FEATURE VARIABLES
@@ -38,9 +37,9 @@ local function DetectModerator(Enabled)
     if Enabled then
         for _, Player in ipairs(Players:GetPlayers()) do
             if Player ~= LocalPlayer then
-                local Rank = Player:GetRankInGroup(CreatorGroupId)
-                if Rank >= 248 then
-                    local Role = Player:GetRoleInGroup(CreatorGroupId)
+                local Success, Rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
+                if Success and Rank and Rank >= 248 then
+                    local Role = Player:GetRoleInGroup(game.CreatorId)
                     Matrice.UI:Notify("Warning", {
                         Title = "Moderator Detector",
                         Content = Player.Name .. " (" .. Role .. ") is in the server!",
@@ -66,9 +65,9 @@ local function DetectModerator(Enabled)
         ModeratorDetectorAddedConnection = Players.PlayerAdded:Connect(function(Player)
             if ModeratorDetectorEnabled then
                 task.wait(1)
-                local Rank = Player:GetRankInGroup(CreatorGroupId)
-                if Rank >= 248 then
-                    local Role = Player:GetRoleInGroup(CreatorGroupId)
+                local Success, Rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
+                if Success and Rank and Rank >= 248 then
+                    local Role = Player:GetRoleInGroup(game.CreatorId)
                     Matrice.UI:Notify("Warning", {
                         Title = "Moderator Detector",
                         Content = Player.Name .. " (" .. Role .. ") joined the server!",
@@ -93,9 +92,9 @@ local function DetectModerator(Enabled)
         end
         ModeratorDetectorRemovingConnection = Players.PlayerRemoving:Connect(function(Player)
             if ModeratorDetectorEnabled then
-                local Rank = Player:GetRankInGroup(CreatorGroupId)
-                if Rank >= 248 then
-                    local Role = Player:GetRoleInGroup(CreatorGroupId)
+                local Success, Rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
+                if Success and Rank and Rank >= 248 then
+                    local Role = Player:GetRoleInGroup(game.CreatorId)
                     Matrice.UI:Notify("Warning", {
                         Title = "Moderator Detector",
                         Content = Player.Name .. " (" .. Role .. ") left the server!",
