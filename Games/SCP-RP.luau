@@ -1,11 +1,11 @@
 -- =============================================================
 --  SCP: Roleplay – Example UI using AuraIS
---  Reads version from Matrice.VersionData (set by the loader)
+--  Reads game info from Matrice.Game.Info
 -- =============================================================
 
 -- Create main window
 local Library = Matrice.UI:CreateLibrary({
-    Name = "Matrice Hub",
+    Name = "Matrice Hub - SCP:RP",
     Icon = Matrice.Asset("matrice.png")
 })
 
@@ -472,14 +472,14 @@ Interface:CreateKeybind({
     end
 })
 
--- Matrice Hub Info Card – reads from Matrice.VersionData
-local version = tostring((Matrice.VersionData and Matrice.VersionData.Matrice and Matrice.VersionData.Matrice.Version) or "0.0.0")
-local changelog = tostring((Matrice.VersionData and Matrice.VersionData.Matrice and Matrice.VersionData.Matrice.Changelog) or "No changelog available.")
+-- Matrice Hub Info Card – reads game info from Matrice.Game.Info
+local gameVersion = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Version) or "N/A")
+local gameChangelog = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Changelog) or "No changelog available.")
 
 Interface:CreateCard({
-    Title = "Matrice Hub",
-    Description = "Version " .. version .. "\n" .. changelog,
-    SecondaryTitle = "A script hub packed with high-quality undetectable scripts",
+    Title = "Matrice Hub - SCP:RP",
+    Description = "Version " .. gameVersion .. "\n" .. gameChangelog,
+    SecondaryTitle = "By Matrice Softworks",
     Image = Matrice.Asset("matrice.png"),
     Buttons = {
         Button1 = {
