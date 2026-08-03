@@ -915,7 +915,7 @@ Character:CreateKeybind({
     Callback = function(State)
         if State and NoClip.Enabled then
             NoClip.Active = not NoClip.Active
-            ToggleNoClip(NoClip.Enabled) -- this will reapply state based on Enabled and Active
+            ToggleNoClip(NoClip.Enabled)
         end
     end
 })
@@ -936,7 +936,7 @@ Character:CreateKeybind({
     Callback = function(State)
         if State and Fly.Enabled then
             Fly.Active = not Fly.Active
-            ToggleFly(Fly.Enabled) -- this will reapply state based on Enabled and Active
+            ToggleFly(Fly.Enabled)
         end
     end
 })
