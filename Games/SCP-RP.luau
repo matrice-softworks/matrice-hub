@@ -471,10 +471,13 @@ Interface:CreateKeybind({
     end
 })
 
--- Matrice Hub Info Card
+-- Matrice Hub Info Card – FIXED VERSION
+local version = Matrice.Version or "0.0.0"
+local changelog = (Matrice.VersionData and Matrice.VersionData.Matrice and Matrice.VersionData.Matrice.Changelog) or "No changelog available."
+
 Interface:CreateCard({
     Title = "Matrice Hub",
-    Description = "Version " .. (Matrice.Version or "0.0.0") .. "\n" .. (Matrice.Changelog or "No changelog available."),
+    Description = "Version " .. version .. "\n" .. changelog,
     SecondaryTitle = "A script hub packed with high-quality undetectable scripts",
     Image = Matrice.Asset("matrice.png"),
     Buttons = {
