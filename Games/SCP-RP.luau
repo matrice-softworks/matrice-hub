@@ -127,6 +127,13 @@ FOV:CreateSlider({
     end
 })
 
+FOV:CreateColorPicker({
+    Name = "FOV Color",
+    Callback = function(color)
+        print("FOV color changed to", color)
+    end
+})
+
 -- Automation Section
 local Automation = CombatTab:CreateSection("Automation", "Normal")
 
@@ -164,61 +171,143 @@ Weapons:CreateToggle("Normal", {
 -- =============================================================
 --  VISUALS TAB
 -- =============================================================
-local VisualsESP   = VisualsTab:CreateSection("ESP", "Normal")
-local VisualsChams = VisualsTab:CreateSection("Chams", "Foldable")
-local VisualsWorld = VisualsTab:CreateSection("World", "Foldable")
 
-VisualsESP:CreateToggle("Normal", {
+-- ESP Section
+local ESP = VisualsTab:CreateSection("ESP", "Normal")
+
+ESP:CreateToggle("Normal", {
+    Name = "Enable ESP",
+    Flag = "EnableESP",
+    Callback = function(v)
+        print("Enable ESP " .. (v and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
     Name = "Box ESP",
     Flag = "BoxESP",
-    Callback = function(v) print("Box ESP " .. (v and "ON" or "OFF")) end
+    Callback = function(v)
+        print("Box ESP " .. (v and "ON" or "OFF"))
+    end
 })
 
-VisualsESP:CreateToggle("Normal", {
+ESP:CreateToggle("Normal", {
+    Name = "Name ESP",
+    Flag = "NameESP",
+    Callback = function(v)
+        print("Name ESP " .. (v and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Distance ESP",
+    Flag = "DistanceESP",
+    Callback = function(v)
+        print("Distance ESP " .. (v and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Weapon ESP",
+    Flag = "WeaponESP",
+    Callback = function(v)
+        print("Weapon ESP " .. (v and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Health Bar",
+    Flag = "HealthBar",
+    Callback = function(v)
+        print("Health Bar " .. (v and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
     Name = "Skeleton ESP",
     Flag = "SkeletonESP",
-    Callback = function(v) print("Skeleton ESP " .. (v and "ON" or "OFF")) end
-})
-
-VisualsESP:CreateToggle("Normal", {
-    Name = "Health Bars",
-    Flag = "HealthBars",
-    Callback = function(v) print("Health Bars " .. (v and "ON" or "OFF")) end
-})
-
-VisualsESP:CreateToggle("Normal", {
-    Name = "Tracers",
-    Flag = "Tracers",
-    Callback = function(v) print("Tracers " .. (v and "ON" or "OFF")) end
-})
-
-VisualsESP:CreateColorPicker({
-    Name = "ESP Color",
-    Callback = function(color)
-        print("ESP color changed to", color)
+    Callback = function(v)
+        print("Skeleton ESP " .. (v and "ON" or "OFF"))
     end
 })
 
-VisualsChams:CreateToggle("Normal", {
+ESP:CreateToggle("Normal", {
+    Name = "Team Check",
+    Flag = "TeamCheckESP",
+    Callback = function(v)
+        print("Team Check (ESP) " .. (v and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Friend Check",
+    Flag = "FriendCheckESP",
+    Callback = function(v)
+        print("Friend Check (ESP) " .. (v and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateSlider({
+    Name = "Distance Limit",
+    Value = {10, 1000},
+    Increment = 10,
+    Suffix = " studs",
+    CurrentValue = 500,
+    Flag = "DistanceLimit",
+    Callback = function(v)
+        print("Distance Limit set to " .. v .. " studs")
+    end
+})
+
+-- Effects Section
+local Effects = VisualsTab:CreateSection("Effects", "Normal")
+
+Effects:CreateToggle("Normal", {
+    Name = "Highlight",
+    Flag = "Highlight",
+    Callback = function(v)
+        print("Highlight " .. (v and "ON" or "OFF"))
+    end
+})
+
+Effects:CreateToggle("Normal", {
     Name = "Chams",
     Flag = "Chams",
-    Callback = function(v) print("Chams " .. (v and "ON" or "OFF")) end
-})
-
-VisualsChams:CreateDropdown({
-    Name = "Chams Material",
-    Options = {"ForceField", "Glass", "Neon", "Plastic"},
-    CurrentOption = "ForceField",
-    Flag = "ChamsMaterial",
-    Callback = function(choice)
-        print("Chams material set to " .. choice)
+    Callback = function(v)
+        print("Chams " .. (v and "ON" or "OFF"))
     end
 })
 
-VisualsWorld:CreateToggle("Normal", {
-    Name = "Greyscale World",
-    Flag = "GreyscaleWorld",
-    Callback = function(v) print("Greyscale World " .. (v and "ON" or "OFF")) end
+Effects:CreateColorPicker({
+    Name = "Highlight Color",
+    Callback = function(color)
+        print("Highlight color changed to", color)
+    end
+})
+
+Effects:CreateToggle("Normal", {
+    Name = "Tracer Lines",
+    Flag = "TracerLines",
+    Callback = function(v)
+        print("Tracer Lines " .. (v and "ON" or "OFF"))
+    end
+})
+
+Effects:CreateDropdown({
+    Name = "Tracer Origin",
+    Options = {"Bottom", "Center", "Mouse"},
+    CurrentOption = "Bottom",
+    Flag = "TracerOrigin",
+    Callback = function(choice)
+        print("Tracer Origin set to " .. choice)
+    end
+})
+
+Effects:CreateColorPicker({
+    Name = "Tracer Color",
+    Callback = function(color)
+        print("Tracer color changed to", color)
+    end
 })
 
 -- =============================================================
