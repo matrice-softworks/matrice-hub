@@ -1,743 +1,1571 @@
 -- Matrice Softworks
 
 -- ============================================================
--- SERVICES
+--  SERVICES
 -- ============================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local VirtualUser = game:GetService("VirtualUser")
-local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
+local VirtualUser = game:GetService("VirtualUser")
+local Lighting = game:GetService("Lighting")
+
+-- ============================================================
+--  REFERENCES
+-- ============================================================
 
 local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
 -- ============================================================
--- STARTUP CLEANUP
+--  FEATURE MODULES
 -- ============================================================
 
-pcall(function()
-    CoreGui.RobloxGui["CoreScripts/NetworkPause"]:Destroy()
-end)
+-- Combat Features
+local SilentAim = {}
+SilentAim.Enabled = false
+SilentAim.WallCheck = true
+SilentAim.HitPart = "Head"
+SilentAim.HitChance = 100
+SilentAim.HookInstalled = false
+SilentAim.OriginalFunction = nil
+
+local FOV = {}
+FOV.Enabled = false
+FOV.Radius = 150
+FOV.Color = Color3.fromRGB(255, 255, 255)
+FOV.Circle = Drawing.new("Circle")
+FOV.Circle.Filled = false
+FOV.Circle.Thickness = 1
+FOV.Circle.NumSides = 64
+FOV.Circle.Visible = false
+
+local Hitbox = {}
+Hitbox.Enabled = false
+Hitbox.Size = 1
+
+local WallCheck = {}
+WallCheck.Enabled = false
+
+local TeamCheck = {}
+TeamCheck.Enabled = false
+
+local AutoTrigger = {}
+AutoTrigger.Enabled = false
+
+local TriggerDelay = {}
+TriggerDelay.Value = 50
+
+local AutoReload = {}
+AutoReload.Enabled = false
+
+-- Visuals Features
+local ESP = {}
+ESP.Enabled = false
+ESP.Settings = {
+    Box = false,
+    Name = false,
+    Distance = false,
+    Weapon = false,
+    HealthBar = false,
+    Skeleton = false,
+    TeamCheck = false,
+    FriendCheck = false,
+    DistanceLimit = 500
+}
+ESP.PlayerData = {}
+ESP.Connections = {}
+ESP.RenderConnection = nil
+ESP.UpdateConnection = nil
+
+local Highlight = {}
+Highlight.Enabled = false
+
+local Chams = {}
+Chams.Enabled = false
+
+local TracerLines = {}
+TracerLines.Enabled = false
+
+local TracerOrigin = {}
+TracerOrigin.Selected = "Bottom"
+
+local Greyscale = {}
+Greyscale.Enabled = false
+Greyscale.Effect = nil
+
+-- Player Features
+local WalkSpeed = {}
+WalkSpeed.Enabled = false
+WalkSpeed.Value = 16
+
+local JumpPower = {}
+JumpPower.Enabled = false
+JumpPower.Value = 50
+
+local NoClip = {}
+NoClip.Enabled = false
+NoClip.Keybind = "N"
+NoClip.Active = false
+NoClip.Connection = nil
+
+local Fly = {}
+Fly.Enabled = false
+Fly.Keybind = "F"
+Fly.Speed = 50
+Fly.Active = false
+Fly.Connection = nil
+Fly.CharacterConnection = nil
+
+-- Utilities Features
+local ModeratorDetector = {}
+ModeratorDetector.Enabled = false
+ModeratorDetector.Connection = nil
+ModeratorDetector.AddedConnection = nil
+ModeratorDetector.RemovingConnection = nil
+
+local AntiAFK = {}
+AntiAFK.Enabled = false
+AntiAFK.Connection = nil
+
+-- Movement Spoof (advanced feature)
+local MovementSpoof = {}
+MovementSpoof.Enabled = false
+MovementSpoof.Active = false
+MovementSpoof.WalkSpeed = 16
+MovementSpoof.JumpPower = 50
+MovementSpoof.CurrentHumanoid = nil
+MovementSpoof.CachedHumanoids = {}
+MovementSpoof.CharacterConnection = nil
+MovementSpoof.IndexHook = nil
+MovementSpoof.NewIndexHook = nil
 
 -- ============================================================
--- HUMAN OID SPOOFER (helper)
+--  HELPER FUNCTIONS
 -- ============================================================
 
-local HumanoidSpoofer = {}
-do
-    local cloneref = cloneref or function(x) return x end
-    local lp = cloneref(Players)
-    if not lp.LocalPlayer then
-        lp:GetPropertyChangedSignal("LocalPlayer"):Wait()
+local function GetPlayerRank(Player)
+    if not Player or not Player.Parent or Player.Parent ~= Players then
+        return nil
     end
-    lp = cloneref(lp.LocalPlayer)
-
-    local split = string.split
-    local GetDebugIdHandler = Instance.new("BindableFunction")
-    local TempHumanoid = Instance.new("Humanoid")
-    local cachedhumanoids = {}
-    local CurrentHumanoid, newindexhook, indexhook
-    local SpoofedProperties = {"WalkSpeed", "JumpPower"}
-
-    GetDebugIdHandler.OnInvoke = function(obj)
-        return obj:GetDebugId()
+    local Success, Rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
+    if Success then
+        return Rank
     end
+    return nil
+end
 
-    local function GetDebugId(obj)
-        return GetDebugIdHandler:Invoke(obj)
+local function GetPlayerRole(Player)
+    if not Player or not Player.Parent or Player.Parent ~= Players then
+        return nil
     end
-
-    local function GetPropertyValue(obj, prop)
-        TempHumanoid[prop] = obj
-        return TempHumanoid[prop]
+    local Success, Role = pcall(Player.GetRoleInGroup, Player, game.CreatorId)
+    if Success then
+        return Role
     end
+    return nil
+end
 
-    function cachedhumanoids:cacheHumanoid(DebugId, Humanoid)
-        local cache = {}
-        for _, prop in ipairs(SpoofedProperties) do
-            cache[prop] = {
-                currentindex = indexhook(Humanoid, prop),
-                lastnewindex = nil
-            }
+local function IsEnemy(Player)
+    local LocalTeam = LocalPlayer.Team
+    local TargetTeam = Player.Team
+    if not LocalTeam or not TargetTeam then return true end
+    return LocalTeam ~= TargetTeam
+end
+
+-- ============================================================
+--  SILENT AIM FUNCTIONS
+-- ============================================================
+
+local function GetSilentAimTarget()
+    if not SilentAim.Enabled then return nil end
+    local Camera = workspace.CurrentCamera
+    local Cursor = UserInputService:GetMouseLocation()
+    local ClosestPart = nil
+    local ClosestDistance = FOV.Radius
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and IsEnemy(Player) then
+            local Character = Player.Character
+            if not Character then continue end
+            local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+            if not Humanoid or Humanoid.Health <= 0 then continue end
+
+            local HitPartName = SilentAim.HitPart
+            if HitPartName == "Randomized" then
+                local Parts = {"Head", "UpperTorso", "HumanoidRootPart"}
+                HitPartName = Parts[math.random(1, #Parts)]
+            end
+
+            local TargetPart = Character:FindFirstChild(HitPartName) or Character:FindFirstChild("HumanoidRootPart")
+            if not TargetPart then continue end
+
+            local ScreenPosition, OnScreen = Camera:WorldToViewportPoint(TargetPart.Position)
+            if not OnScreen then continue end
+
+            local Visible = true
+            if SilentAim.WallCheck then
+                local LocalCharacter = LocalPlayer.Character
+                if LocalCharacter then
+                    local Params = RaycastParams.new()
+                    Params.FilterType = Enum.RaycastFilterType.Exclude
+                    Params.FilterDescendantsInstances = {LocalCharacter}
+                    Params.IgnoreWater = true
+                    local Result = workspace:Raycast(Camera.CFrame.Position, TargetPart.Position - Camera.CFrame.Position, Params)
+                    if Result and not Result.Instance:IsDescendantOf(Character) then
+                        Visible = false
+                    end
+                end
+            end
+
+            if Visible then
+                local Distance = (Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Cursor).Magnitude
+                if Distance < ClosestDistance then
+                    ClosestPart = TargetPart
+                    ClosestDistance = Distance
+                end
+            end
         end
-        cachedhumanoids[DebugId] = cache
-        return cache
+    end
+    return ClosestPart
+end
+
+local function FindBulletFunction()
+    local Controller = LocalPlayer.PlayerScripts:FindFirstChild("Controller")
+    if not Controller then return nil end
+
+    local function MatchesController(Candidate)
+        if not debug or not debug.getinfo then return false end
+        local Success, Info = pcall(debug.getinfo, Candidate)
+        return Success and Info and Info.source == "=" .. Controller:GetFullName()
     end
 
-    indexhook = hookmetamethod(game, "__index", function(self, index)
-        if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
-            local DebugId = GetDebugId(self)
-            local cached = cachedhumanoids[DebugId]
-            if self:IsDescendantOf(lp.Character) or cached then
-                if type(index) == "string" then
-                    local clean = split(index, "\0")[1]
-                    if table.find(SpoofedProperties, clean) then
-                        if not cached then
-                            cached = cachedhumanoids:cacheHumanoid(DebugId, self)
+    if filtergc then
+        local Result = filtergc("function", {
+            Constants = {"Bullet", "EasterEggThing", "SCP-066"},
+            IgnoreExecutor = true,
+        })
+        if type(Result) == "function" and MatchesController(Result) then return Result end
+        if type(Result) == "table" then
+            for _, Candidate in ipairs(Result) do
+                if type(Candidate) == "function" and MatchesController(Candidate) then return Candidate end
+            end
+        end
+    end
+
+    if getgc and debug and debug.getconstants then
+        for _, Candidate in ipairs(getgc()) do
+            if type(Candidate) == "function" then
+                local Success, Constants = pcall(debug.getconstants, Candidate)
+                if Success and Constants and MatchesController(Candidate) and
+                   table.find(Constants, "Bullet") and
+                   table.find(Constants, "EasterEggThing") and
+                   table.find(Constants, "SCP-066") then
+                    return Candidate
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function InstallSilentAim()
+    if SilentAim.HookInstalled then return true end
+    local BulletFunction = FindBulletFunction()
+    if not BulletFunction then
+        warn("Silent Aim: Could not find bullet function.")
+        return false
+    end
+
+    local Original
+    Original = hookfunction(BulletFunction, function(_, HitResult, ...)
+        local Target = GetSilentAimTarget()
+        if Target and math.random(1, 100) <= SilentAim.HitChance then
+            return Original(_, {
+                Instance = Target,
+                Position = Target.Position,
+                Normal = Vector3.new(0, 1, 0),
+                Material = Target.Material,
+            }, ...)
+        end
+        return Original(_, HitResult, ...)
+    end)
+
+    SilentAim.OriginalFunction = Original
+    SilentAim.HookInstalled = true
+    return true
+end
+
+local function ToggleSilentAim(Enabled)
+    SilentAim.Enabled = Enabled
+    if Enabled then
+        if not InstallSilentAim() then
+            SilentAim.Enabled = false
+            warn("Silent Aim installation failed.")
+        end
+    end
+end
+
+-- ============================================================
+--  MOVEMENT SPOOF FUNCTIONS
+-- ============================================================
+
+local GetDebugIdHandler = Instance.new("BindableFunction")
+local TempHumanoid = Instance.new("Humanoid")
+
+function GetDebugIdHandler.OnInvoke(Object)
+    return Object:GetDebugId()
+end
+
+local function GetDebugId(Object)
+    return GetDebugIdHandler:Invoke(Object)
+end
+
+local function GetSpoofValue(Value)
+    TempHumanoid.WalkSpeed = Value
+    return TempHumanoid.WalkSpeed
+end
+
+local function CacheHumanoid(CacheTable, DebugId, Humanoid)
+    CacheTable[DebugId] = {
+        CurrentWalk = MovementSpoof.IndexHook(Humanoid, "WalkSpeed"),
+        CurrentJump = MovementSpoof.IndexHook(Humanoid, "JumpPower"),
+        LastWalk = nil,
+        LastJump = nil,
+    }
+    return CacheTable[DebugId]
+end
+
+local function SetupMovementSpoof()
+    MovementSpoof.CachedHumanoids = {}
+    MovementSpoof.IndexHook = hookmetamethod(game, "__index", function(Self, Index)
+        if not checkcaller() and typeof(Self) == "Instance" and Self:IsA("Humanoid") then
+            local DebugId = GetDebugId(Self)
+            local Cached = MovementSpoof.CachedHumanoids[DebugId]
+            if Self:IsDescendantOf(LocalPlayer.Character) or Cached then
+                if type(Index) == "string" then
+                    local Clean = string.split(Index, "\0")[1]
+                    if Clean == "WalkSpeed" then
+                        if not Cached then Cached = CacheHumanoid(MovementSpoof.CachedHumanoids, DebugId, Self) end
+                        if not (MovementSpoof.CurrentHumanoid and MovementSpoof.CurrentHumanoid:IsDescendantOf(game)) then
+                            MovementSpoof.CurrentHumanoid = cloneref(Self)
                         end
-                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                            CurrentHumanoid = cloneref(self)
+                        return Cached.LastWalk or Cached.CurrentWalk
+                    elseif Clean == "JumpPower" then
+                        if not Cached then Cached = CacheHumanoid(MovementSpoof.CachedHumanoids, DebugId, Self) end
+                        if not (MovementSpoof.CurrentHumanoid and MovementSpoof.CurrentHumanoid:IsDescendantOf(game)) then
+                            MovementSpoof.CurrentHumanoid = cloneref(Self)
                         end
-                        return cached[clean].lastnewindex or cached[clean].currentindex
+                        return Cached.LastJump or Cached.CurrentJump
                     end
                 end
             end
         end
-        return indexhook(self, index)
+        return MovementSpoof.IndexHook(Self, Index)
     end)
 
-    newindexhook = hookmetamethod(game, "__newindex", function(self, index, newindex)
-        if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
-            local DebugId = GetDebugId(self)
-            local cached = cachedhumanoids[DebugId]
-            if self:IsDescendantOf(lp.Character) or cached then
-                if type(index) == "string" then
-                    local clean = split(index, "\0")[1]
-                    if table.find(SpoofedProperties, clean) then
-                        if not cached then
-                            cached = cachedhumanoids:cacheHumanoid(DebugId, self)
+    MovementSpoof.NewIndexHook = hookmetamethod(game, "__newindex", function(Self, Index, NewValue)
+        if not checkcaller() and typeof(Self) == "Instance" and Self:IsA("Humanoid") then
+            local DebugId = GetDebugId(Self)
+            local Cached = MovementSpoof.CachedHumanoids[DebugId]
+            if Self:IsDescendantOf(LocalPlayer.Character) or Cached then
+                if type(Index) == "string" then
+                    local Clean = string.split(Index, "\0")[1]
+                    if Clean == "WalkSpeed" then
+                        if not Cached then Cached = CacheHumanoid(MovementSpoof.CachedHumanoids, DebugId, Self) end
+                        if not (MovementSpoof.CurrentHumanoid and MovementSpoof.CurrentHumanoid:IsDescendantOf(game)) then
+                            MovementSpoof.CurrentHumanoid = cloneref(Self)
                         end
-                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                            CurrentHumanoid = cloneref(self)
+                        Cached.LastWalk = GetSpoofValue(NewValue)
+                        return MovementSpoof.CurrentHumanoid.WalkSpeed
+                    elseif Clean == "JumpPower" then
+                        if not Cached then Cached = CacheHumanoid(MovementSpoof.CachedHumanoids, DebugId, Self) end
+                        if not (MovementSpoof.CurrentHumanoid and MovementSpoof.CurrentHumanoid:IsDescendantOf(game)) then
+                            MovementSpoof.CurrentHumanoid = cloneref(Self)
                         end
-                        cached[clean].lastnewindex = GetPropertyValue(newindex, clean)
-                        return CurrentHumanoid[clean]
+                        Cached.LastJump = GetSpoofValue(NewValue)
+                        return MovementSpoof.CurrentHumanoid.JumpPower
                     end
                 end
             end
         end
-        return newindexhook(self, index, newindex)
+        return MovementSpoof.NewIndexHook(Self, Index, NewValue)
     end)
+end
 
-    function HumanoidSpoofer:Disable()
-        self:RestoreAll()
-        hookmetamethod(game, "__index", indexhook)
-        hookmetamethod(game, "__newindex", newindexhook)
-        GetDebugIdHandler:Destroy()
-        TempHumanoid:Destroy()
-        table.clear(self)
-        getgenv().HumanoidSpoofer = nil
+local function GetMovementHumanoid()
+    if MovementSpoof.CurrentHumanoid and MovementSpoof.CurrentHumanoid:IsDescendantOf(game) then
+        return MovementSpoof.CurrentHumanoid
     end
-
-    function HumanoidSpoofer:GetHumanoid()
-        return CurrentHumanoid or (function()
-            local char = lp.Character
-            local Humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
-            if Humanoid then
-                cachedhumanoids:cacheHumanoid(Humanoid:GetDebugId(), Humanoid)
-                return cloneref(Humanoid)
-            end
-        end)()
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildWhichIsA("Humanoid")
+    if Humanoid then
+        CacheHumanoid(MovementSpoof.CachedHumanoids, Humanoid:GetDebugId(), Humanoid)
+        return cloneref(Humanoid)
     end
+    return nil
+end
 
-    function HumanoidSpoofer:SetWalkSpeed(speed)
-        local Humanoid = self:GetHumanoid()
-        if Humanoid then
-            local connections = {}
-            for _, v in getconnections(Humanoid.Changed) do
-                if v.State then v:Disable(); table.insert(connections, v) end
+local function SetMovementWalkSpeed(Speed)
+    local Humanoid = GetMovementHumanoid()
+    if not Humanoid then return end
+    local Connections = {}
+    local function AddConnections(Signal)
+        for _, Conn in getconnections(Signal) do
+            if Conn.State then
+                Conn:Disable()
+                table.insert(Connections, Conn)
             end
-            for _, v in getconnections(Humanoid:GetPropertyChangedSignal("WalkSpeed")) do
-                if v.State then v:Disable(); table.insert(connections, v) end
-            end
-            Humanoid.WalkSpeed = speed
-            for _, v in connections do v:Enable() end
         end
     end
+    AddConnections(Humanoid.Changed)
+    AddConnections(Humanoid:GetPropertyChangedSignal("WalkSpeed"))
+    Humanoid.WalkSpeed = Speed
+    for _, Conn in Connections do Conn:Enable() end
+end
 
-    function HumanoidSpoofer:SetJumpPower(power)
-        local Humanoid = self:GetHumanoid()
-        if Humanoid then
-            local connections = {}
-            for _, v in getconnections(Humanoid.Changed) do
-                if v.State then v:Disable(); table.insert(connections, v) end
+local function SetMovementJumpPower(Power)
+    local Humanoid = GetMovementHumanoid()
+    if not Humanoid then return end
+    local Connections = {}
+    local function AddConnections(Signal)
+        for _, Conn in getconnections(Signal) do
+            if Conn.State then
+                Conn:Disable()
+                table.insert(Connections, Conn)
             end
-            for _, v in getconnections(Humanoid:GetPropertyChangedSignal("JumpPower")) do
-                if v.State then v:Disable(); table.insert(connections, v) end
-            end
-            Humanoid.JumpPower = power
-            for _, v in connections do v:Enable() end
         end
     end
+    AddConnections(Humanoid.Changed)
+    AddConnections(Humanoid:GetPropertyChangedSignal("JumpPower"))
+    Humanoid.JumpPower = Power
+    for _, Conn in Connections do Conn:Enable() end
+end
 
-    function HumanoidSpoofer:RestoreWalkSpeed()
-        self:SetWalkSpeed(16)
-    end
-
-    function HumanoidSpoofer:RestoreJumpPower()
-        self:SetJumpPower(50)
-    end
-
-    function HumanoidSpoofer:RestoreAll()
-        self:RestoreWalkSpeed()
-        self:RestoreJumpPower()
+local function RestoreMovement()
+    local Humanoid = GetMovementHumanoid()
+    if Humanoid then
+        local DebugId = Humanoid:GetDebugId()
+        local Cached = MovementSpoof.CachedHumanoids[DebugId]
+        if Cached then
+            SetMovementWalkSpeed(Cached.LastWalk or Cached.CurrentWalk)
+            SetMovementJumpPower(Cached.LastJump or Cached.CurrentJump)
+        else
+            SetMovementWalkSpeed(16)
+            SetMovementJumpPower(50)
+        end
     end
 end
 
-getgenv().HumanoidSpoofer = HumanoidSpoofer
+local function DisableMovementSpoof()
+    MovementSpoof.Active = false
+    RestoreMovement()
+    if MovementSpoof.CharacterConnection then
+        MovementSpoof.CharacterConnection:Disconnect()
+        MovementSpoof.CharacterConnection = nil
+    end
+end
 
--- ============================================================
--- FEATURES (tables)
--- ============================================================
+local function EnableMovementSpoof()
+    MovementSpoof.Active = true
+    local Humanoid = GetMovementHumanoid()
+    if Humanoid then
+        CacheHumanoid(MovementSpoof.CachedHumanoids, Humanoid:GetDebugId(), Humanoid)
+        SetMovementWalkSpeed(MovementSpoof.WalkSpeed)
+        SetMovementJumpPower(MovementSpoof.JumpPower)
+    end
+    if not MovementSpoof.CharacterConnection then
+        MovementSpoof.CharacterConnection = LocalPlayer.CharacterAdded:Connect(function(Character)
+            task.wait(0.1)
+            local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+            if Humanoid and MovementSpoof.Active then
+                CacheHumanoid(MovementSpoof.CachedHumanoids, Humanoid:GetDebugId(), Humanoid)
+                SetMovementWalkSpeed(MovementSpoof.WalkSpeed)
+                SetMovementJumpPower(MovementSpoof.JumpPower)
+            end
+        end)
+    end
+end
 
-local ModeratorDetector = {
-    Enabled = false,
-    PlayerAddedConnection = nil,
-    PlayerRemovingConnection = nil
-}
-
-local AntiAFK = {
-    Enabled = false,
-    Connection = nil
-}
-
-local WalkSpeed = {
-    Enabled = false,
-    Value = 16,
-    Active = false
-}
-
-local JumpPower = {
-    Enabled = false,
-    Value = 50,
-    Active = false
-}
-
-local NoClip = {
-    Enabled = false,
-    Connection = nil,
-    Parts = {},
-    Active = false
-}
-
-local Fly = {
-    Enabled = false,
-    Connection = nil,
-    Speed = 50,
-    Active = false
-}
-
--- Toggle function references (for keybinds)
-local WalkSpeedToggleRef, JumpPowerToggleRef, NoClipToggleRef, FlyToggleRef
-
--- ============================================================
--- TOGGLE FUNCTIONS
--- ============================================================
-
-local function ToggleModeratorDetector(Enabled)
-    ModeratorDetector.Enabled = Enabled
+local function ToggleMovementSpoof(Enabled)
+    MovementSpoof.Enabled = Enabled
     if Enabled then
-        Matrice.UI.Notify("Normal", {
-            Title = "Moderator Detector",
-            Content = "Enabled.",
-            Duration = 3,
-            Image = Matrice.Asset("info.png")
-        })
-        for _, Player in ipairs(Players:GetPlayers()) do
-            if Player ~= LocalPlayer then
-                local ok, rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
-                if ok and rank and rank >= 248 then
-                    local role = Player:GetRoleInGroup(game.CreatorId)
-                    Matrice.UI.Notify("Warning", {
-                        Title = "Moderator Detector",
-                        Content = Player.Name .. " (" .. role .. ") is in the server!",
-                        Duration = 10,
-                        Image = Matrice.Asset("user-shield.png"),
-                        Actions = {
-                            {
-                                Name = "Leave Game",
-                                Callback = function()
-                                    game:Shutdown()
-                                end
-                            }
-                        }
-                    })
-                end
-            end
+        if not MovementSpoof.IndexHook then
+            SetupMovementSpoof()
         end
-        if ModeratorDetector.PlayerAddedConnection then
-            ModeratorDetector.PlayerAddedConnection:Disconnect()
-        end
-        ModeratorDetector.PlayerAddedConnection = Players.PlayerAdded:Connect(function(Player)
-            if ModeratorDetector.Enabled then
-                task.wait(1)
-                local ok, rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
-                if ok and rank and rank >= 248 then
-                    local role = Player:GetRoleInGroup(game.CreatorId)
-                    Matrice.UI.Notify("Warning", {
-                        Title = "Moderator Detector",
-                        Content = Player.Name .. " (" .. role .. ") joined the server!",
-                        Duration = 10,
-                        Image = Matrice.Asset("user-shield.png"),
-                        Actions = {
-                            {
-                                Name = "Leave Game",
-                                Callback = function()
-                                    game:Shutdown()
-                                end
-                            }
-                        }
-                    })
-                end
-            end
-        end)
-        if ModeratorDetector.PlayerRemovingConnection then
-            ModeratorDetector.PlayerRemovingConnection:Disconnect()
-        end
-        ModeratorDetector.PlayerRemovingConnection = Players.PlayerRemoving:Connect(function(Player)
-            if ModeratorDetector.Enabled then
-                local ok, rank = pcall(Player.GetRankInGroup, Player, game.CreatorId)
-                if ok and rank and rank >= 248 then
-                    local role = Player:GetRoleInGroup(game.CreatorId)
-                    Matrice.UI.Notify("Warning", {
-                        Title = "Moderator Detector",
-                        Content = Player.Name .. " (" .. role .. ") left the server!",
-                        Duration = 10,
-                        Image = Matrice.Asset("user-shield.png"),
-                        Actions = {
-                            {
-                                Name = "Leave Game",
-                                Callback = function()
-                                    game:Shutdown()
-                                end
-                            }
-                        }
-                    })
-                end
-            end
-        end)
+        EnableMovementSpoof()
     else
-        if ModeratorDetector.PlayerAddedConnection then
-            ModeratorDetector.PlayerAddedConnection:Disconnect()
-            ModeratorDetector.PlayerAddedConnection = nil
-        end
-        if ModeratorDetector.PlayerRemovingConnection then
-            ModeratorDetector.PlayerRemovingConnection:Disconnect()
-            ModeratorDetector.PlayerRemovingConnection = nil
-        end
-        Matrice.UI.Notify("Normal", {
-            Title = "Moderator Detector",
-            Content = "Disabled.",
-            Duration = 3,
-            Image = Matrice.Asset("info.png")
-        })
+        DisableMovementSpoof()
     end
 end
 
-local function ToggleAntiAFK(Enabled)
-    AntiAFK.Enabled = Enabled
-    if Enabled then
-        if getconnections then
-            for _, c in getconnections(LocalPlayer.Idled) do
-                pcall(function()
-                    c:Disable()
-                    c:Disconnect()
-                end)
-            end
+-- ============================================================
+--  NOCLIP FUNCTIONS
+-- ============================================================
+
+local function SetNoClipState(State)
+    local Character = LocalPlayer.Character
+    if not Character then return end
+    for _, Part in ipairs(Character:GetDescendants()) do
+        if Part:IsA("BasePart") then
+            Part.CanCollide = not State
         end
-        if AntiAFK.Connection then
-            AntiAFK.Connection:Disconnect()
-        end
-        AntiAFK.Connection = LocalPlayer.Idled:Connect(function()
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end)
-        Matrice.UI.Notify("Normal", {
-            Title = "Anti AFK",
-            Content = "Enabled.",
-            Duration = 3,
-            Image = Matrice.Asset("info.png")
-        })
-    else
-        if AntiAFK.Connection then
-            AntiAFK.Connection:Disconnect()
-            AntiAFK.Connection = nil
-        end
-        Matrice.UI.Notify("Normal", {
-            Title = "Anti AFK",
-            Content = "Disabled.",
-            Duration = 3,
-            Image = Matrice.Asset("info.png")
-        })
     end
 end
 
-local function ToggleWalkSpeed(Enabled)
-    WalkSpeed.Enabled = Enabled
-    WalkSpeed.Active = Enabled
-    if WalkSpeed.Enabled and WalkSpeed.Active then
-        HumanoidSpoofer.SetWalkSpeed(HumanoidSpoofer, WalkSpeed.Value)
-        Matrice.UI.Notify("Normal", {
-            Title = "Walk Speed",
-            Content = "Set to " .. WalkSpeed.Value,
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
-    else
-        HumanoidSpoofer.RestoreWalkSpeed(HumanoidSpoofer)
-        Matrice.UI.Notify("Normal", {
-            Title = "Walk Speed",
-            Content = "Restored.",
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
-    end
+local function EnableNoClip()
+    if NoClip.Active then return end
+    NoClip.Active = true
+    SetNoClipState(true)
+    if NoClip.Connection then NoClip.Connection:Disconnect() end
+    NoClip.Connection = LocalPlayer.CharacterAdded:Connect(function()
+        if NoClip.Active then
+            task.wait(0.1)
+            SetNoClipState(true)
+        end
+    end)
 end
 
-local function ToggleJumpPower(Enabled)
-    JumpPower.Enabled = Enabled
-    JumpPower.Active = Enabled
-    if JumpPower.Enabled and JumpPower.Active then
-        HumanoidSpoofer.SetJumpPower(HumanoidSpoofer, JumpPower.Value)
-        Matrice.UI.Notify("Normal", {
-            Title = "Jump Power",
-            Content = "Set to " .. JumpPower.Value,
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
-    else
-        HumanoidSpoofer.RestoreJumpPower(HumanoidSpoofer)
-        Matrice.UI.Notify("Normal", {
-            Title = "Jump Power",
-            Content = "Restored.",
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
+local function DisableNoClip()
+    if not NoClip.Active then return end
+    NoClip.Active = false
+    SetNoClipState(false)
+    if NoClip.Connection then
+        NoClip.Connection:Disconnect()
+        NoClip.Connection = nil
     end
 end
 
 local function ToggleNoClip(Enabled)
     NoClip.Enabled = Enabled
-    NoClip.Active = Enabled
-    if NoClip.Enabled and NoClip.Active then
-        if NoClip.Connection then
-            NoClip.Connection:Disconnect()
-        end
-        NoClip.Connection = RunService.Stepped:Connect(function()
-            if not (NoClip.Enabled and NoClip.Active) then
-                return
-            end
-            local Character = LocalPlayer.Character
-            if not Character then
-                return
-            end
-            for _, Part in ipairs(Character:GetDescendants()) do
-                if Part:IsA("BasePart") and Part.CanCollide == true and Part.Name ~= "Head" then
-                    Part.CanCollide = false
-                    NoClip.Parts[Part] = true
-                end
-            end
-        end)
-        Matrice.UI.Notify("Normal", {
-            Title = "No Clip",
-            Content = "Enabled.",
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
+    if Enabled then
+        EnableNoClip()
     else
-        if NoClip.Connection then
-            NoClip.Connection:Disconnect()
-            NoClip.Connection = nil
+        DisableNoClip()
+    end
+end
+
+-- ============================================================
+--  FLY FUNCTIONS
+-- ============================================================
+
+local function StartFly()
+    if Fly.Active or not LocalPlayer.Character then return end
+    Fly.Active = true
+
+    Fly.Connection = RunService.Heartbeat:Connect(function()
+        if not Fly.Active or not LocalPlayer.Character then return end
+        local Root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not Root then return end
+
+        local Forward = workspace.CurrentCamera.CFrame.LookVector
+        local Right = workspace.CurrentCamera.CFrame.RightVector
+        local Up = Vector3.new(0, 1, 0)
+
+        local MoveDirection = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then MoveDirection = MoveDirection + Forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then MoveDirection = MoveDirection - Forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then MoveDirection = MoveDirection - Right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then MoveDirection = MoveDirection + Right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then MoveDirection = MoveDirection + Up end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then MoveDirection = MoveDirection - Up end
+
+        if MoveDirection.Magnitude > 0 then
+            MoveDirection = MoveDirection.Unit * Fly.Speed
         end
-        for Part, _ in pairs(NoClip.Parts) do
-            if typeof(Part) == "Instance" and Part:IsA("BasePart") and Part.Parent then
-                Part.CanCollide = true
+
+        Root.CFrame = Root.CFrame + MoveDirection * RunService.Heartbeat:Wait()
+        Root.Velocity = Vector3.new(0, 0, 0)
+        Root.RotVelocity = Vector3.new(0, 0, 0)
+    end)
+
+    Fly.CharacterConnection = LocalPlayer.CharacterAdded:Connect(function(Character)
+        if Fly.Active then
+            task.wait(0.1)
+            local Root = Character:FindFirstChild("HumanoidRootPart")
+            if Root then
+                Root.Velocity = Vector3.new(0, 0, 0)
+                Root.RotVelocity = Vector3.new(0, 0, 0)
             end
         end
-        NoClip.Parts = {}
-        Matrice.UI.Notify("Normal", {
-            Title = "No Clip",
-            Content = "Disabled.",
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
+    end)
+end
+
+local function StopFly()
+    if not Fly.Active then return end
+    Fly.Active = false
+    if Fly.Connection then
+        Fly.Connection:Disconnect()
+        Fly.Connection = nil
+    end
+    if Fly.CharacterConnection then
+        Fly.CharacterConnection:Disconnect()
+        Fly.CharacterConnection = nil
+    end
+    local Character = LocalPlayer.Character
+    if Character then
+        local Root = Character:FindFirstChild("HumanoidRootPart")
+        if Root then
+            Root.Velocity = Vector3.new(0, 0, 0)
+            Root.RotVelocity = Vector3.new(0, 0, 0)
+        end
     end
 end
 
 local function ToggleFly(Enabled)
     Fly.Enabled = Enabled
-    Fly.Active = Enabled
-    if Fly.Enabled and Fly.Active then
-        local Character = LocalPlayer.Character
-        if not Character then
-            Character = LocalPlayer.CharacterAdded:Wait()
-        end
-        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-        if Humanoid then
-            Humanoid.PlatformStand = true
-        end
-        local Head = Character:FindFirstChild("Head")
-        if Head then
-            Head.Anchored = true
-        end
-        if Fly.Connection then
-            Fly.Connection:Disconnect()
-        end
-        Fly.Connection = RunService.Heartbeat:Connect(function(dt)
-            if not (Fly.Enabled and Fly.Active) then
-                return
-            end
-            local Character = LocalPlayer.Character
-            if not Character then
-                return
-            end
-            local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-            local Head = Character:FindFirstChild("Head")
-            if not Humanoid or not Head then
-                return
-            end
-            local MoveDirection = Humanoid.MoveDirection * (Fly.Speed * dt)
-            local HeadCF = Head.CFrame
-            local Cam = workspace.CurrentCamera
-            local CamCF = Cam.CFrame
-            local Offset = HeadCF:ToObjectSpace(CamCF).Position
-            CamCF = CamCF * CFrame.new(-Offset.X, -Offset.Y, -Offset.Z + 1)
-            local CamPos = CamCF.Position
-            local HeadPos = HeadCF.Position
-            local ObjSpace = CFrame.new(CamPos, Vector3.new(HeadPos.X, CamPos.Y, HeadPos.Z)):VectorToObjectSpace(MoveDirection)
-            Head.CFrame = CFrame.new(HeadPos) * (CamCF - CamPos) * CFrame.new(ObjSpace)
-        end)
-        Matrice.UI.Notify("Normal", {
-            Title = "Fly",
-            Content = "Enabled.",
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
+    if Enabled then
+        StartFly()
     else
-        if Fly.Connection then
-            Fly.Connection:Disconnect()
-            Fly.Connection = nil
-        end
-        local Character = LocalPlayer.Character
-        if Character then
-            local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-            if Humanoid then
-                Humanoid.PlatformStand = false
-            end
-            local Head = Character:FindFirstChild("Head")
-            if Head then
-                Head.Anchored = false
-            end
-        end
-        Matrice.UI.Notify("Normal", {
-            Title = "Fly",
-            Content = "Disabled.",
-            Duration = 2,
-            Image = Matrice.Asset("info.png")
-        })
+        StopFly()
     end
 end
 
 -- ============================================================
--- UI CREATION
+--  ESP FUNCTIONS
 -- ============================================================
 
-local Library = Matrice.UI.CreateLibrary({
+local function ClearPlayerESP(Player)
+    if ESP.PlayerData[Player] then
+        local Data = ESP.PlayerData[Player]
+        if Data.Skeleton then Data.Skeleton:Remove() end
+        if Data.Box then Data.Box:Remove() end
+        if Data.Tracer then Data.Tracer:Remove() end
+        if Data.HealthBarOutline then Data.HealthBarOutline:Remove() end
+        if Data.HealthBarFill then Data.HealthBarFill:Remove() end
+        if Data.HealthBarTicks then
+            for _, Tick in ipairs(Data.HealthBarTicks) do Tick:Remove() end
+        end
+        if Data.Highlight then Data.Highlight:Remove() end
+        if Data.Chams then
+            for Part, OriginalMaterial in pairs(Data.Chams) do
+                if Part and Part.Parent then
+                    Part.Material = OriginalMaterial
+                end
+            end
+        end
+        ESP.PlayerData[Player] = nil
+    end
+    if ESP.Connections[Player.Name .. "_TeamColor"] then
+        ESP.Connections[Player.Name .. "_TeamColor"]:Disconnect()
+        ESP.Connections[Player.Name .. "_TeamColor"] = nil
+    end
+end
+
+local function ClearAllESP()
+    for Player, _ in pairs(ESP.PlayerData) do
+        ClearPlayerESP(Player)
+    end
+end
+
+local function CreatePlayerESP(Player)
+    if Player == LocalPlayer or not Player.Character then return end
+    local TeamColor = Player.TeamColor and Player.TeamColor.Color or Color3.new(1, 1, 1)
+
+    local Box = nil
+    if ESP.Settings.Box then
+        Box = Drawing.new("Square")
+        Box.Thickness = 1
+        Box.Color = TeamColor
+        Box.Filled = false
+        Box.Transparency = 1
+        Box.Visible = false
+    end
+
+    local HighlightObj = nil
+    if Highlight.Enabled then
+        HighlightObj = Drawing.new("Square") -- Placeholder until VisualLibrary is integrated
+        HighlightObj.Visible = false
+    end
+
+    local Skeleton = nil
+    if ESP.Settings.Skeleton then
+        Skeleton = Drawing.new("Square") -- Placeholder until VisualLibrary is integrated
+        Skeleton.Visible = false
+    end
+
+    local Tracer = nil
+    if TracerLines.Enabled then
+        Tracer = Drawing.new("Line")
+        Tracer.Thickness = 1
+        Tracer.Color = TeamColor
+        Tracer.Transparency = 1
+        Tracer.Visible = false
+    end
+
+    local HealthBarOutline = nil
+    local HealthBarFill = nil
+    local HealthBarTicks = nil
+    if ESP.Settings.HealthBar then
+        HealthBarOutline = Drawing.new("Square")
+        HealthBarOutline.Color = Color3.fromRGB(18, 20, 28)
+        HealthBarOutline.Filled = true
+        HealthBarOutline.Transparency = 1
+        HealthBarOutline.Visible = false
+
+        HealthBarFill = Drawing.new("Square")
+        HealthBarFill.Filled = true
+        HealthBarFill.Transparency = 1
+        HealthBarFill.Visible = false
+
+        HealthBarTicks = {}
+        for _ = 1, 4 do
+            local Tick = Drawing.new("Line")
+            Tick.Color = Color3.fromRGB(90, 96, 112)
+            Tick.Thickness = 1
+            Tick.Transparency = 0.9
+            Tick.Visible = false
+            table.insert(HealthBarTicks, Tick)
+        end
+    end
+
+    local Chams = nil
+    if Chams.Enabled and Player.Character then
+        Chams = {}
+        for _, Part in pairs(Player.Character:GetDescendants()) do
+            if Part:IsA("BasePart") then
+                Chams[Part] = Part.Material
+                Part.Material = Enum.Material.ForceField
+            end
+        end
+    end
+
+    ESP.PlayerData[Player] = {
+        Skeleton = Skeleton,
+        Box = Box,
+        Tracer = Tracer,
+        HealthBarOutline = HealthBarOutline,
+        HealthBarFill = HealthBarFill,
+        HealthBarTicks = HealthBarTicks,
+        Highlight = HighlightObj,
+        Chams = Chams,
+        Character = Player.Character
+    }
+
+    ESP.Connections[Player.Name .. "_TeamColor"] = Player:GetPropertyChangedSignal("TeamColor"):Connect(function()
+        if ESP.PlayerData[Player] then
+            local NewColor = Player.TeamColor and Player.TeamColor.Color or Color3.new(1, 1, 1)
+            if ESP.PlayerData[Player].Box then ESP.PlayerData[Player].Box.Color = NewColor end
+            if ESP.PlayerData[Player].Tracer then ESP.PlayerData[Player].Tracer.Color = NewColor end
+        end
+    end)
+end
+
+local function RebuildAllESP()
+    if not ESP.Enabled then return end
+    local LocalRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not LocalRoot then return end
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer then
+            ClearPlayerESP(Player)
+            local TargetRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+            local TargetHumanoid = Player.Character and Player.Character:FindFirstChild("Humanoid")
+            if TargetRoot and TargetHumanoid and TargetHumanoid.Health > 0 and Player.Parent == Players then
+                local Distance = (LocalRoot.Position - TargetRoot.Position).Magnitude
+                if Distance <= ESP.Settings.DistanceLimit then
+                    CreatePlayerESP(Player)
+                end
+            end
+        end
+    end
+end
+
+local function StartESP()
+    if ESP.RenderConnection then return end
+
+    ESP.RenderConnection = RunService.RenderStepped:Connect(function()
+        if not ESP.Enabled then return end
+        for Player, Data in pairs(ESP.PlayerData) do
+            if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and
+               Player.Character:FindFirstChild("Humanoid") and
+               Player.Character.Humanoid.Health > 0 then
+                local OnScreen, Size, Pos = pcall(function()
+                    return workspace.CurrentCamera:WorldToViewportPoint(Player.Character.HumanoidRootPart.Position)
+                end)
+                if not OnScreen then
+                    OnScreen = false
+                end
+
+                if OnScreen then
+                    local TeamColor = Player.TeamColor and Player.TeamColor.Color or Color3.new(1, 1, 1)
+
+                    if Data.Box then
+                        Data.Box.Size = Vector2.new(50, 100)
+                        Data.Box.Position = Vector2.new(Pos.X - 25, Pos.Y - 50)
+                        Data.Box.Color = TeamColor
+                        Data.Box.Visible = ESP.Settings.Box
+                    end
+
+                    if Data.Tracer then
+                        local Viewport = workspace.CurrentCamera.ViewportSize
+                        Data.Tracer.From = Vector2.new(Viewport.X / 2, Viewport.Y)
+                        Data.Tracer.To = Vector2.new(Pos.X, Pos.Y)
+                        Data.Tracer.Color = TeamColor
+                        Data.Tracer.Visible = TracerLines.Enabled
+                    end
+
+                    if Data.HealthBarOutline and Data.HealthBarFill then
+                        local Humanoid = Player.Character.Humanoid
+                        local HealthPercent = math.clamp(Humanoid.Health / math.max(Humanoid.MaxHealth, 1), 0, 1)
+                        local BarHeight = 100
+                        local BarX = Pos.X - 38
+                        local BarY = Pos.Y - 50
+
+                        Data.HealthBarOutline.Position = Vector2.new(BarX - 1, BarY - 2)
+                        Data.HealthBarOutline.Size = Vector2.new(5, BarHeight + 4)
+                        Data.HealthBarOutline.Visible = ESP.Settings.HealthBar
+
+                        Data.HealthBarFill.Position = Vector2.new(BarX, BarY + BarHeight * (1 - HealthPercent))
+                        Data.HealthBarFill.Size = Vector2.new(3, math.max(BarHeight * HealthPercent, 1))
+                        Data.HealthBarFill.Color = Color3.fromHSV(HealthPercent * 0.33, 0.9, 1)
+                        Data.HealthBarFill.Visible = ESP.Settings.HealthBar
+
+                        if Data.HealthBarTicks then
+                            for Index, Tick in ipairs(Data.HealthBarTicks) do
+                                local Y = BarY + (BarHeight * Index / 5)
+                                Tick.From = Vector2.new(BarX - 1, Y)
+                                Tick.To = Vector2.new(BarX + 4, Y)
+                                Tick.Visible = ESP.Settings.HealthBar
+                            end
+                        end
+                    end
+                else
+                    if Data.Box then Data.Box.Visible = false end
+                    if Data.Tracer then Data.Tracer.Visible = false end
+                    if Data.HealthBarOutline then Data.HealthBarOutline.Visible = false end
+                    if Data.HealthBarFill then Data.HealthBarFill.Visible = false end
+                    if Data.HealthBarTicks then
+                        for _, Tick in ipairs(Data.HealthBarTicks) do Tick.Visible = false end
+                    end
+                end
+            else
+                if Data.Box then Data.Box.Visible = false end
+                if Data.Tracer then Data.Tracer.Visible = false end
+                if Data.HealthBarOutline then Data.HealthBarOutline.Visible = false end
+                if Data.HealthBarFill then Data.HealthBarFill.Visible = false end
+                if Data.HealthBarTicks then
+                    for _, Tick in ipairs(Data.HealthBarTicks) do Tick.Visible = false end
+                end
+            end
+        end
+    end)
+
+    ESP.UpdateConnection = RunService.Heartbeat:Connect(function()
+        if ESP.Enabled then
+            local LocalRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not LocalRoot then return end
+
+            for Player, _ in pairs(ESP.PlayerData) do
+                if not Player or Player.Parent ~= Players then
+                    ClearPlayerESP(Player)
+                end
+            end
+
+            for _, Player in ipairs(Players:GetPlayers()) do
+                if Player ~= LocalPlayer then
+                    local TargetRoot = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+                    local TargetHumanoid = Player.Character and Player.Character:FindFirstChild("Humanoid")
+                    if TargetRoot and TargetHumanoid and TargetHumanoid.Health > 0 and Player.Parent == Players then
+                        local Distance = (LocalRoot.Position - TargetRoot.Position).Magnitude
+                        if Distance <= ESP.Settings.DistanceLimit then
+                            if not ESP.PlayerData[Player] or ESP.PlayerData[Player].Character ~= Player.Character then
+                                if ESP.PlayerData[Player] then ClearPlayerESP(Player) end
+                                CreatePlayerESP(Player)
+                            end
+                        else
+                            ClearPlayerESP(Player)
+                        end
+                    else
+                        ClearPlayerESP(Player)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function StopESP()
+    if ESP.RenderConnection then
+        ESP.RenderConnection:Disconnect()
+        ESP.RenderConnection = nil
+    end
+    if ESP.UpdateConnection then
+        ESP.UpdateConnection:Disconnect()
+        ESP.UpdateConnection = nil
+    end
+    ClearAllESP()
+end
+
+local function ToggleESP(Enabled)
+    ESP.Enabled = Enabled
+    if Enabled then
+        StartESP()
+    else
+        StopESP()
+    end
+end
+
+-- ============================================================
+--  GREYSCALE FUNCTIONS
+-- ============================================================
+
+local function ToggleGreyscale(Enabled)
+    Greyscale.Enabled = Enabled
+    if Enabled then
+        if Greyscale.Effect then Greyscale.Effect:Destroy() end
+        Greyscale.Effect = Instance.new("ColorCorrectionEffect")
+        Greyscale.Effect.Saturation = -1
+        Greyscale.Effect.Parent = Lighting
+    else
+        if Greyscale.Effect then
+            Greyscale.Effect:Destroy()
+            Greyscale.Effect = nil
+        end
+    end
+end
+
+-- ============================================================
+--  MODERATOR DETECTOR FUNCTIONS
+-- ============================================================
+
+local function CheckModerators()
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer then
+            local Rank = GetPlayerRank(Player)
+            if Rank and Rank >= 248 then
+                local Role = GetPlayerRole(Player)
+                Matrice.UI:Notify("Warning", {
+                    Title = "Moderator Detector",
+                    Content = Player.Name .. " (" .. Role .. ") is in the server!",
+                    Duration = 10,
+                    Image = Matrice.Asset("user-shield.png"),
+                    Actions = {
+                        {
+                            Name = "Leave Game",
+                            Callback = function()
+                                game:Shutdown()
+                            end
+                        }
+                    }
+                })
+            end
+        end
+    end
+end
+
+local function EnableModeratorDetector()
+    if ModeratorDetector.Connection then return end
+    CheckModerators()
+
+    ModeratorDetector.AddedConnection = Players.PlayerAdded:Connect(function(Player)
+        if ModeratorDetector.Enabled then
+            task.wait(1)
+            local Rank = GetPlayerRank(Player)
+            if Rank and Rank >= 248 then
+                local Role = GetPlayerRole(Player)
+                Matrice.UI:Notify("Warning", {
+                    Title = "Moderator Detector",
+                    Content = Player.Name .. " (" .. Role .. ") joined the server!",
+                    Duration = 10,
+                    Image = Matrice.Asset("user-shield.png"),
+                    Actions = {
+                        {
+                            Name = "Leave Game",
+                            Callback = function()
+                                game:Shutdown()
+                            end
+                        }
+                    }
+                })
+            end
+        end
+    end)
+
+    ModeratorDetector.RemovingConnection = Players.PlayerRemoving:Connect(function(Player)
+        if ModeratorDetector.Enabled then
+            local Rank = GetPlayerRank(Player)
+            if Rank and Rank >= 248 then
+                local Role = GetPlayerRole(Player)
+                Matrice.UI:Notify("Warning", {
+                    Title = "Moderator Detector",
+                    Content = Player.Name .. " (" .. Role .. ") left the server!",
+                    Duration = 10,
+                    Image = Matrice.Asset("user-shield.png"),
+                    Actions = {
+                        {
+                            Name = "Leave Game",
+                            Callback = function()
+                                game:Shutdown()
+                            end
+                        }
+                    }
+                })
+            end
+        end
+    end)
+
+    ModeratorDetector.Connection = true
+end
+
+local function DisableModeratorDetector()
+    if ModeratorDetector.AddedConnection then
+        ModeratorDetector.AddedConnection:Disconnect()
+        ModeratorDetector.AddedConnection = nil
+    end
+    if ModeratorDetector.RemovingConnection then
+        ModeratorDetector.RemovingConnection:Disconnect()
+        ModeratorDetector.RemovingConnection = nil
+    end
+    ModeratorDetector.Connection = nil
+end
+
+local function ToggleModeratorDetector(Enabled)
+    ModeratorDetector.Enabled = Enabled
+    if Enabled then
+        EnableModeratorDetector()
+    else
+        DisableModeratorDetector()
+    end
+end
+
+-- ============================================================
+--  ANTI AFK FUNCTIONS
+-- ============================================================
+
+local function ToggleAntiAFK(Enabled)
+    AntiAFK.Enabled = Enabled
+    if Enabled then
+        if getconnections then
+            for _, Connection in ipairs(getconnections(LocalPlayer.Idled)) do
+                pcall(function()
+                    Connection:Disable()
+                    Connection:Disconnect()
+                end)
+            end
+        end
+
+        if AntiAFK.Connection then
+            AntiAFK.Connection:Disconnect()
+            AntiAFK.Connection = nil
+        end
+
+        AntiAFK.Connection = LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    else
+        if AntiAFK.Connection then
+            AntiAFK.Connection:Disconnect()
+            AntiAFK.Connection = nil
+        end
+    end
+end
+
+-- ============================================================
+--  UI CREATION
+-- ============================================================
+
+local Library = Matrice.UI:CreateLibrary({
     Name = "Matrice Hub - SCP:RP",
     Icon = Matrice.Asset("matrice.png")
 })
 
-Library.CreateAdvertisement(
-    Library,
+Library:CreateAdvertisement(
     "Rocheats",
     Matrice.Asset("rocheats_banner.png"),
     "https://rocheats.com/?ref=matrice",
     "Link copied to your clipboard. Thanks for supporting Matrice <3"
 )
 
-local CombatTab = Library.CreateTab(Library, "Combat", Matrice.Asset("crosshair.png"))
-local VisualsTab = Library.CreateTab(Library, "Visuals", Matrice.Asset("palette.png"))
-local PlayerTab = Library.CreateTab(Library, "Player", Matrice.Asset("user.png"))
-local UtilitiesTab = Library.CreateTab(Library, "Utilities", Matrice.Asset("toolbox.png"))
-local SettingsTab = Library.CreateTab(Library, "Settings", Matrice.Asset("settings.png"))
+local CombatTab = Library:CreateTab("Combat", Matrice.Asset("crosshair.png"))
+local VisualsTab = Library:CreateTab("Visuals", Matrice.Asset("palette.png"))
+local PlayerTab = Library:CreateTab("Player", Matrice.Asset("user.png"))
+local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox.png"))
+local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
-Library.SwitchTab(Library)
+Library:SwitchTab()
 
--- Combat tab
-local Targeting = CombatTab.CreateSection(CombatTab, "Targeting", "Normal")
-Targeting.CreateToggle(Targeting, "Normal", { Name = "Silent Aim", Flag = "SilentAim", Callback = function(e) print("Silent Aim " .. (e and "ON" or "OFF")) end })
-Targeting.CreateDropdown(Targeting, { Name = "Hit Part", Options = {"Head", "Torso", "Random"}, CurrentOption = "Head", Flag = "HitPart", Callback = function(s) print("Hit Part set to " .. s) end })
-Targeting.CreateSlider(Targeting, { Name = "Hit Chance", Value = {0, 100}, Increment = 1, Suffix = "%", CurrentValue = 100, Flag = "HitChance", Callback = function(v) print("Hit Chance set to " .. v .. "%") end })
-Targeting.CreateDropdown(Targeting, { Name = "Target Selection", Options = {"Distance Priority", "Closest", "FOV Priority"}, CurrentOption = "Distance Priority", Flag = "TargetSelection", Callback = function(s) print("Target Selection set to " .. s) end })
-Targeting.CreateDropdown(Targeting, { Name = "Target Priority", Options = {"Closest", "Lowest Health", "Crosshair Distance"}, CurrentOption = "Closest", Flag = "TargetPriority", Callback = function(s) print("Target Priority set to " .. s) end })
-Targeting.CreateToggle(Targeting, "Normal", { Name = "Hitbox", Flag = "Hitbox", Callback = function(e) print("Hitbox " .. (e and "ON" or "OFF")) end })
-Targeting.CreateSlider(Targeting, { Name = "Hitbox Size", Value = {1, 10}, Increment = 0.1, Suffix = "x", CurrentValue = 1, Flag = "HitboxSize", Callback = function(v) print("Hitbox Size set to " .. v) end })
+-- ============================================================
+--  COMBAT TAB
+-- ============================================================
 
-local Checks = CombatTab.CreateSection(CombatTab, "Checks", "Normal")
-Checks.CreateToggle(Checks, "Normal", { Name = "Wall Check", Flag = "WallCheck", Callback = function(e) print("Wall Check " .. (e and "ON" or "OFF")) end })
-Checks.CreateToggle(Checks, "Normal", { Name = "Team Check", Flag = "TeamCheck", Callback = function(e) print("Team Check " .. (e and "ON" or "OFF")) end })
+local Targeting = CombatTab:CreateSection("Targeting", "Normal")
 
-local FOV = CombatTab.CreateSection(CombatTab, "FOV", "Normal")
-FOV.CreateToggle(FOV, "Normal", { Name = "Show FOV", Flag = "ShowFOV", Callback = function(e) print("Show FOV " .. (e and "ON" or "OFF")) end })
-FOV.CreateSlider(FOV, { Name = "FOV Radius", Value = {1, 360}, Increment = 1, Suffix = "°", CurrentValue = 120, Flag = "FOVRadius", Callback = function(v) print("FOV Radius set to " .. v) end })
-FOV.CreateColorPicker(FOV, { Name = "FOV Color", Callback = function(c) print("FOV color changed to", c) end })
+Targeting:CreateToggle("Normal", {
+    Name = "Silent Aim",
+    Flag = "SilentAim",
+    Callback = function(Enabled)
+        ToggleSilentAim(Enabled)
+        print("Silent Aim " .. (Enabled and "ON" or "OFF"))
+    end
+})
 
-local Automation = CombatTab.CreateSection(CombatTab, "Automation", "Normal")
-Automation.CreateToggle(Automation, "Normal", { Name = "Auto Trigger", Flag = "AutoTrigger", Callback = function(e) print("Auto Trigger " .. (e and "ON" or "OFF")) end })
-Automation.CreateSlider(Automation, { Name = "Trigger Delay", Value = {0, 500}, Increment = 10, Suffix = "ms", CurrentValue = 50, Flag = "TriggerDelay", Callback = function(v) print("Trigger Delay set to " .. v .. "ms") end })
+Targeting:CreateToggle("Normal", {
+    Name = "Wall Check",
+    Flag = "SilentAimWallCheck",
+    CurrentValue = SilentAim.WallCheck,
+    Callback = function(Enabled)
+        SilentAim.WallCheck = Enabled
+        print("Wall Check " .. (Enabled and "ON" or "OFF"))
+    end
+})
 
-local Weapons = CombatTab.CreateSection(CombatTab, "Weapons", "Normal")
-Weapons.CreateToggle(Weapons, "Normal", { Name = "Auto Reload", Flag = "AutoReload", Callback = function(e) print("Auto Reload " .. (e and "ON" or "OFF")) end })
+Targeting:CreateToggle("Normal", {
+    Name = "Show FOV",
+    Flag = "ShowFOV",
+    Callback = function(Enabled)
+        FOV.Enabled = Enabled
+        print("Show FOV " .. (Enabled and "ON" or "OFF"))
+    end
+})
 
--- Visuals tab
-local ESP = VisualsTab.CreateSection(VisualsTab, "ESP", "Normal")
-ESP.CreateToggle(ESP, "Normal", { Name = "Enable ESP", Flag = "ESPEnabled", Callback = function(e) print("Enable ESP " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Box ESP", Flag = "ESPBox", Callback = function(e) print("Box ESP " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Name ESP", Flag = "ESPName", Callback = function(e) print("Name ESP " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Distance ESP", Flag = "ESPDistance", Callback = function(e) print("Distance ESP " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Weapon ESP", Flag = "ESPWeapon", Callback = function(e) print("Weapon ESP " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Health Bar", Flag = "ESPHealthBar", Callback = function(e) print("Health Bar " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Skeleton ESP", Flag = "ESPSkeleton", Callback = function(e) print("Skeleton ESP " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Team Check", Flag = "ESPTeamCheck", Callback = function(e) print("Team Check (ESP) " .. (e and "ON" or "OFF")) end })
-ESP.CreateToggle(ESP, "Normal", { Name = "Friend Check", Flag = "FriendCheck", Callback = function(e) print("Friend Check " .. (e and "ON" or "OFF")) end })
-ESP.CreateSlider(ESP, { Name = "Distance Limit", Value = {10, 1000}, Increment = 10, Suffix = " studs", CurrentValue = 500, Flag = "DistanceLimit", Callback = function(v) print("Distance Limit set to " .. v .. " studs") end })
+Targeting:CreateSlider({
+    Name = "FOV Radius",
+    Value = {25, 500},
+    Increment = 5,
+    Suffix = "px",
+    CurrentValue = FOV.Radius,
+    Flag = "FOVRadius",
+    Callback = function(Value)
+        FOV.Radius = Value
+        print("FOV Radius set to " .. Value)
+    end
+})
 
-local Effects = VisualsTab.CreateSection(VisualsTab, "Effects", "Normal")
-Effects.CreateToggle(Effects, "Normal", { Name = "Highlight", Flag = "Highlight", Callback = function(e) print("Highlight " .. (e and "ON" or "OFF")) end })
-Effects.CreateToggle(Effects, "Normal", { Name = "Chams", Flag = "Chams", Callback = function(e) print("Chams " .. (e and "ON" or "OFF")) end })
-Effects.CreateToggle(Effects, "Normal", { Name = "Tracer Lines", Flag = "TracerLines", Callback = function(e) print("Tracer Lines " .. (e and "ON" or "OFF")) end })
-Effects.CreateDropdown(Effects, { Name = "Tracer Origin", Options = {"Bottom", "Center", "Mouse"}, CurrentOption = "Bottom", Flag = "TracerOrigin", Callback = function(s) print("Tracer Origin set to " .. s) end })
+Targeting:CreateColorPicker({
+    Name = "FOV Color",
+    Callback = function(Color)
+        FOV.Color = Color
+        print("FOV color changed to", Color)
+    end
+})
 
--- Player tab
-local Character = PlayerTab.CreateSection(PlayerTab, "Character", "Normal")
+Targeting:CreateDropdown({
+    Name = "Hit Part",
+    Options = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"},
+    CurrentOption = SilentAim.HitPart,
+    Flag = "HitPart",
+    Callback = function(Selected)
+        SilentAim.HitPart = Selected
+        print("Hit Part set to " .. Selected)
+    end
+})
 
-WalkSpeedToggleRef = Character.CreateToggle(Character, "Normal", {
+Targeting:CreateSlider({
+    Name = "Hit Chance",
+    Value = {0, 100},
+    Increment = 1,
+    Suffix = "%",
+    CurrentValue = SilentAim.HitChance,
+    Flag = "HitChance",
+    Callback = function(Value)
+        SilentAim.HitChance = Value
+        print("Hit Chance set to " .. Value .. "%")
+    end
+})
+
+Targeting:CreateToggle("Normal", {
+    Name = "Hitbox",
+    Flag = "Hitbox",
+    Callback = function(Enabled)
+        Hitbox.Enabled = Enabled
+        print("Hitbox " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+Targeting:CreateSlider({
+    Name = "Hitbox Size",
+    Value = {1, 10},
+    Increment = 0.1,
+    Suffix = "x",
+    CurrentValue = Hitbox.Size,
+    Flag = "HitboxSize",
+    Callback = function(Value)
+        Hitbox.Size = Value
+        print("Hitbox Size set to " .. Value)
+    end
+})
+
+local Checks = CombatTab:CreateSection("Checks", "Normal")
+
+Checks:CreateToggle("Normal", {
+    Name = "Wall Check",
+    Flag = "WallCheck",
+    Callback = function(Enabled)
+        WallCheck.Enabled = Enabled
+        print("Wall Check " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+Checks:CreateToggle("Normal", {
+    Name = "Team Check",
+    Flag = "TeamCheck",
+    Callback = function(Enabled)
+        TeamCheck.Enabled = Enabled
+        print("Team Check " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+local Automation = CombatTab:CreateSection("Automation", "Normal")
+
+Automation:CreateToggle("Normal", {
+    Name = "Auto Trigger",
+    Flag = "AutoTrigger",
+    Callback = function(Enabled)
+        AutoTrigger.Enabled = Enabled
+        print("Auto Trigger " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+Automation:CreateSlider({
+    Name = "Trigger Delay",
+    Value = {0, 500},
+    Increment = 10,
+    Suffix = "ms",
+    CurrentValue = TriggerDelay.Value,
+    Flag = "TriggerDelay",
+    Callback = function(Value)
+        TriggerDelay.Value = Value
+        print("Trigger Delay set to " .. Value .. "ms")
+    end
+})
+
+local Weapons = CombatTab:CreateSection("Weapons", "Normal")
+
+Weapons:CreateToggle("Normal", {
+    Name = "Auto Reload",
+    Flag = "AutoReload",
+    Callback = function(Enabled)
+        AutoReload.Enabled = Enabled
+        print("Auto Reload " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+-- ============================================================
+--  VISUALS TAB
+-- ============================================================
+
+local ESP = VisualsTab:CreateSection("ESP", "Normal")
+
+ESP:CreateToggle("Normal", {
+    Name = "Enable ESP",
+    Flag = "ESPEnabled",
+    Callback = function(Enabled)
+        ToggleESP(Enabled)
+        print("Enable ESP " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Box ESP",
+    Flag = "ESPBox",
+    Callback = function(Enabled)
+        ESP.Settings.Box = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Box ESP " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Name ESP",
+    Flag = "ESPName",
+    Callback = function(Enabled)
+        ESP.Settings.Name = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Name ESP " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Distance ESP",
+    Flag = "ESPDistance",
+    Callback = function(Enabled)
+        ESP.Settings.Distance = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Distance ESP " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Weapon ESP",
+    Flag = "ESPWeapon",
+    Callback = function(Enabled)
+        ESP.Settings.Weapon = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Weapon ESP " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Health Bar",
+    Flag = "ESPHealthBar",
+    Callback = function(Enabled)
+        ESP.Settings.HealthBar = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Health Bar " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Skeleton ESP",
+    Flag = "ESPSkeleton",
+    Callback = function(Enabled)
+        ESP.Settings.Skeleton = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Skeleton ESP " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Team Check",
+    Flag = "ESPTeamCheck",
+    Callback = function(Enabled)
+        ESP.Settings.TeamCheck = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Team Check (ESP) " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateToggle("Normal", {
+    Name = "Friend Check",
+    Flag = "FriendCheck",
+    Callback = function(Enabled)
+        ESP.Settings.FriendCheck = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Friend Check " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+ESP:CreateSlider({
+    Name = "Distance Limit",
+    Value = {50, 2000},
+    Increment = 50,
+    Suffix = " studs",
+    CurrentValue = ESP.Settings.DistanceLimit,
+    Flag = "DistanceLimit",
+    Callback = function(Value)
+        ESP.Settings.DistanceLimit = Value
+        if ESP.Enabled then RebuildAllESP() end
+        print("Distance Limit set to " .. Value .. " studs")
+    end
+})
+
+local Effects = VisualsTab:CreateSection("Effects", "Normal")
+
+Effects:CreateToggle("Normal", {
+    Name = "Highlight",
+    Flag = "Highlight",
+    Callback = function(Enabled)
+        Highlight.Enabled = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Highlight " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+Effects:CreateToggle("Normal", {
+    Name = "Chams",
+    Flag = "Chams",
+    Callback = function(Enabled)
+        Chams.Enabled = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Chams " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+Effects:CreateToggle("Normal", {
+    Name = "Tracer Lines",
+    Flag = "TracerLines",
+    Callback = function(Enabled)
+        TracerLines.Enabled = Enabled
+        if ESP.Enabled then RebuildAllESP() end
+        print("Tracer Lines " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+Effects:CreateDropdown({
+    Name = "Tracer Origin",
+    Options = {"Bottom", "Center", "Mouse"},
+    CurrentOption = TracerOrigin.Selected,
+    Flag = "TracerOrigin",
+    Callback = function(Selected)
+        TracerOrigin.Selected = Selected
+        print("Tracer Origin set to " .. Selected)
+    end
+})
+
+Effects:CreateToggle("Normal", {
+    Name = "Greyscale World",
+    Flag = "GreyscaleWorld",
+    Callback = function(Enabled)
+        ToggleGreyscale(Enabled)
+        print("Greyscale World " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+-- ============================================================
+--  PLAYER TAB
+-- ============================================================
+
+local Character = PlayerTab:CreateSection("Character", "Normal")
+
+Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "WalkSpeedEnabled",
-    Callback = function(enabled)
-        ToggleWalkSpeed(enabled)
-    end
-})
-Character.CreateSlider(Character, {
-    Name = "Walk Speed",
-    Value = {0, 100},
-    Increment = 1,
-    Suffix = "",
-    CurrentValue = WalkSpeed.Value,
-    Flag = "WalkSpeed",
-    Callback = function(value)
-        WalkSpeed.Value = value
-        if WalkSpeed.Enabled and WalkSpeed.Active then
-            HumanoidSpoofer.SetWalkSpeed(HumanoidSpoofer, value)
-        end
-        print("Walk Speed set to " .. value)
+    Callback = function(Enabled)
+        ToggleMovementSpoof(Enabled)
+        print("Enable Walk Speed " .. (Enabled and "ON" or "OFF"))
     end
 })
 
-JumpPowerToggleRef = Character.CreateToggle(Character, "Normal", {
+Character:CreateSlider({
+    Name = "Walk Speed",
+    Value = {16, 100},
+    Increment = 1,
+    Suffix = "",
+    CurrentValue = MovementSpoof.WalkSpeed,
+    Flag = "WalkSpeed",
+    Callback = function(Value)
+        MovementSpoof.WalkSpeed = Value
+        if MovementSpoof.Active then
+            SetMovementWalkSpeed(Value)
+        end
+        print("Walk Speed set to " .. Value)
+    end
+})
+
+Character:CreateToggle("Normal", {
     Name = "Enable Jump Power",
     Flag = "JumpPowerEnabled",
-    Callback = function(enabled)
-        ToggleJumpPower(enabled)
-    end
-})
-Character.CreateSlider(Character, {
-    Name = "Jump Power",
-    Value = {0, 100},
-    Increment = 1,
-    Suffix = "",
-    CurrentValue = JumpPower.Value,
-    Flag = "JumpPower",
-    Callback = function(value)
-        JumpPower.Value = value
-        if JumpPower.Enabled and JumpPower.Active then
-            HumanoidSpoofer.SetJumpPower(HumanoidSpoofer, value)
-        end
-        print("Jump Power set to " .. value)
+    Callback = function(Enabled)
+        ToggleMovementSpoof(Enabled)
+        print("Enable Jump Power " .. (Enabled and "ON" or "OFF"))
     end
 })
 
-NoClipToggleRef = Character.CreateToggle(Character, "Normal", {
+Character:CreateSlider({
+    Name = "Jump Power",
+    Value = {50, 200},
+    Increment = 5,
+    Suffix = "",
+    CurrentValue = MovementSpoof.JumpPower,
+    Flag = "JumpPower",
+    Callback = function(Value)
+        MovementSpoof.JumpPower = Value
+        if MovementSpoof.Active then
+            SetMovementJumpPower(Value)
+        end
+        print("Jump Power set to " .. Value)
+    end
+})
+
+Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
-    Callback = function(enabled)
-        ToggleNoClip(enabled)
-    end
-})
-Character.CreateKeybind(Character, {
-    Name = "No Clip Keybind",
-    Flag = "NoClipKeybind",
-    Keybind = "N",
-    Type = "Press",
-    Callback = function(state)
-        if state and NoClip.Enabled then
-            NoClip.Active = not NoClip.Active
-            ToggleNoClip(NoClip.Enabled)
-        end
+    Callback = function(Enabled)
+        ToggleNoClip(Enabled)
+        print("No Clip " .. (Enabled and "ON" or "OFF"))
     end
 })
 
-FlyToggleRef = Character.CreateToggle(Character, "Normal", {
+Character:CreateKeybind({
+    Name = "No Clip Keybind",
+    Flag = "NoClipKeybind",
+    Keybind = NoClip.Keybind,
+    Type = "Press",
+    Callback = function(State)
+        if State then
+            ToggleNoClip(not NoClip.Enabled)
+        end
+        print("No Clip key " .. (State and "pressed" or "released"))
+    end
+})
+
+Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "Fly",
-    Callback = function(enabled)
-        ToggleFly(enabled)
+    Callback = function(Enabled)
+        ToggleFly(Enabled)
+        print("Fly " .. (Enabled and "ON" or "OFF"))
     end
 })
-Character.CreateKeybind(Character, {
+
+Character:CreateKeybind({
     Name = "Fly Keybind",
     Flag = "FlyKeybind",
-    Keybind = "F",
+    Keybind = Fly.Keybind,
     Type = "Press",
-    Callback = function(state)
-        if state and Fly.Enabled then
-            Fly.Active = not Fly.Active
-            ToggleFly(Fly.Enabled)
+    Callback = function(State)
+        if State then
+            ToggleFly(not Fly.Enabled)
         end
+        print("Fly key " .. (State and "pressed" or "released"))
     end
 })
-Character.CreateSlider(Character, {
+
+Character:CreateSlider({
     Name = "Fly Speed",
-    Value = {1, 200},
-    Increment = 1,
+    Value = {10, 200},
+    Increment = 5,
     Suffix = "",
     CurrentValue = Fly.Speed,
     Flag = "FlySpeed",
-    Callback = function(value)
-        Fly.Speed = value
-        print("Fly Speed set to " .. value)
+    Callback = function(Value)
+        Fly.Speed = Value
+        print("Fly Speed set to " .. Value)
     end
 })
 
--- Utilities tab
-local Miscellaneous = UtilitiesTab.CreateSection(UtilitiesTab, "Miscellaneous", "Normal")
-Miscellaneous.CreateToggle(Miscellaneous, "Normal", {
+Character:CreateLabel({
+    Description = "WASD to move, Space to fly up, Shift to fly down."
+})
+
+-- ============================================================
+--  UTILITIES TAB
+-- ============================================================
+
+local Utilities = UtilitiesTab:CreateSection("Utilities", "Normal")
+
+Utilities:CreateToggle("Normal", {
     Name = "Moderator Detector",
     Flag = "ModeratorDetector",
-    Callback = function(enabled)
-        ToggleModeratorDetector(enabled)
+    Callback = function(Enabled)
+        ToggleModeratorDetector(Enabled)
+        print("Moderator Detector " .. (Enabled and "ON" or "OFF"))
     end
 })
 
-local AntiAFKSection = UtilitiesTab.CreateSection(UtilitiesTab, "Anti AFK", "Normal")
-AntiAFKSection.CreateToggle(AntiAFKSection, "Normal", {
+Utilities:CreateToggle("Normal", {
     Name = "Enable Anti AFK",
     Flag = "AntiAFK",
-    Callback = function(enabled)
-        ToggleAntiAFK(enabled)
+    Callback = function(Enabled)
+        ToggleAntiAFK(Enabled)
+        print("Anti AFK " .. (Enabled and "ON" or "OFF"))
     end
 })
 
--- Settings tab
-local Interface = SettingsTab.CreateSection(SettingsTab, "Interface", "Normal")
-Interface.CreateKeybind(Interface, {
+-- ============================================================
+--  SETTINGS TAB
+-- ============================================================
+
+local Interface = SettingsTab:CreateSection("Interface", "Normal")
+
+Interface:CreateKeybind({
     Name = "Toggle Menu Key",
     Flag = "ToggleMenuKey",
     Keybind = "LeftAlt",
     Type = "Press",
-    Callback = function(state)
-        if state then
-            Matrice.UI.ToggleUI()
-        end
+    Callback = function(State)
+        print("Toggle UI triggered")
+        Matrice.UI:ToggleUI()
     end
 })
 
 local gameVersion = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Version) or "N/A")
 local gameChangelog = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Changelog) or "No changelog available.")
 
-Interface.CreateCard(Interface, {
+Interface:CreateCard({
     Title = "Matrice Hub - SCP:RP",
     Description = "A script hub packed with high-quality undetectable scripts",
     SecondaryTitle = "By Matrice Softworks",
@@ -747,7 +1575,7 @@ Interface.CreateCard(Interface, {
             Name = "Discord",
             Callback = function()
                 setclipboard("https://discord.gg/matrice")
-                Matrice.UI.Notify("Normal", {
+                Matrice.UI:Notify("Normal", {
                     Title = "Copied!",
                     Content = "Link copied to your clipboard. Thanks for supporting Matrice <3",
                     Duration = 3,
@@ -759,7 +1587,7 @@ Interface.CreateCard(Interface, {
             Name = "Website",
             Callback = function()
                 setclipboard("https://getmatrice.xyz")
-                Matrice.UI.Notify("Normal", {
+                Matrice.UI:Notify("Normal", {
                     Title = "Copied!",
                     Content = "Link copied to your clipboard. Thanks for supporting Matrice <3",
                     Duration = 3,
@@ -770,9 +1598,34 @@ Interface.CreateCard(Interface, {
     }
 })
 
-Interface.CreateParagraph(Interface, {
+Interface:CreateParagraph({
     Title = "Version " .. gameVersion,
     Description = "Changelog:\n" .. gameChangelog
 })
+
+-- ============================================================
+--  FOV RENDER LOOP
+-- ============================================================
+
+RunService.RenderStepped:Connect(function()
+    if FOV.Enabled then
+        FOV.Circle.Position = UserInputService:GetMouseLocation()
+        FOV.Circle.Radius = FOV.Radius
+        FOV.Circle.Color = FOV.Color
+        FOV.Circle.Visible = true
+    else
+        FOV.Circle.Visible = false
+    end
+end)
+
+-- ============================================================
+--  PLAYER REMOVING CLEANUP
+-- ============================================================
+
+Players.PlayerRemoving:Connect(function(Player)
+    if ESP.PlayerData[Player] then
+        ClearPlayerESP(Player)
+    end
+end)
 
 print("SCP:RP UI loaded.")
