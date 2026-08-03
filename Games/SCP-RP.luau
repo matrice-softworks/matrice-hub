@@ -471,9 +471,12 @@ Interface:CreateKeybind({
     end
 })
 
--- Matrice Hub Info Card – FIXED VERSION
-local version = Matrice.Version or "0.0.0"
-local changelog = (Matrice.VersionData and Matrice.VersionData.Matrice and Matrice.VersionData.Matrice.Changelog) or "No changelog available."
+-- Matrice Hub Info Card – FIXED with tostring
+local version = tostring(Matrice.Version or "0.0.0")
+local changelog = "No changelog available."
+if Matrice.VersionData and Matrice.VersionData.Matrice then
+    changelog = tostring(Matrice.VersionData.Matrice.Changelog) or "No changelog available."
+end
 
 Interface:CreateCard({
     Title = "Matrice Hub",
