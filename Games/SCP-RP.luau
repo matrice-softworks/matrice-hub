@@ -144,14 +144,13 @@ VisualsChams:CreateToggle("Normal", {
 })
 
 VisualsChams:CreateDropdown({
-	Name = "Dropdown Example",
-	Options = {"Cake", "Pie", "Milkshake", "Cupcake"},
-	CurrentOption = {"Option 1"},
-	MultipleOptions = false,
-	Flag = "Dropdown1",
-	Callback = function(v)
-		print(v)
-	end,
+    Name = "Chams Material",
+    Options = {"ForceField", "Glass", "Neon", "Plastic"},
+    CurrentOption = "ForceField",
+    Flag = "ChamsMaterial",
+    Callback = function(choice)
+        print("Chams material set to " .. choice)
+    end
 })
 
 VisualsWorld:CreateToggle("Normal", {
@@ -300,6 +299,16 @@ SettingsConfig:CreateButton({
             Image = Asset("info")
         })
     end
+})
+
+-- =============================================================
+--  WELCOME NOTIFICATION
+-- =============================================================
+AuraIS:Notify("Normal", {
+    Title = "Matrice v" .. (Matrice.Version or "0.1.0"),
+    Content = "SCP: Roleplay UI loaded successfully!",
+    Duration = 4,
+    Image = Asset("matrice")
 })
 
 print("SCP:RP UI loaded.")
