@@ -951,371 +951,299 @@ function e:CreateLibrary(G, H)
 				return aN
 			end
 			
-            function _:CreateDropdown(aX)
-                local aY = L.Template.Dropdown:Clone()
-                if string.find(aX.Name, "closed") then
-                    aY.Name = "Dropdown"
-                else
-                    aY.Name = aX.Name
-                end
-                aY.Title.Text = aX.Name
-                aY.Visible = true
-                aY.Parent = a0
-                aY.Size = UDim2.new(1, -10, 0, 45)
-                aY.Interact.Size = UDim2.new(0, 429, 0, 45)
-                aY.Interact.Position = UDim2.new(0, 214, 0, 22)
-                aY.List.Visible = false
-                if typeof(aX.CurrentOption) == "string" then
-                    aX.CurrentOption = {aX.CurrentOption}
-                end
-                if not aX.MultipleOptions then
-                    aX.CurrentOption = {aX.CurrentOption[1]}
-                end
-                if aX.MultipleOptions then
-                    if #aX.CurrentOption == 1 then
-                        aY.Selected.Text = aX.CurrentOption[1]
-                    elseif #aX.CurrentOption == 0 then
-                        aY.Selected.Text = "None"
-                    else
-                        aY.Selected.Text = "Various"
-                    end
-                else
-                    aY.Selected.Text = aX.CurrentOption[1]
-                end
-                aY.BackgroundTransparency = 1
-                aY.UIStroke.Transparency = 1
-                aY.Title.TextTransparency = 1
-                aY.Size = UDim2.new(1, -10, 0, 45)
-                a2()
-                q:Create(aY, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
-                q:Create(aY.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
-                q:Create(aY.Title, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
-                for B, aZ in ipairs(aY.List:GetChildren()) do
-                    if aZ.ClassName == "Frame" and aZ.Name ~= "Placeholder" then
-                        aZ:Destroy()
-                    end
-                end
-                aY.Toggle.Rotation = 180
-                aY.Interact.MouseButton1Click:Connect(
-                    function()
-                        q:Create(aY.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
-                        wait(0.1)
-                        q:Create(aY.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
-                        if Debounce then
-                            return
-                        end
-                        if aY.List.Visible then
-                            Debounce = true
-                            local a_ =
-                                q:Create(
-                                aY,
-                                TweenInfo.new(0.5, Enum.EasingStyle.Quint),
-                                {Size = UDim2.new(1, -10, 0, 45)}
-                            )
-                            local b0 =
-                                pcall(
-                                function()
-                                    a_:Play()
-                                end
-                            )
-                            local b1 = false
-                            if b0 then
-                                b1 = true
-                            end
-                            spawn(
-                                function()
-                                    while b1 do
-                                        a2()
-                                        wait()
-                                    end
-                                end
-                            )
-                            a_.Completed:Connect(
-                                function()
-                                    b1 = false
-                                end
-                            )
-                            for B, b2 in ipairs(aY.List:GetChildren()) do
-                                if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
-                                    q:Create(
-                                        b2,
-                                        TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                        {BackgroundTransparency = 1}
-                                    ):Play()
-                                    q:Create(
-                                        b2.UIStroke,
-                                        TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                        {Transparency = 1}
-                                    ):Play()
-                                    q:Create(
-                                        b2.Title,
-                                        TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                        {TextTransparency = 1}
-                                    ):Play()
-                                end
-                            end
-                            q:Create(
-                                aY.List,
-                                TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                {ScrollBarImageTransparency = 1}
-                            ):Play()
-                            q:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
-                            wait(0.35)
-                            aY.List.Visible = false
-                            Debounce = false
-                        else
-                            local a_ =
-                                q:Create(
-                                aY,
-                                TweenInfo.new(0.5, Enum.EasingStyle.Quint),
-                                {Size = UDim2.new(1, -10, 0, 180)}
-                            )
-                            local b0 =
-                                pcall(
-                                function()
-                                    a_:Play()
-                                end
-                            )
-                            local b1 = false
-                            if b0 then
-                                b1 = true
-                            end
-                            spawn(
-                                function()
-                                    while b1 do
-                                        a2()
-                                        wait()
-                                    end
-                                end
-                            )
-                            a_.Completed:Connect(
-                                function()
-                                    b1 = false
-                                end
-                            )
-                            aY.List.Visible = true
-                            q:Create(
-                                aY.List,
-                                TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                {ScrollBarImageTransparency = 0.7}
-                            ):Play()
-                            q:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 0}):Play()
-                            for B, b2 in ipairs(aY.List:GetChildren()) do
-                                if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
-                                    q:Create(
-                                        b2,
-                                        TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                        {BackgroundTransparency = 0}
-                                    ):Play()
-                                    q:Create(
-                                        b2.UIStroke,
-                                        TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                        {Transparency = 0}
-                                    ):Play()
-                                    q:Create(
-                                        b2.Title,
-                                        TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                        {TextTransparency = 0}
-                                    ):Play()
-                                end
-                            end
-                        end
-                    end
-                )
-                for B, b3 in ipairs(aX.Options) do
-                    local b4 = L.Template.Dropdown.List.Template:Clone()
-                    b4.Name = b3
-                    b4.Title.Text = b3
-                    b4.Parent = aY.List
-                    b4.Visible = true
-                    if aX.CurrentOption == b3 then
-                        b4.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                    end
-                    b4.MouseEnter:Connect(
-                        function()
-                            q:Create(b4, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}):Play()
-                            q:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.921, 0, 0, 38)}):Play()
-                        end
-                    )
-                    b4.MouseLeave:Connect(
-                        function()
-                            q:Create(b4, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
-                            q:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.921, 0, 0, 38)}):Play()
-                        end
-                    )
-                    b4.Interact.ZIndex = 50
-                    b4.Interact.MouseButton1Click:Connect(
-                        function()
-                            if not aX.MultipleOptions and table.find(aX.CurrentOption, b3) then
-                                return
-                            end
-                            if table.find(aX.CurrentOption, b3) then
-                                table.remove(aX.CurrentOption, table.find(aX.CurrentOption, b3))
-                                if aX.MultipleOptions then
-                                    if #aX.CurrentOption == 1 then
-                                        aY.Selected.Text = aX.CurrentOption[1]
-                                    elseif #aX.CurrentOption == 0 then
-                                        aY.Selected.Text = "None"
-                                    else
-                                        aY.Selected.Text = "Various"
-                                    end
-                                else
-                                    aY.Selected.Text = aX.CurrentOption[1]
-                                end
-                            else
-                                if not aX.MultipleOptions then
-                                    table.clear(aX.CurrentOption)
-                                end
-                                table.insert(aX.CurrentOption, b3)
-                                if aX.MultipleOptions then
-                                    if #aX.CurrentOption == 1 then
-                                        aY.Selected.Text = aX.CurrentOption[1]
-                                    elseif #aX.CurrentOption == 0 then
-                                        aY.Selected.Text = "None"
-                                    else
-                                        aY.Selected.Text = "Various"
-                                    end
-                                else
-                                    aY.Selected.Text = aX.CurrentOption[1]
-                                end
-                                local b5 = b4.Size
-                                q:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.875, 0, 0, 38)}):Play()
-                                q:Create(
-                                    b4,
-                                    TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                    {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}
-                                ):Play()
-                                Debounce = true
-                                wait(0.2)
-                                q:Create(b4, e.Theme.Dark.TweenInfo, {Size = b5}):Play()
-                            end
-                            local E, F =
-                                pcall(
-                                function()
-                                    aX.Callback(aX.MultipleOptions == false and aX.CurrentOption[1] or aX.CurrentOption)
-                                end
-                            )
-                            for B, b6 in ipairs(aY.List:GetChildren()) do
-                                if
-                                    b6.ClassName == "Frame" and b6.Name ~= "Placeholder" and
-                                        not table.find(aX.CurrentOption, b6.Name)
-                                 then
-                                    q:Create(
-                                        b6,
-                                        TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                        {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}
-                                    ):Play()
-                                end
-                            end
-                            if not aX.MultipleOptions then
-                                wait(0.1)
-                                local a_ =
-                                    q:Create(
-                                    aY,
-                                    TweenInfo.new(0.5, Enum.EasingStyle.Quint),
-                                    {Size = UDim2.new(1, -10, 0, 45)}
-                                )
-                                local b0 =
-                                    pcall(
-                                    function()
-                                        a_:Play()
-                                    end
-                                )
-                                local b1 = false
-                                if b0 then
-                                    b1 = true
-                                end
-                                spawn(
-                                    function()
-                                        while b1 do
-                                            a2()
-                                            wait()
-                                        end
-                                    end
-                                )
-                                a_.Completed:Connect(
-                                    function()
-                                        b1 = false
-                                    end
-                                )
-                                for B, b2 in ipairs(aY.List:GetChildren()) do
-                                    if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
-                                        q:Create(
-                                            b2,
-                                            TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                            {BackgroundTransparency = 1}
-                                        ):Play()
-                                        q:Create(
-                                            b2.UIStroke,
-                                            TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                            {Transparency = 1}
-                                        ):Play()
-                                        q:Create(
-                                            b2.Title,
-                                            TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                            {TextTransparency = 1}
-                                        ):Play()
-                                    end
-                                end
-                                q:Create(
-                                    aY.List,
-                                    TweenInfo.new(0.3, Enum.EasingStyle.Quint),
-                                    {ScrollBarImageTransparency = 1}
-                                ):Play()
-                                q:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
-                                wait(0.35)
-                                aY.List.Visible = false
-                            end
-                            Debounce = false
-                        end
-                    )
-                end
-                for B, b6 in ipairs(aY.List:GetChildren()) do
-                    if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
-                        if not table.find(aX.CurrentOption, b6.Name) then
-                            b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-                        else
-                            b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                        end
-                    end
-                end
-                function aX:Set(b7)
-                    aX.CurrentOption = b7
-                    if typeof(aX.CurrentOption) == "string" then
-                        aX.CurrentOption = {aX.CurrentOption}
-                    end
-                    if not aX.MultipleOptions then
-                        aX.CurrentOption = {aX.CurrentOption[1]}
-                    end
-                    if aX.MultipleOptions then
-                        if #aX.CurrentOption == 1 then
-                            aY.Selected.Text = aX.CurrentOption[1]
-                        elseif #aX.CurrentOption == 0 then
-                            aY.Selected.Text = "None"
-                        else
-                            aY.Selected.Text = "Various"
-                        end
-                    else
-                        aY.Selected.Text = aX.CurrentOption[1]
-                    end
-                    local E, F =
-                        pcall(
-                        function()
-                            aX.Callback(b7)
-                        end
-                    )
-                    for B, b6 in ipairs(aY.List:GetChildren()) do
-                        if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
-                            if not table.find(aX.CurrentOption, b6.Name) then
-                                b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-                            else
-                                b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                            end
-                        end
-                    end
-                end
-                return aX
-            end
+function _:CreateDropdown(aX)
+	local aY = L.Template.Dropdown:Clone()
+	if string.find(aX.Name, "closed") then
+		aY.Name = "Dropdown"
+	else
+		aY.Name = aX.Name
+	end
+	aY.Title.Text = aX.Name
+	aY.Visible = true
+	aY.Parent = a0
+	aY.Size = UDim2.new(1, -10, 0, 45)
+	aY.Interact.Size = UDim2.new(0, 429, 0, 45)
+	aY.Interact.Position = UDim2.new(0, 214, 0, 22)
+	aY.List.Visible = false
+
+	-- Ensure CurrentOption is a table
+	if typeof(aX.CurrentOption) == "string" then
+		aX.CurrentOption = {aX.CurrentOption}
+	end
+	if not aX.MultipleOptions then
+		aX.CurrentOption = {aX.CurrentOption[1]}
+	end
+
+	-- Set initial selected text
+	if aX.MultipleOptions then
+		if #aX.CurrentOption == 1 then
+			aY.Selected.Text = aX.CurrentOption[1]
+		elseif #aX.CurrentOption == 0 then
+			aY.Selected.Text = "None"
+		else
+			aY.Selected.Text = "Various"
+		end
+	else
+		aY.Selected.Text = aX.CurrentOption[1]
+	end
+
+	aY.BackgroundTransparency = 1
+	aY.UIStroke.Transparency = 1
+	aY.Title.TextTransparency = 1
+	aY.Size = UDim2.new(1, -10, 0, 45)
+	a2()
+
+	TweenService:Create(aY, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(aY.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
+	TweenService:Create(aY.Title, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+
+	for B, aZ in ipairs(aY.List:GetChildren()) do
+		if aZ.ClassName == "Frame" and aZ.Name ~= "Placeholder" then
+			aZ:Destroy()
+		end
+	end
+
+	aY.Toggle.Rotation = 180
+
+	local Debounce = false
+
+	aY.Interact.MouseButton1Click:Connect(function()
+		PlayClick()
+		TweenService:Create(aY.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
+		task.wait(0.1)
+		TweenService:Create(aY.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
+		if Debounce then return end
+
+		if aY.List.Visible then
+			-- Collapse
+			Debounce = true
+			local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 45)})
+			local b0 = pcall(function() a_:Play() end)
+			local b1 = false
+			if b0 then b1 = true end
+			task.spawn(function()
+				while b1 do
+					a2()
+					task.wait()
+				end
+			end)
+			a_.Completed:Connect(function() b1 = false end)
+
+			for B, b2 in ipairs(aY.List:GetChildren()) do
+				if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
+					TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+					TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
+					TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+				end
+			end
+			TweenService:Create(aY.List, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {ScrollBarImageTransparency = 1}):Play()
+			TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
+			task.wait(0.35)
+			aY.List.Visible = false
+			Debounce = false
+			a2() -- final height update
+		else
+			-- Expand
+			local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 180)})
+			local b0 = pcall(function() a_:Play() end)
+			local b1 = false
+			if b0 then b1 = true end
+			task.spawn(function()
+				while b1 do
+					a2()
+					task.wait()
+				end
+			end)
+			a_.Completed:Connect(function()
+				b1 = false
+				a2()
+			end)
+
+			aY.List.Visible = true
+			TweenService:Create(aY.List, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {ScrollBarImageTransparency = 0.7}):Play()
+			TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 0}):Play()
+			for B, b2 in ipairs(aY.List:GetChildren()) do
+				if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
+					TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+					TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Transparency = 0}):Play()
+					TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+				end
+			end
+		end
+	end)
+
+	for B, b3 in ipairs(aX.Options) do
+		local b4 = L.Template.Dropdown.List.Template:Clone()
+		b4.Name = b3
+		b4.Title.Text = b3
+		b4.Parent = aY.List
+		b4.Visible = true
+
+		if aX.CurrentOption == b3 then
+			b4.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		end
+
+		b4.MouseEnter:Connect(function()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.921, 0, 0, 38)}):Play()
+		end)
+
+		b4.MouseLeave:Connect(function()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
+			TweenService:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.921, 0, 0, 38)}):Play()
+		end)
+
+		b4.Interact.ZIndex = 50
+		b4.Interact.MouseButton1Click:Connect(function()
+			PlayClick()
+
+			if not aX.MultipleOptions and table.find(aX.CurrentOption, b3) then
+				return
+			end
+
+			if table.find(aX.CurrentOption, b3) then
+				table.remove(aX.CurrentOption, table.find(aX.CurrentOption, b3))
+				if aX.MultipleOptions then
+					if #aX.CurrentOption == 1 then
+						aY.Selected.Text = aX.CurrentOption[1]
+					elseif #aX.CurrentOption == 0 then
+						aY.Selected.Text = "None"
+					else
+						aY.Selected.Text = "Various"
+					end
+				else
+					aY.Selected.Text = aX.CurrentOption[1]
+				end
+			else
+				if not aX.MultipleOptions then
+					table.clear(aX.CurrentOption)
+				end
+				table.insert(aX.CurrentOption, b3)
+				if aX.MultipleOptions then
+					if #aX.CurrentOption == 1 then
+						aY.Selected.Text = aX.CurrentOption[1]
+					elseif #aX.CurrentOption == 0 then
+						aY.Selected.Text = "None"
+					else
+						aY.Selected.Text = "Various"
+					end
+				else
+					aY.Selected.Text = aX.CurrentOption[1]
+				end
+
+				local b5 = b4.Size
+				TweenService:Create(b4, e.Theme.Dark.TweenInfo, {Size = UDim2.new(0.875, 0, 0, 38)}):Play()
+				TweenService:Create(b4, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+				Debounce = true
+				task.wait(0.2)
+				TweenService:Create(b4, e.Theme.Dark.TweenInfo, {Size = b5}):Play()
+			end
+
+			-- Save configuration if Flag provided
+			if aX.Flag then
+				Configuration.Dropdowns[aX.Flag] = aX.MultipleOptions == false and aX.CurrentOption[1] or aX.CurrentOption
+				SaveConfiguration()
+			end
+
+			local E, F = pcall(function()
+				aX.Callback(aX.MultipleOptions == false and aX.CurrentOption[1] or aX.CurrentOption)
+			end)
+
+			-- Update other options' highlights
+			for B, b6 in ipairs(aY.List:GetChildren()) do
+				if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" and not table.find(aX.CurrentOption, b6.Name) then
+					TweenService:Create(b6, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
+				end
+			end
+
+			if not aX.MultipleOptions then
+				-- Auto‑close for single‑select
+				task.wait(0.1)
+				local a_ = TweenService:Create(aY, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Size = UDim2.new(1, -10, 0, 45)})
+				local b0 = pcall(function() a_:Play() end)
+				local b1 = false
+				if b0 then b1 = true end
+				task.spawn(function()
+					while b1 do
+						a2()
+						task.wait()
+					end
+				end)
+				a_.Completed:Connect(function()
+					b1 = false
+					a2()
+				end)
+
+				for B, b2 in ipairs(aY.List:GetChildren()) do
+					if b2.ClassName == "Frame" and b2.Name ~= "Placeholder" then
+						TweenService:Create(b2, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+						TweenService:Create(b2.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
+						TweenService:Create(b2.Title, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+					end
+				end
+				TweenService:Create(aY.List, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {ScrollBarImageTransparency = 1}):Play()
+				TweenService:Create(aY.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Quint), {Rotation = 180}):Play()
+				task.wait(0.35)
+				aY.List.Visible = false
+			end
+			Debounce = false
+		end)
+	end
+
+	-- Final highlight sync
+	for B, b6 in ipairs(aY.List:GetChildren()) do
+		if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
+			if not table.find(aX.CurrentOption, b6.Name) then
+				b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+			else
+				b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+			end
+		end
+	end
+
+	function aX:Set(b7)
+		aX.CurrentOption = b7
+		if typeof(aX.CurrentOption) == "string" then
+			aX.CurrentOption = {aX.CurrentOption}
+		end
+		if not aX.MultipleOptions then
+			aX.CurrentOption = {aX.CurrentOption[1]}
+		end
+
+		if aX.MultipleOptions then
+			if #aX.CurrentOption == 1 then
+				aY.Selected.Text = aX.CurrentOption[1]
+			elseif #aX.CurrentOption == 0 then
+				aY.Selected.Text = "None"
+			else
+				aY.Selected.Text = "Various"
+			end
+		else
+			aY.Selected.Text = aX.CurrentOption[1]
+		end
+
+		if aX.Flag then
+			Configuration.Dropdowns[aX.Flag] = aX.MultipleOptions == false and aX.CurrentOption[1] or aX.CurrentOption
+			SaveConfiguration()
+		end
+
+		local E, F = pcall(function()
+			aX.Callback(b7)
+		end)
+
+		for B, b6 in ipairs(aY.List:GetChildren()) do
+			if b6.ClassName == "Frame" and b6.Name ~= "Placeholder" then
+				if not table.find(aX.CurrentOption, b6.Name) then
+					b6.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+				else
+					b6.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+				end
+			end
+		end
+	end
+
+	return aX
+end
 			
 			function _:CreateTextbox(b8)
 				local aQ = L.Template.Input:Clone()
