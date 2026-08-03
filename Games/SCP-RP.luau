@@ -144,13 +144,14 @@ VisualsChams:CreateToggle("Normal", {
 })
 
 VisualsChams:CreateDropdown({
-    Name = "Chams Material",
-    Options = {"ForceField", "Glass", "Neon", "Plastic"},
-    CurrentOption = "ForceField",
-    Flag = "ChamsMaterial",
-    Callback = function(choice)
-        print("Chams material set to " .. choice)
-    end
+	Name = "Dropdown Example",
+	Options = {"Cake", "Pie", "Milkshake", "Cupcake"},
+	CurrentOption = {"Option 1"},
+	MultipleOptions = false,
+	Flag = "Dropdown1",
+	Callback = function(v)
+		print(v)
+	end,
 })
 
 VisualsWorld:CreateToggle("Normal", {
