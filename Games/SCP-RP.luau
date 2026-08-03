@@ -182,50 +182,26 @@ PlayerGeneral:CreateTextbox({
     end
 })
 
-PlayerGeneral:CreateButton({
-    Name = "Test Teleport",
-    Callback = function()
-        Library:Notify({
-            Title = "Teleport",
-            Content = "Do you want to teleport to spawn?",
-            Duration = 5,
-            Actions = {
-                {
-                    Name = "Confirm",
-                    Callback = function()
-                        local character = game.Players.LocalPlayer.Character
-                        if character and character:FindFirstChild("HumanoidRootPart") then
-                            character.HumanoidRootPart.CFrame = CFrame.new(0, 5, 0)
-                            AuraIS:Notify("Normal", {
-                                Title = "Teleported",
-                                Content = "You have been teleported to spawn!",
-                                Duration = 2,
-                                Image = Asset("info")
-                            })
-                        else
-                            AuraIS:Notify("Error", {
-                                Title = "Failed",
-                                Content = "Character not found!",
-                                Duration = 2,
-                                Image = Asset("circle-x")
-                            })
-                        end
-                    end
-                },
-                {
-                    Name = "Cancel",
-                    Callback = function()
-                        AuraIS:Notify("Normal", {
-                            Title = "Cancelled",
-                            Content = "Teleport cancelled.",
-                            Duration = 2,
-                            Image = Asset("circle-x")
-                        })
-                    end
-                }
-            }
-        })
-    end
+
+Library:Notify({
+    Title = "Notification Title",
+    Content = "Notification Content",
+    Duration = 5,
+    Image = "rbxassetid://4483362458",
+    Actions = {
+        {
+            Name = "Okay!",
+            Callback = function()
+                print("User tapped Okay!")
+            end
+        },
+        {
+            Name = "Cancel",
+            Callback = function()
+                print("User tapped Cancel!")
+            end
+        }
+    }
 })
 
 -- =============================================================
