@@ -380,10 +380,6 @@ Character:CreateKeybind({
     end
 })
 
-Character:CreateLabel({
-    Description = "Character Settings"
-})
-
 -- Moderator Detector Section (kept as foldable)
 local PlayerMods = PlayerTab:CreateSection("Moderator Detector", "Foldable")
 
@@ -402,10 +398,6 @@ PlayerMods:CreateToggle("Normal", {
 -- Teleportation Section
 local Teleportation = UtilitiesTab:CreateSection("Teleportation", "Normal")
 
-Teleportation:CreateLabel({
-    Description = "Provides quick access to useful locations."
-})
-
 Teleportation:CreateButton({
     Name = "Class D-Zone",
     Callback = function()
@@ -422,10 +414,6 @@ Teleportation:CreateButton({
 
 -- Miscellaneous Section
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
-
-Miscellaneous:CreateLabel({
-    Description = "Contains additional utility features."
-})
 
 Miscellaneous:CreateButton({
     Name = "Become A Zombie",
@@ -472,13 +460,13 @@ Interface:CreateKeybind({
     end
 })
 
--- Matrice Hub Info Card – reads game info from Matrice.Game.Info
+-- Matrice Hub Info Card – fixed description, separate paragraph for version/changelog
 local gameVersion = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Version) or "N/A")
 local gameChangelog = tostring((Matrice.Game and Matrice.Game.Info and Matrice.Game.Info.Changelog) or "No changelog available.")
 
 Interface:CreateCard({
     Title = "Matrice Hub - SCP:RP",
-    Description = "Version " .. gameVersion .. "\n" .. gameChangelog,
+    Description = "A script hub packed with high-quality undetectable scripts",
     SecondaryTitle = "By Matrice Softworks",
     Image = Matrice.Asset("matrice.png"),
     Buttons = {
@@ -507,6 +495,12 @@ Interface:CreateCard({
             end
         }
     }
+})
+
+-- Paragraph for version and changelog
+Interface:CreateParagraph({
+    Title = "Version " .. gameVersion,
+    Description = "Changelog:\n" .. gameChangelog
 })
 
 -- Presets Section
