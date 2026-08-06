@@ -932,6 +932,20 @@ local function EnableSpoof(walk, jump)
         cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
         SetWalkSpeed(SpoofedWalk)
         SetJumpPower(SpoofedJump)
+    else
+        -- Character not ready, wait a bit and retry
+        task.spawn(function()
+            for i = 1, 5 do
+                task.wait(0.2)
+                local h = GetHumanoid()
+                if h then
+                    cachedHumanoids:cacheHumanoid(h:GetDebugId(), h)
+                    SetWalkSpeed(SpoofedWalk)
+                    SetJumpPower(SpoofedJump)
+                    break
+                end
+            end
+        end)
     end
     if not MovementCharacterConnection then
         MovementCharacterConnection = LocalPlayer.CharacterAdded:Connect(function(char)
@@ -961,7 +975,7 @@ local JumpEnabled = false
 local WalkSpeedValue = 24
 local JumpPowerValue = 50
 
--- NoClip & Fly state (unchanged)
+-- NoClip & Fly state
 local NoClipMaster = false
 local NoClipActive = false
 local FlyMaster = false
@@ -982,7 +996,7 @@ local function ApplyNoClip()
     end
 end
 
--- Fly logic (unchanged)
+-- Fly logic
 local FlyConnection = nil
 local FlyCharacterConnection = nil
 
@@ -1042,7 +1056,6 @@ local function UpdateFly()
     end
 end
 
--- Character respawn handler (for NoClip & Fly)
 local function OnCharacterAdded()
     task.wait(0.1)
     ApplyNoClip()
@@ -1068,13 +1081,13 @@ Character:CreateToggle("Normal", {
                 EnableSpoof(WalkSpeedValue, JumpPowerValue)
             else
                 SpoofedWalk = WalkSpeedValue
+                SpoofedJump = JumpPowerValue
                 SetWalkSpeed(WalkSpeedValue)
+                SetJumpPower(JumpPowerValue)
             end
         else
-            -- If speed is off, but jump might still be on; we need to decide if we turn off spoof entirely.
-            -- Better: if either speed or jump is enabled, keep spoof active.
             if JumpEnabled then
-                -- keep spoof active, only reset speed to original
+                -- Keep spoof active, reset speed to original
                 local humanoid = GetHumanoid()
                 if humanoid then
                     local debugId = humanoid:GetDebugId()
@@ -1085,7 +1098,6 @@ Character:CreateToggle("Normal", {
                         SetWalkSpeed(16)
                     end
                 end
-                -- but we also need to set SpoofedWalk to not affect future? We can keep it, but next time speed is enabled it will set.
             else
                 -- both off, disable spoof entirely
                 DisableSpoof()
@@ -1122,7 +1134,9 @@ Character:CreateToggle("Normal", {
             if not SpoofActive then
                 EnableSpoof(WalkSpeedValue, JumpPowerValue)
             else
+                SpoofedWalk = WalkSpeedValue
                 SpoofedJump = JumpPowerValue
+                SetWalkSpeed(WalkSpeedValue)
                 SetJumpPower(JumpPowerValue)
             end
         else
