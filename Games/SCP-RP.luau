@@ -2,6 +2,8 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
@@ -60,6 +62,10 @@ local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox.png")
 local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
 Library:SwitchTab()
+
+-- ============================================================
+--  COMBAT TAB (Placeholders – no logic yet)
+-- ============================================================
 
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
 
@@ -151,6 +157,18 @@ Checks:CreateToggle("Normal", {
     end
 })
 
+local SilentAimFriendCheckEnabled = false
+
+Checks:CreateToggle("Normal", {
+    Name = "Friend Check",
+    Flag = "SilentAimFriendCheck",
+    CurrentValue = false,
+    Callback = function(Enabled)
+        SilentAimFriendCheckEnabled = Enabled
+        print("Friend Check (Silent Aim) " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
 local FOV = CombatTab:CreateSection("FOV", "Normal")
 
 FOV:CreateToggle("Normal", {
@@ -211,6 +229,10 @@ Weapons:CreateToggle("Normal", {
         print("Auto Reload " .. (Enabled and "ON" or "OFF"))
     end
 })
+
+-- ============================================================
+--  VISUALS TAB – Fully functional ESP
+-- ============================================================
 
 local ESPEnabled = false
 local ESPData = {}
@@ -747,12 +769,166 @@ EffectsSection:CreateDropdown({
     end
 })
 
+-- ============================================================
+--  PLAYER TAB – Fully functional Speed, Jump, NoClip, Fly
+-- ============================================================
+
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
-Character:CreateToggle("Normal", {
+-- State variables for player mods
+local SpeedEnabled = false
+local JumpEnabled = false
+local NoClipEnabled = false
+local FlyEnabled = false
+local FlySpeed = 50
+local CurrentWalkSpeed = 16
+local CurrentJumpPower = 50
+
+-- Connections for respawn handling
+local PlayerModsCharacterAddedConnection = nil
+
+-- Toggle references for syncing UI
+local SpeedToggleRef = nil
+local JumpToggleRef = nil
+local NoClipToggleRef = nil
+local FlyToggleRef = nil
+
+-- Apply speed/jump to humanoid
+local function ApplySpeedJumpToHumanoid(Humanoid)
+    if not Humanoid then return end
+    if SpeedEnabled then
+        Humanoid.WalkSpeed = CurrentWalkSpeed
+    else
+        Humanoid.WalkSpeed = 16
+    end
+    if JumpEnabled then
+        Humanoid.JumpPower = CurrentJumpPower
+    else
+        Humanoid.JumpPower = 50
+    end
+end
+
+-- Apply speed/jump to current character
+local function ApplySpeedJumpToCharacter()
+    local Char = LocalPlayer.Character
+    if not Char then return end
+    local Humanoid = Char:FindFirstChildOfClass("Humanoid")
+    if Humanoid then
+        ApplySpeedJumpToHumanoid(Humanoid)
+    end
+end
+
+-- NoClip apply
+local function ApplyNoClip(State)
+    local Char = LocalPlayer.Character
+    if not Char then return end
+    for _, Part in ipairs(Char:GetDescendants()) do
+        if Part:IsA("BasePart") then
+            Part.CanCollide = not State
+        end
+    end
+end
+
+-- Fly logic
+local FlyConnection = nil
+local FlyCharacterConnection = nil
+
+local function StartFly()
+    if FlyConnection then return end
+    FlyConnection = RunService.Heartbeat:Connect(function()
+        if not FlyEnabled or not LocalPlayer.Character then return end
+        local Root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not Root then return end
+        local Forward = Camera.CFrame.LookVector
+        local Right = Camera.CFrame.RightVector
+        local Up = Vector3.new(0, 1, 0)
+        local MoveDirection = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then MoveDirection = MoveDirection + Forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then MoveDirection = MoveDirection - Forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then MoveDirection = MoveDirection - Right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then MoveDirection = MoveDirection + Right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then MoveDirection = MoveDirection + Up end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then MoveDirection = MoveDirection - Up end
+        if MoveDirection.Magnitude > 0 then
+            MoveDirection = MoveDirection.Unit * FlySpeed
+        end
+        Root.CFrame = Root.CFrame + MoveDirection * RunService.Heartbeat:Wait()
+        Root.Velocity = Vector3.new()
+        Root.RotVelocity = Vector3.new()
+    end)
+    if not FlyCharacterConnection then
+        FlyCharacterConnection = LocalPlayer.CharacterAdded:Connect(function()
+            if FlyEnabled then
+                task.wait(0.1)
+                local Root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if Root then
+                    Root.Velocity = Vector3.new()
+                    Root.RotVelocity = Vector3.new()
+                end
+            end
+        end)
+    end
+end
+
+local function StopFly()
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if FlyCharacterConnection then
+        FlyCharacterConnection:Disconnect()
+        FlyCharacterConnection = nil
+    end
+end
+
+local function ToggleFly(Enabled)
+    FlyEnabled = Enabled
+    if Enabled then
+        StartFly()
+    else
+        StopFly()
+    end
+    if FlyToggleRef then
+        FlyToggleRef:SetToggle(Enabled)
+    end
+end
+
+-- Toggle NoClip
+local function ToggleNoClip(Enabled)
+    NoClipEnabled = Enabled
+    ApplyNoClip(Enabled)
+    if NoClipToggleRef then
+        NoClipToggleRef:SetToggle(Enabled)
+    end
+end
+
+-- Character respawn handler
+local function OnCharacterAdded()
+    task.wait(0.1)
+    ApplySpeedJumpToCharacter()
+    ApplyNoClip(NoClipEnabled)
+end
+
+local function SetupCharacterAddedListener()
+    if PlayerModsCharacterAddedConnection then
+        PlayerModsCharacterAddedConnection:Disconnect()
+    end
+    PlayerModsCharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+end
+
+-- UI Elements
+SpeedToggleRef = Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "WalkSpeedEnabled",
+    CurrentValue = false,
     Callback = function(Enabled)
+        if not Enabled then
+            SpeedEnabled = false
+            ApplySpeedJumpToCharacter()
+        else
+            SpeedEnabled = true
+            ApplySpeedJumpToCharacter()
+        end
         print("Enable Walk Speed " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -765,14 +941,26 @@ Character:CreateSlider({
     CurrentValue = 16,
     Flag = "WalkSpeed",
     Callback = function(Value)
+        CurrentWalkSpeed = Value
+        if SpeedEnabled then
+            ApplySpeedJumpToCharacter()
+        end
         print("Walk Speed set to " .. Value)
     end
 })
 
-Character:CreateToggle("Normal", {
+JumpToggleRef = Character:CreateToggle("Normal", {
     Name = "Enable Jump Power",
     Flag = "JumpPowerEnabled",
+    CurrentValue = false,
     Callback = function(Enabled)
+        if not Enabled then
+            JumpEnabled = false
+            ApplySpeedJumpToCharacter()
+        else
+            JumpEnabled = true
+            ApplySpeedJumpToCharacter()
+        end
         print("Enable Jump Power " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -785,14 +973,20 @@ Character:CreateSlider({
     CurrentValue = 50,
     Flag = "JumpPower",
     Callback = function(Value)
+        CurrentJumpPower = Value
+        if JumpEnabled then
+            ApplySpeedJumpToCharacter()
+        end
         print("Jump Power set to " .. Value)
     end
 })
 
-Character:CreateToggle("Normal", {
+NoClipToggleRef = Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
+    CurrentValue = false,
     Callback = function(Enabled)
+        ToggleNoClip(Enabled)
         print("No Clip " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -803,14 +997,22 @@ Character:CreateKeybind({
     Keybind = "N",
     Type = "Press",
     Callback = function(State)
-        print("No Clip key " .. (State and "pressed" or "released"))
+        -- Toggle NoClip regardless of State
+        local NewState = not NoClipEnabled
+        ToggleNoClip(NewState)
+        if NoClipToggleRef then
+            NoClipToggleRef:SetToggle(NewState)
+        end
+        print("No Clip key toggled")
     end
 })
 
-Character:CreateToggle("Normal", {
+FlyToggleRef = Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "Fly",
+    CurrentValue = false,
     Callback = function(Enabled)
+        ToggleFly(Enabled)
         print("Fly " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -821,9 +1023,34 @@ Character:CreateKeybind({
     Keybind = "F",
     Type = "Press",
     Callback = function(State)
-        print("Fly key " .. (State and "pressed" or "released"))
+        local NewState = not FlyEnabled
+        ToggleFly(NewState)
+        if FlyToggleRef then
+            FlyToggleRef:SetToggle(NewState)
+        end
+        print("Fly key toggled")
     end
 })
+
+Character:CreateSlider({
+    Name = "Fly Speed",
+    Value = {10, 200},
+    Increment = 5,
+    Suffix = "studs/s",
+    Flag = "FlySpeed",
+    CurrentValue = 50,
+    Callback = function(Value)
+        FlySpeed = Value
+        print("Fly Speed set to " .. Value)
+    end
+})
+
+-- Setup character respawn listener
+SetupCharacterAddedListener()
+
+-- ============================================================
+--  UTILITIES TAB (unchanged)
+-- ============================================================
 
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
@@ -952,8 +1179,8 @@ AntiAFKSection:CreateToggle("Normal", {
                 AntiAFKConnection = nil
             end
             AntiAFKConnection = LocalPlayer.Idled:Connect(function()
-                game:GetService("VirtualUser"):CaptureController()
-                game:GetService("VirtualUser"):ClickButton2(Vector2.new())
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new())
             end)
         else
             if AntiAFKConnection then
@@ -964,6 +1191,10 @@ AntiAFKSection:CreateToggle("Normal", {
         print("Anti AFK " .. (Enabled and "ON" or "OFF"))
     end
 })
+
+-- ============================================================
+--  SETTINGS TAB
+-- ============================================================
 
 local Interface = SettingsTab:CreateSection("Interface", "Normal")
 
