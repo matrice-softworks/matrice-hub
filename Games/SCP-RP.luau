@@ -7,6 +7,21 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
+local Mouse = LocalPlayer:GetMouse()  -- fallback for mouse position
+
+-- ============================================================
+--  MOUSE POSITION HELPER (handles UserInputService or Mouse)
+-- ============================================================
+
+local function GetMousePosition()
+    if UserInputService then
+        return UserInputService:GetMouseLocation()
+    elseif Mouse then
+        return Vector2.new(Mouse.X, Mouse.Y)
+    else
+        return Vector2.new(0, 0)
+    end
+end
 
 -- ============================================================
 --  FRIEND LIST (shared between Visuals & Silent Aim)
@@ -279,7 +294,6 @@ end
 
 -- ===== Auto Reload Functions =====
 local function SimulateReloadKey()
-    -- Try to simulate pressing 'R' key
     local success, result = pcall(function()
         if type(keypress) == "function" then
             keypress("r")
@@ -290,7 +304,6 @@ local function SimulateReloadKey()
             task.wait(0.05)
             vim:SendKeyEvent(false, "R", false, game)
         else
-            -- Fallback: fire InputBegan manually (may not work in all games)
             local input = {
                 KeyCode = Enum.KeyCode.R,
                 UserInputType = Enum.UserInputType.Keyboard,
@@ -364,7 +377,7 @@ end
 -- ===== Silent Aim Functions =====
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
-    local cursor = UserInputService:GetMouseLocation()
+    local cursor = GetMousePosition()
     local fovRadius = getgenv().FOVRadius
     local targetSelection = getgenv().TargetSelection or "Distance Priority"
     local targetPriority = getgenv().TargetPriority or "Closest"
@@ -499,7 +512,7 @@ end
 RunService.RenderStepped:Connect(function()
     FOVCircle.Visible = getgenv().FOVCircleEnabled
     if getgenv().FOVCircleEnabled then
-        FOVCircle.Position = UserInputService:GetMouseLocation()
+        FOVCircle.Position = GetMousePosition()
         FOVCircle.Radius = getgenv().FOVRadius
         FOVCircle.Color = getgenv().FOVColor
     end
