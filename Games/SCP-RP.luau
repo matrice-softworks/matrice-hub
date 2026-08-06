@@ -8,6 +8,10 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
 
+-- ============================================================
+--  FRIEND LIST (shared between Visuals & Silent Aim)
+-- ============================================================
+
 local FriendList = {}
 local FriendListUpdateTask = nil
 
@@ -43,6 +47,10 @@ local function StartFriendListUpdates()
     end)
 end
 
+-- ============================================================
+--  UI LIBRARY
+-- ============================================================
+
 local Library = Matrice.UI:CreateLibrary({
     Name = "Matrice Hub - SCP:RP",
     Icon = Matrice.Asset("matrice.png")
@@ -61,28 +69,198 @@ local PlayerTab = Library:CreateTab("Player", Matrice.Asset("user.png"))
 local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox.png"))
 local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
-Library:SwitchTab()
+Library:SwitchTab("Combat")
 
 -- ============================================================
---  COMBAT TAB (Placeholders – no logic yet)
+--  COMBAT TAB – Silent Aim (fully functional)
 -- ============================================================
 
+-- ===== Silent Aim State & Config =====
+getgenv().SilentAimEnabled = false
+getgenv().SilentAimWallCheck = true
+getgenv().SilentAimHitPart = "Head"
+getgenv().SilentAimHitChance = 100
+getgenv().FOVCircleEnabled = false
+getgenv().FOVRadius = 150
+getgenv().FOVColor = Color3.fromRGB(255, 255, 255)
+getgenv().SilentAimFriendCheck = false
+
+local SilentAimHookInstalled = false
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Filled = false
+FOVCircle.Thickness = 1
+FOVCircle.NumSides = 64
+FOVCircle.Visible = false
+local SilentAimRaycastParams = RaycastParams.new()
+SilentAimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+SilentAimRaycastParams.IgnoreWater = true
+
+-- ===== Team mapping for SCP:RP =====
+local Teams = {
+    ["Administrative Department"] = 1,
+    ["Chaos Insurgency"] = 0,
+    ["Class - D"] = 0,
+    ["Intelligence Agency"] = 1,
+    ["Internal Security Department"] = 1,
+    ["Medical Department"] = 1,
+    ["Mobile Task Force"] = 1,
+    ["Rapid Response Team"] = 1,
+    ["Scientific Department"] = 1,
+    ["Security Department"] = 1,
+}
+
+local function IsEnemy(player)
+    if player == LocalPlayer then return false end
+    local localTeam = LocalPlayer.Team and Teams[LocalPlayer.Team.Name]
+    local targetTeam = player.Team and Teams[player.Team.Name]
+    return localTeam == nil or targetTeam == nil or localTeam ~= targetTeam
+end
+
+local function IsFriend(player)
+    return FriendList[player.UserId] or false
+end
+
+local function GetSilentAimTarget()
+    if not getgenv().SilentAimEnabled then return nil end
+    local cursor = UserInputService:GetMouseLocation()
+    local closestPart, closestDistance = nil, getgenv().FOVRadius
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and IsEnemy(player) then
+            if getgenv().SilentAimFriendCheck and IsFriend(player) then continue end
+
+            local character = player.Character
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            local hitPartName = getgenv().SilentAimHitPart
+            if hitPartName == "Randomized" then
+                local hitParts = {"Head", "UpperTorso", "HumanoidRootPart"}
+                hitPartName = hitParts[math.random(1, #hitParts)]
+            end
+            local targetPart = character and (character:FindFirstChild(hitPartName) or character:FindFirstChild("HumanoidRootPart"))
+
+            if humanoid and humanoid.Health > 0 and targetPart then
+                local screenPosition, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                local visible = true
+                if getgenv().SilentAimWallCheck then
+                    local localCharacter = LocalPlayer.Character
+                    if localCharacter then
+                        SilentAimRaycastParams.FilterDescendantsInstances = {localCharacter}
+                        local result = workspace:Raycast(Camera.CFrame.Position, targetPart.Position - Camera.CFrame.Position, SilentAimRaycastParams)
+                        visible = not result or result.Instance:IsDescendantOf(character)
+                    end
+                end
+                if onScreen and visible then
+                    local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - cursor).Magnitude
+                    if distance < closestDistance then
+                        closestPart = targetPart
+                        closestDistance = distance
+                    end
+                end
+            end
+        end
+    end
+    return closestPart
+end
+
+local function FindBulletFunction()
+    local controller = LocalPlayer.PlayerScripts:FindFirstChild("Controller")
+    if not controller then return nil end
+    local function MatchesController(candidate)
+        if not debug or not debug.getinfo then return false end
+        local success, info = pcall(debug.getinfo, candidate)
+        return success and info and info.source == "=" .. controller:GetFullName()
+    end
+    if filtergc then
+        local result = filtergc("function", {
+            Constants = {"Bullet", "EasterEggThing", "SCP-066"},
+            IgnoreExecutor = true,
+        })
+        if type(result) == "function" and MatchesController(result) then return result end
+        if type(result) == "table" then
+            for _, candidate in ipairs(result) do
+                if type(candidate) == "function" and MatchesController(candidate) then return candidate end
+            end
+        end
+    end
+    if getgc and debug and debug.getconstants then
+        for _, candidate in ipairs(getgc()) do
+            if type(candidate) == "function" then
+                local success, constants = pcall(debug.getconstants, candidate)
+                if success and constants and MatchesController(candidate) and table.find(constants, "Bullet") and table.find(constants, "EasterEggThing") and table.find(constants, "SCP-066") then
+                    return candidate
+                end
+            end
+        end
+    end
+end
+
+local function InstallSilentAimHook()
+    if SilentAimHookInstalled then return true end
+    local bulletFunction = FindBulletFunction()
+    if not bulletFunction then
+        warn("Silent Aim: Could not find bullet function.")
+        return false
+    end
+    local original
+    original = hookfunction(bulletFunction, function(_, hitResult, ...)
+        local target = GetSilentAimTarget()
+        if target and math.random(1, 100) <= getgenv().SilentAimHitChance then
+            return original(_, {
+                Instance = target,
+                Position = target.Position,
+                Normal = Vector3.new(0, 1, 0),
+                Material = target.Material,
+            }, ...)
+        end
+        return original(_, hitResult, ...)
+    end)
+    SilentAimHookInstalled = true
+    return true
+end
+
+-- ===== Render loop for FOV circle =====
+RunService.RenderStepped:Connect(function()
+    FOVCircle.Visible = getgenv().FOVCircleEnabled
+    if getgenv().FOVCircleEnabled then
+        FOVCircle.Position = UserInputService:GetMouseLocation()
+        FOVCircle.Radius = getgenv().FOVRadius
+        FOVCircle.Color = getgenv().FOVColor
+    end
+end)
+
+-- ===== UI Elements =====
+
+-- Targeting Section
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
 
 Targeting:CreateToggle("Normal", {
     Name = "Silent Aim",
-    Flag = "SilentAim",
+    Flag = "SilentAimEnabled",
+    CurrentValue = false,
     Callback = function(Enabled)
+        getgenv().SilentAimEnabled = Enabled
+        if Enabled then
+            if not InstallSilentAimHook() then
+                getgenv().SilentAimEnabled = false
+                Matrice.UI:Notify("Error", {
+                    Title = "Hook Failed",
+                    Content = "Could not find bullet function.",
+                    Duration = 3,
+                    Image = Matrice.Asset("circle-x.png")
+                })
+            end
+        end
         print("Silent Aim " .. (Enabled and "ON" or "OFF"))
     end
 })
 
 Targeting:CreateDropdown({
     Name = "Hit Part",
-    Options = {"Head", "Torso", "Random"},
+    Options = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"},
     CurrentOption = "Head",
-    Flag = "HitPart",
+    Flag = "SilentAimHitPart",
     Callback = function(Selected)
+        getgenv().SilentAimHitPart = Selected
         print("Hit Part set to " .. Selected)
     end
 })
@@ -93,12 +271,14 @@ Targeting:CreateSlider({
     Increment = 1,
     Suffix = "%",
     CurrentValue = 100,
-    Flag = "HitChance",
+    Flag = "SilentAimHitChance",
     Callback = function(Value)
+        getgenv().SilentAimHitChance = Value
         print("Hit Chance set to " .. Value .. "%")
     end
 })
 
+-- Placeholders for Target Selection & Priority (no logic yet)
 Targeting:CreateDropdown({
     Name = "Target Selection",
     Options = {"Distance Priority", "Closest", "FOV Priority"},
@@ -119,32 +299,15 @@ Targeting:CreateDropdown({
     end
 })
 
-Targeting:CreateToggle("Normal", {
-    Name = "Hitbox",
-    Flag = "Hitbox",
-    Callback = function(Enabled)
-        print("Hitbox " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Targeting:CreateSlider({
-    Name = "Hitbox Size",
-    Value = {1, 10},
-    Increment = 0.1,
-    Suffix = "x",
-    CurrentValue = 1,
-    Flag = "HitboxSize",
-    Callback = function(Value)
-        print("Hitbox Size set to " .. Value)
-    end
-})
-
+-- Checks Section
 local Checks = CombatTab:CreateSection("Checks", "Normal")
 
 Checks:CreateToggle("Normal", {
     Name = "Wall Check",
-    Flag = "WallCheck",
+    Flag = "SilentAimWallCheck",
+    CurrentValue = true,
     Callback = function(Enabled)
+        getgenv().SilentAimWallCheck = Enabled
         print("Wall Check " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -152,41 +315,45 @@ Checks:CreateToggle("Normal", {
 Checks:CreateToggle("Normal", {
     Name = "Team Check",
     Flag = "TeamCheck",
+    CurrentValue = false,
     Callback = function(Enabled)
-        print("Team Check " .. (Enabled and "ON" or "OFF"))
+        print("Team Check (Combat) " .. (Enabled and "ON" or "OFF"))
     end
 })
-
-local SilentAimFriendCheckEnabled = false
 
 Checks:CreateToggle("Normal", {
     Name = "Friend Check",
     Flag = "SilentAimFriendCheck",
     CurrentValue = false,
     Callback = function(Enabled)
-        SilentAimFriendCheckEnabled = Enabled
+        getgenv().SilentAimFriendCheck = Enabled
         print("Friend Check (Silent Aim) " .. (Enabled and "ON" or "OFF"))
     end
 })
 
+-- FOV Section
 local FOV = CombatTab:CreateSection("FOV", "Normal")
 
 FOV:CreateToggle("Normal", {
-    Name = "Show FOV",
-    Flag = "ShowFOV",
+    Name = "Show FOV Circle",
+    Flag = "FOVCircleEnabled",
+    CurrentValue = false,
     Callback = function(Enabled)
-        print("Show FOV " .. (Enabled and "ON" or "OFF"))
+        getgenv().FOVCircleEnabled = Enabled
+        if not Enabled then FOVCircle.Visible = false end
+        print("Show FOV Circle " .. (Enabled and "ON" or "OFF"))
     end
 })
 
 FOV:CreateSlider({
     Name = "FOV Radius",
-    Value = {1, 360},
-    Increment = 1,
-    Suffix = "°",
-    CurrentValue = 120,
+    Value = {25, 500},
+    Increment = 5,
+    Suffix = "px",
     Flag = "FOVRadius",
+    CurrentValue = 150,
     Callback = function(Value)
+        getgenv().FOVRadius = Value
         print("FOV Radius set to " .. Value)
     end
 })
@@ -194,10 +361,12 @@ FOV:CreateSlider({
 FOV:CreateColorPicker({
     Name = "FOV Color",
     Callback = function(Color)
+        getgenv().FOVColor = Color
         print("FOV color changed to", Color)
     end
 })
 
+-- Automation & Weapons (placeholders)
 local Automation = CombatTab:CreateSection("Automation", "Normal")
 
 Automation:CreateToggle("Normal", {
@@ -231,7 +400,7 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP
+--  VISUALS TAB – Fully functional ESP (unchanged)
 -- ============================================================
 
 local ESPEnabled = false
@@ -770,12 +939,12 @@ EffectsSection:CreateDropdown({
 })
 
 -- ============================================================
---  PLAYER TAB – Walkspeed & JumpPower Spoof (undetectable)
+--  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
--- ===== Spoofing logic (adapted from older Matrice) =====
+-- Spoofing logic (unchanged)
 local SpoofActive = false
 local SpoofedWalk = 16
 local SpoofedJump = 50
@@ -932,20 +1101,6 @@ local function EnableSpoof(walk, jump)
         cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
         SetWalkSpeed(SpoofedWalk)
         SetJumpPower(SpoofedJump)
-    else
-        -- Character not ready, wait a bit and retry
-        task.spawn(function()
-            for i = 1, 5 do
-                task.wait(0.2)
-                local h = GetHumanoid()
-                if h then
-                    cachedHumanoids:cacheHumanoid(h:GetDebugId(), h)
-                    SetWalkSpeed(SpoofedWalk)
-                    SetJumpPower(SpoofedJump)
-                    break
-                end
-            end
-        end)
     end
     if not MovementCharacterConnection then
         MovementCharacterConnection = LocalPlayer.CharacterAdded:Connect(function(char)
@@ -1059,7 +1214,6 @@ end
 local function OnCharacterAdded()
     task.wait(0.1)
     ApplyNoClip()
-    -- Speed/jump spoof will be reapplied by the CharacterAdded connection in EnableSpoof
 end
 
 local function SetupCharacterAddedListener()
@@ -1069,7 +1223,7 @@ local function SetupCharacterAddedListener()
     PlayerModsCharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
 end
 
--- UI elements
+-- UI Elements
 Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "WalkSpeedEnabled",
@@ -1081,13 +1235,10 @@ Character:CreateToggle("Normal", {
                 EnableSpoof(WalkSpeedValue, JumpPowerValue)
             else
                 SpoofedWalk = WalkSpeedValue
-                SpoofedJump = JumpPowerValue
                 SetWalkSpeed(WalkSpeedValue)
-                SetJumpPower(JumpPowerValue)
             end
         else
             if JumpEnabled then
-                -- Keep spoof active, reset speed to original
                 local humanoid = GetHumanoid()
                 if humanoid then
                     local debugId = humanoid:GetDebugId()
@@ -1099,7 +1250,6 @@ Character:CreateToggle("Normal", {
                     end
                 end
             else
-                -- both off, disable spoof entirely
                 DisableSpoof()
             end
         end
@@ -1134,9 +1284,7 @@ Character:CreateToggle("Normal", {
             if not SpoofActive then
                 EnableSpoof(WalkSpeedValue, JumpPowerValue)
             else
-                SpoofedWalk = WalkSpeedValue
                 SpoofedJump = JumpPowerValue
-                SetWalkSpeed(WalkSpeedValue)
                 SetJumpPower(JumpPowerValue)
             end
         else
@@ -1176,7 +1324,6 @@ Character:CreateSlider({
     end
 })
 
--- No Clip master toggle
 Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
@@ -1193,7 +1340,6 @@ Character:CreateToggle("Normal", {
     end
 })
 
--- No Clip keybind
 Character:CreateKeybind({
     Name = "No Clip Keybind",
     Flag = "NoClipKeybind",
@@ -1210,7 +1356,6 @@ Character:CreateKeybind({
     end
 })
 
--- Fly master toggle
 Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "Fly",
@@ -1227,7 +1372,6 @@ Character:CreateToggle("Normal", {
     end
 })
 
--- Fly keybind
 Character:CreateKeybind({
     Name = "Fly Keybind",
     Flag = "FlyKeybind",
