@@ -9,7 +9,7 @@ local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
 
 -- ============================================================
---  FRIEND LIST (shared between Visuals & Silent Aim)
+--  FRIEND LIST
 -- ============================================================
 
 local FriendList = {}
@@ -101,12 +101,6 @@ local HitboxData = {
     }
 }
 
--- ===== Auto Reload State =====
-getgenv().AutoReloadEnabled = false
-local AutoReloadConnection = nil
-local LastReloadTime = 0
-
--- ===== Silent Aim Hook & Variables =====
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Filled = false
@@ -116,6 +110,11 @@ FOVCircle.Visible = false
 local SilentAimRaycastParams = RaycastParams.new()
 SilentAimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
 SilentAimRaycastParams.IgnoreWater = true
+
+-- ===== Auto Reload State =====
+local AutoReloadEnabled = false
+local AutoReloadConnections = {}
+local AutoReloadCooldown = false
 
 -- ===== Team mapping for SCP:RP =====
 local Teams = {
@@ -278,42 +277,6 @@ local function ToggleHitbox(Enabled)
     end
 end
 
--- ===== Auto Reload Functions =====
-local function CheckAutoReload()
-    if not getgenv().AutoReloadEnabled then return end
-    local char = LocalPlayer.Character
-    if not char then return end
-    local tool = char:FindFirstChildOfClass("Tool")
-    if not tool then return end
-    local ammo = tool:FindFirstChild("Ammo")
-    local currentAmmo = tool:FindFirstChild("CurrentAmmo")
-    local mag = tool:FindFirstChild("_Mag")
-    local identifier = tool:FindFirstChild("Identifier")
-    if ammo and currentAmmo and mag and identifier and currentAmmo:IsA("IntValue") then
-        if currentAmmo.Value == 0 then
-            local now = tick()
-            if now - LastReloadTime > 2 then
-                LastReloadTime = now
-                VirtualUser:KeyDown("R")
-                task.wait(0.1)
-                VirtualUser:KeyUp("R")
-            end
-        end
-    end
-end
-
-local function StartAutoReload()
-    if AutoReloadConnection then return end
-    AutoReloadConnection = RunService.Heartbeat:Connect(CheckAutoReload)
-end
-
-local function StopAutoReload()
-    if AutoReloadConnection then
-        AutoReloadConnection:Disconnect()
-        AutoReloadConnection = nil
-    end
-end
-
 -- ===== Silent Aim Functions =====
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
@@ -458,7 +421,119 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===== UI Elements =====
+-- ============================================================
+--  AUTO RELOAD FUNCTIONS
+-- ============================================================
+
+local function PressReloadKey()
+    if AutoReloadCooldown then return end
+    AutoReloadCooldown = true
+    local success = pcall(function()
+        UserInputService:SetKeyDown(Enum.KeyCode.R, true)
+        task.wait(0.05)
+        UserInputService:SetKeyDown(Enum.KeyCode.R, false)
+    end)
+    if not success then
+        warn("Auto reload: failed to press R key")
+    end
+    task.wait(0.5) -- cooldown to avoid spamming
+    AutoReloadCooldown = false
+end
+
+local function GetCurrentWeapon()
+    local char = LocalPlayer.Character
+    if not char then return nil, nil end
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Tool") then
+            local ammo = child:FindFirstChild("Ammo")
+            local currentAmmo = child:FindFirstChild("CurrentAmmo")
+            local mag = child:FindFirstChild("_Mag")
+            local identifier = child:FindFirstChild("Identifier")
+            if ammo and currentAmmo and mag and identifier then
+                return child, currentAmmo
+            end
+        end
+    end
+    return nil, nil
+end
+
+local function AutoReloadCheck()
+    if not AutoReloadEnabled then return end
+    local tool, currentAmmo = GetCurrentWeapon()
+    if tool and currentAmmo and currentAmmo:IsA("IntValue") then
+        if currentAmmo.Value == 0 then
+            PressReloadKey()
+        end
+        -- Bind to CurrentAmmo change
+        if not AutoReloadConnections.AmmoChanged then
+            AutoReloadConnections.AmmoChanged = currentAmmo.Changed:Connect(function()
+                if not AutoReloadEnabled then return end
+                if currentAmmo.Value == 0 then
+                    PressReloadKey()
+                end
+            end)
+        end
+        -- Also check if the tool changes or is removed
+        if not AutoReloadConnections.ToolRemoved then
+            AutoReloadConnections.ToolRemoved = tool.AncestryChanged:Connect(function()
+                if not AutoReloadEnabled then return end
+                if not tool.Parent or tool.Parent ~= LocalPlayer.Character then
+                    -- Weapon removed, clean and re-setup
+                    StopAutoReload()
+                    StartAutoReload()
+                end
+            end)
+        end
+    else
+        -- No valid weapon, clean up and try again later
+        StopAutoReload()
+        -- Start again after a short delay to re-check
+        task.delay(0.5, function()
+            if AutoReloadEnabled then
+                StartAutoReload()
+            end
+        end)
+    end
+end
+
+local function StartAutoReload()
+    if not AutoReloadEnabled then return end
+    -- Clean existing connections
+    StopAutoReload()
+    AutoReloadConnections = {}
+    -- Check weapon immediately
+    AutoReloadCheck()
+    -- Also watch for character changes (respawn)
+    if not AutoReloadConnections.CharacterAdded then
+        AutoReloadConnections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(function()
+            if AutoReloadEnabled then
+                task.wait(0.1)
+                StartAutoReload()
+            end
+        end)
+    end
+    -- Periodic check (in case weapon appears later)
+    if not AutoReloadConnections.Periodic then
+        AutoReloadConnections.Periodic = RunService.Heartbeat:Connect(function()
+            if not AutoReloadEnabled then return end
+            -- If no connections are active, try to find weapon again
+            if not AutoReloadConnections.AmmoChanged then
+                AutoReloadCheck()
+            end
+        end)
+    end
+end
+
+local function StopAutoReload()
+    for _, conn in pairs(AutoReloadConnections) do
+        pcall(conn.Disconnect, conn)
+    end
+    AutoReloadConnections = {}
+end
+
+-- ============================================================
+--  UI ELEMENTS
+-- ============================================================
 
 -- Targeting Section
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
@@ -530,7 +605,6 @@ Targeting:CreateDropdown({
     end
 })
 
--- Hitbox Toggle & Slider
 Targeting:CreateToggle("Normal", {
     Name = "Hitbox",
     Flag = "HitboxEnabled",
@@ -624,7 +698,7 @@ FOV:CreateColorPicker({
     end
 })
 
--- Automation Section
+-- Automation & Weapons (Auto Reload implemented)
 local Automation = CombatTab:CreateSection("Automation", "Normal")
 
 Automation:CreateToggle("Normal", {
@@ -647,15 +721,14 @@ Automation:CreateSlider({
     end
 })
 
--- Weapons Section – Auto Reload implemented
 local Weapons = CombatTab:CreateSection("Weapons", "Normal")
 
 Weapons:CreateToggle("Normal", {
     Name = "Auto Reload",
-    Flag = "AutoReloadEnabled",
+    Flag = "AutoReload",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().AutoReloadEnabled = Enabled
+        AutoReloadEnabled = Enabled
         if Enabled then
             StartAutoReload()
         else
@@ -666,7 +739,7 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP (unchanged)
+--  VISUALS TAB – ESP
 -- ============================================================
 
 local ESPEnabled = false
@@ -1205,7 +1278,7 @@ EffectsSection:CreateDropdown({
 })
 
 -- ============================================================
---  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly
+--  PLAYER TAB – Spoof, NoClip, Fly
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
