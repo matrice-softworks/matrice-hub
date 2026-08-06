@@ -8,10 +8,6 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
 
--- ============================================================
---  FRIEND LIST (shared between Visuals & Silent Aim)
--- ============================================================
-
 local FriendList = {}
 local FriendListUpdateTask = nil
 
@@ -47,10 +43,6 @@ local function StartFriendListUpdates()
     end)
 end
 
--- ============================================================
---  UI LIBRARY
--- ============================================================
-
 local Library = Matrice.UI:CreateLibrary({
     Name = "Matrice Hub - SCP:RP",
     Icon = Matrice.Asset("matrice.png")
@@ -71,11 +63,6 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
 Library:SwitchTab()
 
--- ============================================================
---  COMBAT TAB – Silent Aim, Hitbox & Auto Trigger
--- ============================================================
-
--- ===== Silent Aim State & Config =====
 getgenv().SilentAimEnabled = false
 getgenv().SilentAimWallCheck = true
 getgenv().SilentAimHitPart = "Head"
@@ -87,7 +74,6 @@ getgenv().SilentAimFriendCheck = false
 getgenv().TargetSelection = "Distance Priority"
 getgenv().TargetPriority = "Closest"
 
--- ===== Hitbox State =====
 getgenv().HitboxEnabled = false
 getgenv().HitboxSize = 10
 local HitboxData = {
@@ -101,7 +87,6 @@ local HitboxData = {
     }
 }
 
--- ===== Auto Trigger State =====
 getgenv().AutoTriggerEnabled = false
 getgenv().TriggerDelay = 50
 local AutoTriggerConnection = nil
@@ -117,7 +102,6 @@ local SilentAimRaycastParams = RaycastParams.new()
 SilentAimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
 SilentAimRaycastParams.IgnoreWater = true
 
--- ===== Team mapping for SCP:RP =====
 local Teams = {
     ["Administrative Department"] = 1,
     ["Chaos Insurgency"] = 0,
@@ -142,7 +126,6 @@ local function IsFriend(player)
     return FriendList[player.UserId] or false
 end
 
--- ===== Hitbox Functions =====
 local function ApplyHitboxToPlayer(player)
     if player == LocalPlayer then return end
     local character = player.Character
@@ -278,7 +261,6 @@ local function ToggleHitbox(Enabled)
     end
 end
 
--- ===== Silent Aim Target Detection =====
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
     local cursor = UserInputService:GetMouseLocation()
@@ -356,7 +338,6 @@ local function GetSilentAimTarget()
     return candidates[1].Part
 end
 
--- ===== Silent Aim Hook =====
 local function FindBulletFunction()
     local controller = LocalPlayer.PlayerScripts:FindFirstChild("Controller")
     if not controller then return nil end
@@ -413,7 +394,24 @@ local function InstallSilentAimHook()
     return true
 end
 
--- ===== Auto Trigger Functions =====
+local function SimulateReload()
+    if keypress and keyrelease then
+        keypress(0x52)
+        task.wait(0.05)
+        keyrelease(0x52)
+        return true
+    else
+        local VIM = game:GetService("VirtualInputManager")
+        if VIM then
+            VIM:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+            task.wait(0.05)
+            VIM:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+            return true
+        end
+    end
+    return false
+end
+
 local function SimulateShoot()
     if mouse1click then
         mouse1click()
@@ -457,7 +455,6 @@ local function StopAutoTrigger()
     end
 end
 
--- ===== Render loop for FOV circle =====
 RunService.RenderStepped:Connect(function()
     FOVCircle.Visible = getgenv().FOVCircleEnabled
     if getgenv().FOVCircleEnabled then
@@ -467,11 +464,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ============================================================
---  UI ELEMENTS – COMBAT TAB
--- ============================================================
-
--- Targeting Section
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
 
 Targeting:CreateToggle("Normal", {
@@ -541,7 +533,6 @@ Targeting:CreateDropdown({
     end
 })
 
--- Hitbox
 Targeting:CreateToggle("Normal", {
     Name = "Hitbox",
     Flag = "HitboxEnabled",
@@ -568,7 +559,6 @@ Targeting:CreateSlider({
     end
 })
 
--- Checks Section
 local Checks = CombatTab:CreateSection("Checks", "Normal")
 
 Checks:CreateToggle("Normal", {
@@ -600,7 +590,6 @@ Checks:CreateToggle("Normal", {
     end
 })
 
--- FOV Section
 local FOV = CombatTab:CreateSection("FOV", "Normal")
 
 FOV:CreateToggle("Normal", {
@@ -635,7 +624,6 @@ FOV:CreateColorPicker({
     end
 })
 
--- Automation Section (Auto Trigger)
 local Automation = CombatTab:CreateSection("Automation", "Normal")
 
 Automation:CreateToggle("Normal", {
@@ -667,20 +655,115 @@ Automation:CreateSlider({
     end
 })
 
--- Weapons Section (placeholder)
 local Weapons = CombatTab:CreateSection("Weapons", "Normal")
+
+local AutoReloadEnabled = false
+local CurrentWeapon = nil
+local AmmoConnection = nil
+local ReloadCooldown = 0
+
+local function FindCurrentWeapon()
+    local Character = LocalPlayer.Character
+    if not Character then return nil end
+    for _, Child in ipairs(Character:GetChildren()) do
+        if Child:IsA("Tool") then
+            local Ammo = Child:FindFirstChild("Ammo")
+            local CurrentAmmo = Child:FindFirstChild("CurrentAmmo")
+            local Mag = Child:FindFirstChild("_Mag")
+            local Identifier = Child:FindFirstChild("Identifier")
+            if Ammo and CurrentAmmo and Mag and Identifier then
+                return Child
+            end
+        end
+    end
+    return nil
+end
+
+local function OnAmmoChanged()
+    if not AutoReloadEnabled then return end
+    if tick() - ReloadCooldown < 0.5 then return end
+    local Weapon = CurrentWeapon
+    if not Weapon then return end
+    local CurrentAmmo = Weapon:FindFirstChild("CurrentAmmo")
+    if not CurrentAmmo or not CurrentAmmo:IsA("IntValue") then return end
+    if CurrentAmmo.Value == 0 then
+        ReloadCooldown = tick()
+        SimulateReload()
+    end
+end
+
+local function SetupWeaponMonitoring()
+    if AmmoConnection then
+        AmmoConnection:Disconnect()
+        AmmoConnection = nil
+    end
+    CurrentWeapon = FindCurrentWeapon()
+    if CurrentWeapon then
+        local CurrentAmmo = CurrentWeapon:FindFirstChild("CurrentAmmo")
+        if CurrentAmmo and CurrentAmmo:IsA("IntValue") then
+            AmmoConnection = CurrentAmmo.Changed:Connect(OnAmmoChanged)
+        end
+    end
+end
+
+local function OnCharacterChanged()
+    task.wait(0.1)
+    SetupWeaponMonitoring()
+end
+
+local CharacterAddedConnection = nil
+local CharacterRemovingConnection = nil
+
+local function StartAutoReloadMonitoring()
+    if CharacterAddedConnection then
+        CharacterAddedConnection:Disconnect()
+        CharacterAddedConnection = nil
+    end
+    if CharacterRemovingConnection then
+        CharacterRemovingConnection:Disconnect()
+        CharacterRemovingConnection = nil
+    end
+    CharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterChanged)
+    CharacterRemovingConnection = LocalPlayer.CharacterRemoving:Connect(function()
+        if AmmoConnection then
+            AmmoConnection:Disconnect()
+            AmmoConnection = nil
+        end
+        CurrentWeapon = nil
+    end)
+    SetupWeaponMonitoring()
+end
+
+local function StopAutoReloadMonitoring()
+    if CharacterAddedConnection then
+        CharacterAddedConnection:Disconnect()
+        CharacterAddedConnection = nil
+    end
+    if CharacterRemovingConnection then
+        CharacterRemovingConnection:Disconnect()
+        CharacterRemovingConnection = nil
+    end
+    if AmmoConnection then
+        AmmoConnection:Disconnect()
+        AmmoConnection = nil
+    end
+    CurrentWeapon = nil
+end
 
 Weapons:CreateToggle("Normal", {
     Name = "Auto Reload",
     Flag = "AutoReload",
+    CurrentValue = false,
     Callback = function(Enabled)
+        AutoReloadEnabled = Enabled
+        if Enabled then
+            StartAutoReloadMonitoring()
+        else
+            StopAutoReloadMonitoring()
+        end
         print("Auto Reload " .. (Enabled and "ON" or "OFF"))
     end
 })
-
--- ============================================================
---  VISUALS TAB – Fully functional ESP
--- ============================================================
 
 local ESPEnabled = false
 local ESPData = {}
@@ -1217,13 +1300,8 @@ EffectsSection:CreateDropdown({
     end
 })
 
--- ============================================================
---  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly
--- ============================================================
-
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
--- Spoofing logic
 local SpoofActive = false
 local SpoofedWalk = 16
 local SpoofedJump = 50
@@ -1403,13 +1481,11 @@ local function DisableSpoof()
     end
 end
 
--- State variables for UI
 local SpeedEnabled = false
 local JumpEnabled = false
 local WalkSpeedValue = 24
 local JumpPowerValue = 50
 
--- NoClip & Fly state
 local NoClipMaster = false
 local NoClipActive = false
 local FlyMaster = false
@@ -1679,10 +1755,6 @@ Character:CreateSlider({
 
 SetupCharacterAddedListener()
 
--- ============================================================
---  UTILITIES TAB
--- ============================================================
-
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
 local ModeratorDetectorEnabled = false
@@ -1822,10 +1894,6 @@ AntiAFKSection:CreateToggle("Normal", {
         print("Anti AFK " .. (Enabled and "ON" or "OFF"))
     end
 })
-
--- ============================================================
---  SETTINGS TAB
--- ============================================================
 
 local Interface = SettingsTab:CreateSection("Interface", "Normal")
 
