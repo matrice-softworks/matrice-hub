@@ -7,21 +7,6 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
-local Mouse = LocalPlayer:GetMouse()
-
--- ============================================================
---  MOUSE POSITION HELPER
--- ============================================================
-
-local function GetMousePosition()
-    if UserInputService then
-        return UserInputService:GetMouseLocation()
-    elseif Mouse then
-        return Vector2.new(Mouse.X, Mouse.Y)
-    else
-        return Vector2.new(0, 0)
-    end
-end
 
 -- ============================================================
 --  FRIEND LIST (shared between Visuals & Silent Aim)
@@ -87,7 +72,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB – Silent Aim, Hitbox, Auto Reload
+--  COMBAT TAB – Silent Aim, Hitbox & Auto Trigger
 -- ============================================================
 
 -- ===== Silent Aim State & Config =====
@@ -116,10 +101,11 @@ local HitboxData = {
     }
 }
 
--- ===== Auto Reload State =====
-getgenv().AutoReload = false
-local AutoReloadCooldown = 0
-local AutoReloadConnection = nil
+-- ===== Auto Trigger State =====
+getgenv().AutoTriggerEnabled = false
+getgenv().TriggerDelay = 50
+local AutoTriggerConnection = nil
+local LastTriggerTime = 0
 
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
@@ -292,92 +278,10 @@ local function ToggleHitbox(Enabled)
     end
 end
 
--- ===== Auto Reload Functions =====
-local function SimulateReloadKey()
-    local success, result = pcall(function()
-        if type(keypress) == "function" then
-            keypress("r")
-            keypress("R")
-        elseif game:GetService("VirtualInputManager") then
-            local vim = game:GetService("VirtualInputManager")
-            vim:SendKeyEvent(true, "R", false, game)
-            task.wait(0.05)
-            vim:SendKeyEvent(false, "R", false, game)
-        else
-            local input = {
-                KeyCode = Enum.KeyCode.R,
-                UserInputType = Enum.UserInputType.Keyboard,
-                Position = Vector2.new(0, 0)
-            }
-            UserInputService:InputBegan(input, false)
-            task.wait(0.05)
-            UserInputService:InputEnded(input, false)
-        end
-    end)
-    if not success then
-        warn("Auto Reload: Failed to simulate keypress")
-    end
-end
-
-local function GetPlayerWeapon()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    for _, child in ipairs(char:GetChildren()) do
-        if child:IsA("Tool") then
-            local ammo = child:FindFirstChild("Ammo")
-            local currentAmmo = child:FindFirstChild("CurrentAmmo")
-            local mag = child:FindFirstChild("_Mag")
-            local identifier = child:FindFirstChild("Identifier")
-            if ammo and currentAmmo and mag and identifier then
-                return child
-            end
-        end
-    end
-    return nil
-end
-
-local function StartAutoReloadLoop()
-    if AutoReloadConnection then return end
-    AutoReloadConnection = RunService.Heartbeat:Connect(function()
-        if not getgenv().AutoReload then return end
-        local weapon = GetPlayerWeapon()
-        if not weapon then return end
-        local ammo = weapon:FindFirstChild("Ammo")
-        local currentAmmo = weapon:FindFirstChild("CurrentAmmo")
-        if not ammo or not currentAmmo then return end
-        local reserve = ammo:IsA("IntValue") and ammo.Value or 0
-        local current = currentAmmo:IsA("IntValue") and currentAmmo.Value or 0
-        if current == 0 and reserve > 0 then
-            local now = tick()
-            if now - AutoReloadCooldown > 0.5 then
-                AutoReloadCooldown = now
-                SimulateReloadKey()
-                print("Auto Reload triggered")
-            end
-        end
-    end)
-end
-
-local function StopAutoReload()
-    if AutoReloadConnection then
-        AutoReloadConnection:Disconnect()
-        AutoReloadConnection = nil
-    end
-end
-
-local function ToggleAutoReload(Enabled)
-    getgenv().AutoReload = Enabled
-    if Enabled then
-        StartAutoReloadLoop()
-    else
-        StopAutoReload()
-    end
-end
-
--- ===== Silent Aim Functions =====
+-- ===== Silent Aim Target Detection =====
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
-    local cursor = GetMousePosition()
+    local cursor = UserInputService:GetMouseLocation()
     local fovRadius = getgenv().FOVRadius
     local targetSelection = getgenv().TargetSelection or "Distance Priority"
     local targetPriority = getgenv().TargetPriority or "Closest"
@@ -452,6 +356,7 @@ local function GetSilentAimTarget()
     return candidates[1].Part
 end
 
+-- ===== Silent Aim Hook =====
 local function FindBulletFunction()
     local controller = LocalPlayer.PlayerScripts:FindFirstChild("Controller")
     if not controller then return nil end
@@ -508,17 +413,63 @@ local function InstallSilentAimHook()
     return true
 end
 
+-- ===== Auto Trigger Functions =====
+local function SimulateShoot()
+    if mouse1click then
+        mouse1click()
+        return true
+    elseif keypress and keyrelease then
+        keypress(0x01)
+        task.wait(0.05)
+        keyrelease(0x01)
+        return true
+    else
+        local VIM = game:GetService("VirtualInputManager")
+        if VIM then
+            VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+            task.wait(0.05)
+            VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            return true
+        end
+    end
+    return false
+end
+
+local function StartAutoTrigger()
+    if AutoTriggerConnection then return end
+    AutoTriggerConnection = RunService.RenderStepped:Connect(function()
+        if not getgenv().AutoTriggerEnabled then return end
+        local target = GetSilentAimTarget()
+        if target then
+            local now = tick()
+            if now - LastTriggerTime >= getgenv().TriggerDelay / 1000 then
+                LastTriggerTime = now
+                SimulateShoot()
+            end
+        end
+    end)
+end
+
+local function StopAutoTrigger()
+    if AutoTriggerConnection then
+        AutoTriggerConnection:Disconnect()
+        AutoTriggerConnection = nil
+    end
+end
+
 -- ===== Render loop for FOV circle =====
 RunService.RenderStepped:Connect(function()
     FOVCircle.Visible = getgenv().FOVCircleEnabled
     if getgenv().FOVCircleEnabled then
-        FOVCircle.Position = GetMousePosition()
+        FOVCircle.Position = UserInputService:GetMouseLocation()
         FOVCircle.Radius = getgenv().FOVRadius
         FOVCircle.Color = getgenv().FOVColor
     end
 end)
 
--- ===== UI Elements =====
+-- ============================================================
+--  UI ELEMENTS – COMBAT TAB
+-- ============================================================
 
 -- Targeting Section
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
@@ -590,7 +541,7 @@ Targeting:CreateDropdown({
     end
 })
 
--- Hitbox Toggle & Slider
+-- Hitbox
 Targeting:CreateToggle("Normal", {
     Name = "Hitbox",
     Flag = "HitboxEnabled",
@@ -684,13 +635,21 @@ FOV:CreateColorPicker({
     end
 })
 
--- Automation & Weapons
+-- Automation Section (Auto Trigger)
 local Automation = CombatTab:CreateSection("Automation", "Normal")
 
 Automation:CreateToggle("Normal", {
     Name = "Auto Trigger",
     Flag = "AutoTrigger",
+    CurrentValue = false,
     Callback = function(Enabled)
+        getgenv().AutoTriggerEnabled = Enabled
+        if Enabled then
+            LastTriggerTime = 0
+            StartAutoTrigger()
+        else
+            StopAutoTrigger()
+        end
         print("Auto Trigger " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -700,21 +659,21 @@ Automation:CreateSlider({
     Value = {0, 500},
     Increment = 10,
     Suffix = "ms",
-    CurrentValue = 50,
     Flag = "TriggerDelay",
+    CurrentValue = 50,
     Callback = function(Value)
+        getgenv().TriggerDelay = Value
         print("Trigger Delay set to " .. Value .. "ms")
     end
 })
 
+-- Weapons Section (placeholder)
 local Weapons = CombatTab:CreateSection("Weapons", "Normal")
 
 Weapons:CreateToggle("Normal", {
     Name = "Auto Reload",
     Flag = "AutoReload",
-    CurrentValue = false,
     Callback = function(Enabled)
-        ToggleAutoReload(Enabled)
         print("Auto Reload " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -1459,7 +1418,6 @@ local FlySpeedValue = 50
 
 local PlayerModsCharacterAddedConnection = nil
 
--- NoClip apply
 local function ApplyNoClip()
     local Char = LocalPlayer.Character
     if not Char then return end
@@ -1471,7 +1429,6 @@ local function ApplyNoClip()
     end
 end
 
--- Fly logic
 local FlyConnection = nil
 local FlyCharacterConnection = nil
 
@@ -1543,7 +1500,6 @@ local function SetupCharacterAddedListener()
     PlayerModsCharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
 end
 
--- UI Elements
 Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "WalkSpeedEnabled",
