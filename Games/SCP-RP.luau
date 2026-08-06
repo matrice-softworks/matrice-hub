@@ -72,7 +72,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB – Silent Aim & Hitbox
+--  COMBAT TAB – Silent Aim, Hitbox, Auto Reload
 -- ============================================================
 
 -- ===== Silent Aim State & Config =====
@@ -101,6 +101,12 @@ local HitboxData = {
     }
 }
 
+-- ===== Auto Reload State =====
+getgenv().AutoReloadEnabled = false
+local AutoReloadConnection = nil
+local LastReloadTime = 0
+
+-- ===== Silent Aim Hook & Variables =====
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Filled = false
@@ -269,6 +275,42 @@ local function ToggleHitbox(Enabled)
             conn:Disconnect()
         end
         HitboxData.Connections.SteppedLoops = {}
+    end
+end
+
+-- ===== Auto Reload Functions =====
+local function CheckAutoReload()
+    if not getgenv().AutoReloadEnabled then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local tool = char:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    local ammo = tool:FindFirstChild("Ammo")
+    local currentAmmo = tool:FindFirstChild("CurrentAmmo")
+    local mag = tool:FindFirstChild("_Mag")
+    local identifier = tool:FindFirstChild("Identifier")
+    if ammo and currentAmmo and mag and identifier and currentAmmo:IsA("IntValue") then
+        if currentAmmo.Value == 0 then
+            local now = tick()
+            if now - LastReloadTime > 2 then
+                LastReloadTime = now
+                VirtualUser:KeyDown("R")
+                task.wait(0.1)
+                VirtualUser:KeyUp("R")
+            end
+        end
+    end
+end
+
+local function StartAutoReload()
+    if AutoReloadConnection then return end
+    AutoReloadConnection = RunService.Heartbeat:Connect(CheckAutoReload)
+end
+
+local function StopAutoReload()
+    if AutoReloadConnection then
+        AutoReloadConnection:Disconnect()
+        AutoReloadConnection = nil
     end
 end
 
@@ -488,7 +530,7 @@ Targeting:CreateDropdown({
     end
 })
 
--- ===== Hitbox Toggle & Slider =====
+-- Hitbox Toggle & Slider
 Targeting:CreateToggle("Normal", {
     Name = "Hitbox",
     Flag = "HitboxEnabled",
@@ -582,7 +624,7 @@ FOV:CreateColorPicker({
     end
 })
 
--- Automation & Weapons (placeholders)
+-- Automation Section
 local Automation = CombatTab:CreateSection("Automation", "Normal")
 
 Automation:CreateToggle("Normal", {
@@ -605,18 +647,26 @@ Automation:CreateSlider({
     end
 })
 
+-- Weapons Section – Auto Reload implemented
 local Weapons = CombatTab:CreateSection("Weapons", "Normal")
 
 Weapons:CreateToggle("Normal", {
     Name = "Auto Reload",
-    Flag = "AutoReload",
+    Flag = "AutoReloadEnabled",
+    CurrentValue = false,
     Callback = function(Enabled)
+        getgenv().AutoReloadEnabled = Enabled
+        if Enabled then
+            StartAutoReload()
+        else
+            StopAutoReload()
+        end
         print("Auto Reload " .. (Enabled and "ON" or "OFF"))
     end
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP
+--  VISUALS TAB – Fully functional ESP (unchanged)
 -- ============================================================
 
 local ESPEnabled = false
