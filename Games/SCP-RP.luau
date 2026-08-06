@@ -775,7 +775,6 @@ EffectsSection:CreateDropdown({
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
--- State variables for player mods
 local SpeedEnabled = false
 local JumpEnabled = false
 local NoClipEnabled = false
@@ -784,16 +783,12 @@ local FlySpeed = 50
 local CurrentWalkSpeed = 16
 local CurrentJumpPower = 50
 
--- Connections for respawn handling
 local PlayerModsCharacterAddedConnection = nil
-
--- Toggle references for syncing UI
 local SpeedToggleRef = nil
 local JumpToggleRef = nil
 local NoClipToggleRef = nil
 local FlyToggleRef = nil
 
--- Apply speed/jump to humanoid
 local function ApplySpeedJumpToHumanoid(Humanoid)
     if not Humanoid then return end
     if SpeedEnabled then
@@ -808,7 +803,6 @@ local function ApplySpeedJumpToHumanoid(Humanoid)
     end
 end
 
--- Apply speed/jump to current character
 local function ApplySpeedJumpToCharacter()
     local Char = LocalPlayer.Character
     if not Char then return end
@@ -818,7 +812,6 @@ local function ApplySpeedJumpToCharacter()
     end
 end
 
--- NoClip apply
 local function ApplyNoClip(State)
     local Char = LocalPlayer.Character
     if not Char then return end
@@ -829,7 +822,6 @@ local function ApplyNoClip(State)
     end
 end
 
--- Fly logic
 local FlyConnection = nil
 local FlyCharacterConnection = nil
 
@@ -893,7 +885,6 @@ local function ToggleFly(Enabled)
     end
 end
 
--- Toggle NoClip
 local function ToggleNoClip(Enabled)
     NoClipEnabled = Enabled
     ApplyNoClip(Enabled)
@@ -902,7 +893,6 @@ local function ToggleNoClip(Enabled)
     end
 end
 
--- Character respawn handler
 local function OnCharacterAdded()
     task.wait(0.1)
     ApplySpeedJumpToCharacter()
@@ -916,19 +906,13 @@ local function SetupCharacterAddedListener()
     PlayerModsCharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
 end
 
--- UI Elements
 SpeedToggleRef = Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "WalkSpeedEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        if not Enabled then
-            SpeedEnabled = false
-            ApplySpeedJumpToCharacter()
-        else
-            SpeedEnabled = true
-            ApplySpeedJumpToCharacter()
-        end
+        SpeedEnabled = Enabled
+        ApplySpeedJumpToCharacter()
         print("Enable Walk Speed " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -938,7 +922,7 @@ Character:CreateSlider({
     Value = {0, 100},
     Increment = 1,
     Suffix = "",
-    CurrentValue = 16,
+    CurrentValue = 24,
     Flag = "WalkSpeed",
     Callback = function(Value)
         CurrentWalkSpeed = Value
@@ -954,13 +938,8 @@ JumpToggleRef = Character:CreateToggle("Normal", {
     Flag = "JumpPowerEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        if not Enabled then
-            JumpEnabled = false
-            ApplySpeedJumpToCharacter()
-        else
-            JumpEnabled = true
-            ApplySpeedJumpToCharacter()
-        end
+        JumpEnabled = Enabled
+        ApplySpeedJumpToCharacter()
         print("Enable Jump Power " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -997,7 +976,6 @@ Character:CreateKeybind({
     Keybind = "N",
     Type = "Press",
     Callback = function(State)
-        -- Toggle NoClip regardless of State
         local NewState = not NoClipEnabled
         ToggleNoClip(NewState)
         if NoClipToggleRef then
@@ -1045,7 +1023,6 @@ Character:CreateSlider({
     end
 })
 
--- Setup character respawn listener
 SetupCharacterAddedListener()
 
 -- ============================================================
