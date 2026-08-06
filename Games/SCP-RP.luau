@@ -69,7 +69,7 @@ local PlayerTab = Library:CreateTab("Player", Matrice.Asset("user.png"))
 local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox.png"))
 local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
-Library:SwitchTab("Combat")
+Library:SwitchTab()
 
 -- ============================================================
 --  COMBAT TAB – Silent Aim (fully functional)
@@ -84,6 +84,8 @@ getgenv().FOVCircleEnabled = false
 getgenv().FOVRadius = 150
 getgenv().FOVColor = Color3.fromRGB(255, 255, 255)
 getgenv().SilentAimFriendCheck = false
+getgenv().TargetSelection = "Distance Priority"
+getgenv().TargetPriority = "Closest"
 
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
@@ -123,7 +125,11 @@ end
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
     local cursor = UserInputService:GetMouseLocation()
-    local closestPart, closestDistance = nil, getgenv().FOVRadius
+    local fovRadius = getgenv().FOVRadius
+    local targetSelection = getgenv().TargetSelection or "Distance Priority"
+    local targetPriority = getgenv().TargetPriority or "Closest"
+
+    local candidates = {}
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and IsEnemy(player) then
@@ -150,16 +156,58 @@ local function GetSilentAimTarget()
                     end
                 end
                 if onScreen and visible then
-                    local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - cursor).Magnitude
-                    if distance < closestDistance then
-                        closestPart = targetPart
-                        closestDistance = distance
+                    local distCursor = (Vector2.new(screenPosition.X, screenPosition.Y) - cursor).Magnitude
+                    if distCursor <= fovRadius then
+                        -- Compute additional metrics
+                        local distPlayer = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
+                                            (LocalPlayer.Character.HumanoidRootPart.Position - targetPart.Position).Magnitude) or math.huge
+                        local health = humanoid.Health / math.max(humanoid.MaxHealth, 1)
+                        table.insert(candidates, {
+                            Part = targetPart,
+                            DistCursor = distCursor,
+                            DistPlayer = distPlayer,
+                            Health = health,
+                            Player = player,
+                        })
                     end
                 end
             end
         end
     end
-    return closestPart
+
+    if #candidates == 0 then return nil end
+
+    -- Sort candidates by primary metric (Target Selection)
+    local primaryKey
+    if targetSelection == "Distance Priority" or targetSelection == "Closest" then
+        primaryKey = "DistPlayer"
+    else -- FOV Priority
+        primaryKey = "DistCursor"
+    end
+
+    -- Secondary key (Target Priority)
+    local secondaryKey
+    if targetPriority == "Closest" then
+        secondaryKey = "DistPlayer"
+    elseif targetPriority == "Lowest Health" then
+        secondaryKey = "Health"
+    else -- Crosshair Distance
+        secondaryKey = "DistCursor"
+    end
+
+    -- Sort: ascending for DistPlayer, DistCursor, Health
+    table.sort(candidates, function(a, b)
+        if a[primaryKey] ~= b[primaryKey] then
+            return a[primaryKey] < b[primaryKey]
+        end
+        -- If primary ties, use secondary (if different)
+        if primaryKey ~= secondaryKey then
+            return a[secondaryKey] < b[secondaryKey]
+        end
+        return false
+    end)
+
+    return candidates[1].Part
 end
 
 local function FindBulletFunction()
@@ -278,23 +326,26 @@ Targeting:CreateSlider({
     end
 })
 
--- Placeholders for Target Selection & Priority (no logic yet)
+-- Fully functional Target Selection
 Targeting:CreateDropdown({
     Name = "Target Selection",
     Options = {"Distance Priority", "Closest", "FOV Priority"},
     CurrentOption = "Distance Priority",
     Flag = "TargetSelection",
     Callback = function(Selected)
+        getgenv().TargetSelection = Selected
         print("Target Selection set to " .. Selected)
     end
 })
 
+-- Fully functional Target Priority
 Targeting:CreateDropdown({
     Name = "Target Priority",
     Options = {"Closest", "Lowest Health", "Crosshair Distance"},
     CurrentOption = "Closest",
     Flag = "TargetPriority",
     Callback = function(Selected)
+        getgenv().TargetPriority = Selected
         print("Target Priority set to " .. Selected)
     end
 })
