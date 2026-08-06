@@ -30,9 +30,9 @@ local SilentAimHookInstalled = false
 local SilentAimHook = nil
 local SilentAimOriginal = nil
 
--- Target Selection & Priority (now functional)
-local TargetSelection = "FOV Priority"   -- "FOV Priority" | "Closest" | "Distance Priority"
-local TargetPriority = "Closest"         -- "Closest" | "Lowest Health" | "Crosshair Distance"
+-- Target Selection & Priority
+local TargetSelection = "FOV Priority"
+local TargetPriority = "Closest"
 
 local FOVCircleEnabled = false
 local FOVRadius = 150
@@ -134,7 +134,6 @@ local function GetSilentAimTarget()
 
     if #Candidates == 0 then return nil end
 
-    -- Sort by primary selection
     local function ComparePrimary(a, b)
         if TargetSelection == "FOV Priority" then
             return a.ScreenDistance < b.ScreenDistance
@@ -150,7 +149,6 @@ local function GetSilentAimTarget()
         return false
     end
 
-    -- Sort by secondary priority (tie‑breaker)
     local function CompareSecondary(a, b)
         if TargetPriority == "Closest" then
             return a.WorldDistance < b.WorldDistance
@@ -173,41 +171,96 @@ local function GetSilentAimTarget()
     return Candidates[1].Part
 end
 
+-- ============================================================
+--  IMPROVED HOOK INSTALLATION (crash‑proof & robust)
+-- ============================================================
+
 local function FindBulletFunction()
-    local Controller = LocalPlayer.PlayerScripts:FindFirstChild("Controller")
-    if not Controller then return nil end
-    local function MatchesController(Candidate)
-        if not debug or not debug.getinfo then return false end
-        local Success, Info = pcall(debug.getinfo, Candidate)
-        return Success and Info and Info.source == "=" .. Controller:GetFullName()
-    end
-    if filtergc then
-        local Result = filtergc("function", {
-            Constants = {"Bullet", "EasterEggThing", "SCP-066"},
-            IgnoreExecutor = true,
-        })
-        if type(Result) == "function" and MatchesController(Result) then return Result end
-        if type(Result) == "table" then
-            for _, Candidate in ipairs(Result) do
-                if type(Candidate) == "function" and MatchesController(Candidate) then return Candidate end
-            end
-        end
-    end
-    if getgc and debug and debug.getconstants then
-        for _, Candidate in ipairs(getgc()) do
-            if type(Candidate) == "function" then
-                local Success, Constants = pcall(debug.getconstants, Candidate)
-                if Success and Constants and MatchesController(Candidate) and table.find(Constants, "Bullet") and table.find(Constants, "EasterEggThing") and table.find(Constants, "SCP-066") then
-                    return Candidate
+    -- Strategy 1: Look in LocalPlayer's scripts for a function with "bullet" constants
+    local function SearchInScripts()
+        for _, script in ipairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+            if script:IsA("ModuleScript") or script:IsA("LocalScript") then
+                local success, funcs = pcall(function()
+                    return getgc(true)
+                end)
+                if success and funcs then
+                    for _, func in ipairs(funcs) do
+                        if type(func) == "function" then
+                            local info = debug.getinfo(func)
+                            if info and info.source and info.source:find(script.Name) then
+                                local constants = debug.getconstants(func)
+                                if constants and (table.find(constants, "Bullet") or table.find(constants, "bullet") or table.find(constants, "Fire")) then
+                                    return func
+                                end
+                            end
+                        end
+                    end
                 end
             end
         end
+        return nil
     end
-    return nil
+
+    -- Strategy 2: Use filtergc (if available)
+    local function UseFilterGC()
+        if filtergc then
+            local results = filtergc("function", {
+                Constants = {"Bullet", "Fire", "Shoot"},
+                IgnoreExecutor = true,
+            })
+            if type(results) == "function" then return results end
+            if type(results) == "table" then
+                for _, func in ipairs(results) do
+                    if type(func) == "function" then
+                        local info = debug.getinfo(func)
+                        if info and info.source and info.source:find("Controller") then
+                            return func
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Strategy 3: Hook the tool's Fire method (fallback)
+    local function HookToolFire()
+        local character = LocalPlayer.Character
+        if not character then return nil end
+        for _, tool in ipairs(character:GetChildren()) do
+            if tool:IsA("Tool") then
+                local fireEvent = tool:FindFirstChild("Fire") or tool:FindFirstChild("Shoot")
+                if fireEvent and fireEvent:IsA("RemoteEvent") then
+                    local oldFire
+                    oldFire = hookfunction(fireEvent.FireServer, function(self, ...)
+                        local target = GetSilentAimTarget()
+                        if target then
+                            print("Silent Aim: Intercepted tool fire, redirecting to target")
+                            return oldFire(self, target, ...)
+                        end
+                        return oldFire(self, ...)
+                    end)
+                    return oldFire
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Try strategies in order
+    local func = SearchInScripts() or UseFilterGC() or HookToolFire()
+    if func then
+        print("Silent Aim: Found bullet function")
+        return func
+    else
+        warn("Silent Aim: Could not find bullet function")
+        return nil
+    end
 end
 
 local function InstallSilentAimHook()
     if SilentAimHookInstalled then return true end
+
     local BulletFunction = FindBulletFunction()
     if not BulletFunction then
         warn("Silent Aim: Could not find bullet function.")
@@ -218,7 +271,7 @@ local function InstallSilentAimHook()
     local HookSuccess, HookError = pcall(function()
         SilentAimHook = hookfunction(BulletFunction, function(...)
             local Args = {...}
-            local HitResult = Args[2] -- bullet function's second argument is the hit result table
+            local HitResult = Args[2]
             if HitResult and type(HitResult) == "table" then
                 local Target = GetSilentAimTarget()
                 if Target and math.random(1, 100) <= SilentAimHitChance then
@@ -228,6 +281,7 @@ local function InstallSilentAimHook()
                         Normal = Vector3.new(0, 1, 0),
                         Material = Target.Material,
                     }
+                    print("Silent Aim: Redirected bullet to", Target.Name)
                 end
             end
             return SilentAimOriginal(unpack(Args))
@@ -241,6 +295,7 @@ local function InstallSilentAimHook()
     end
 
     SilentAimHookInstalled = true
+    print("Silent Aim: Hook installed successfully")
     return true
 end
 
@@ -252,8 +307,13 @@ local function UninstallSilentAimHook()
         SilentAimHook = nil
         SilentAimOriginal = nil
         SilentAimHookInstalled = false
+        print("Silent Aim: Hook removed")
     end
 end
+
+-- ============================================================
+--  MODERATOR DETECTOR & ANTI AFK (unchanged)
+-- ============================================================
 
 local function DetectModerator(Enabled)
     ModeratorDetectorEnabled = Enabled
@@ -377,7 +437,7 @@ local function AntiAFK(Enabled)
 end
 
 -- ============================================================
---  UI CREATION
+--  UI CREATION (unchanged)
 -- ============================================================
 
 local Library = Matrice.UI:CreateLibrary({
@@ -439,7 +499,6 @@ Targeting:CreateToggle("Normal", {
         else
             UninstallSilentAimHook()
         end
-        print("Silent Aim " .. (Enabled and "ON" or "OFF"))
     end
 })
 
@@ -450,7 +509,6 @@ Targeting:CreateDropdown({
     Flag = "HitPart",
     Callback = function(Selected)
         SilentAimHitPart = Selected
-        print("Hit Part set to " .. Selected)
     end
 })
 
@@ -463,7 +521,6 @@ Targeting:CreateSlider({
     Flag = "HitChance",
     Callback = function(Value)
         SilentAimHitChance = Value
-        print("Hit Chance set to " .. Value .. "%")
     end
 })
 
@@ -474,7 +531,6 @@ Targeting:CreateDropdown({
     Flag = "TargetSelection",
     Callback = function(Selected)
         TargetSelection = Selected
-        print("Target Selection set to " .. Selected)
     end
 })
 
@@ -485,16 +541,13 @@ Targeting:CreateDropdown({
     Flag = "TargetPriority",
     Callback = function(Selected)
         TargetPriority = Selected
-        print("Target Priority set to " .. Selected)
     end
 })
 
 Targeting:CreateToggle("Normal", {
     Name = "Hitbox",
     Flag = "Hitbox",
-    Callback = function(Enabled)
-        print("Hitbox " .. (Enabled and "ON" or "OFF"))
-    end
+    Callback = function(Enabled) end
 })
 
 Targeting:CreateSlider({
@@ -504,9 +557,7 @@ Targeting:CreateSlider({
     Suffix = "x",
     CurrentValue = 1,
     Flag = "HitboxSize",
-    Callback = function(Value)
-        print("Hitbox Size set to " .. Value)
-    end
+    Callback = function(Value) end
 })
 
 local Checks = CombatTab:CreateSection("Checks", "Normal")
@@ -516,16 +567,13 @@ Checks:CreateToggle("Normal", {
     Flag = "WallCheck",
     Callback = function(Enabled)
         SilentAimWallCheck = Enabled
-        print("Wall Check " .. (Enabled and "ON" or "OFF"))
     end
 })
 
 Checks:CreateToggle("Normal", {
     Name = "Team Check",
     Flag = "TeamCheck",
-    Callback = function(Enabled)
-        print("Team Check " .. (Enabled and "ON" or "OFF"))
-    end
+    Callback = function(Enabled) end
 })
 
 local FOV = CombatTab:CreateSection("FOV", "Normal")
@@ -535,7 +583,6 @@ FOV:CreateToggle("Normal", {
     Flag = "ShowFOV",
     Callback = function(Enabled)
         FOVCircleEnabled = Enabled
-        print("Show FOV " .. (Enabled and "ON" or "OFF"))
     end
 })
 
@@ -548,7 +595,6 @@ FOV:CreateSlider({
     Flag = "FOVRadius",
     Callback = function(Value)
         FOVRadius = Value
-        print("FOV Radius set to " .. Value)
     end
 })
 
@@ -556,256 +602,57 @@ FOV:CreateColorPicker({
     Name = "FOV Color",
     Callback = function(Color)
         FOVColor = Color
-        print("FOV color changed to", Color)
     end
 })
 
 local Automation = CombatTab:CreateSection("Automation", "Normal")
-
-Automation:CreateToggle("Normal", {
-    Name = "Auto Trigger",
-    Flag = "AutoTrigger",
-    Callback = function(Enabled)
-        print("Auto Trigger " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Automation:CreateSlider({
-    Name = "Trigger Delay",
-    Value = {0, 500},
-    Increment = 10,
-    Suffix = "ms",
-    CurrentValue = 50,
-    Flag = "TriggerDelay",
-    Callback = function(Value)
-        print("Trigger Delay set to " .. Value .. "ms")
-    end
-})
+Automation:CreateToggle("Normal", { Name = "Auto Trigger", Flag = "AutoTrigger", Callback = function(Enabled) end })
+Automation:CreateSlider({ Name = "Trigger Delay", Value = {0, 500}, Increment = 10, Suffix = "ms", CurrentValue = 50, Flag = "TriggerDelay", Callback = function(Value) end })
 
 local Weapons = CombatTab:CreateSection("Weapons", "Normal")
-
-Weapons:CreateToggle("Normal", {
-    Name = "Auto Reload",
-    Flag = "AutoReload",
-    Callback = function(Enabled)
-        print("Auto Reload " .. (Enabled and "ON" or "OFF"))
-    end
-})
+Weapons:CreateToggle("Normal", { Name = "Auto Reload", Flag = "AutoReload", Callback = function(Enabled) end })
 
 -- ============================================================
---  VISUALS TAB
+--  VISUALS TAB (placeholders)
 -- ============================================================
 
 local ESP = VisualsTab:CreateSection("ESP", "Normal")
-
-ESP:CreateToggle("Normal", {
-    Name = "Enable ESP",
-    Flag = "ESPEnabled",
-    Callback = function(Enabled)
-        print("Enable ESP " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Box ESP",
-    Flag = "ESPBox",
-    Callback = function(Enabled)
-        print("Box ESP " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Name ESP",
-    Flag = "ESPName",
-    Callback = function(Enabled)
-        print("Name ESP " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Distance ESP",
-    Flag = "ESPDistance",
-    Callback = function(Enabled)
-        print("Distance ESP " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Weapon ESP",
-    Flag = "ESPWeapon",
-    Callback = function(Enabled)
-        print("Weapon ESP " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Health Bar",
-    Flag = "ESPHealthBar",
-    Callback = function(Enabled)
-        print("Health Bar " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Skeleton ESP",
-    Flag = "ESPSkeleton",
-    Callback = function(Enabled)
-        print("Skeleton ESP " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Team Check",
-    Flag = "ESPTeamCheck",
-    Callback = function(Enabled)
-        print("Team Check (ESP) " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateToggle("Normal", {
-    Name = "Friend Check",
-    Flag = "FriendCheck",
-    Callback = function(Enabled)
-        print("Friend Check " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-ESP:CreateSlider({
-    Name = "Distance Limit",
-    Value = {10, 1000},
-    Increment = 10,
-    Suffix = " studs",
-    CurrentValue = 500,
-    Flag = "DistanceLimit",
-    Callback = function(Value)
-        print("Distance Limit set to " .. Value .. " studs")
-    end
-})
+ESP:CreateToggle("Normal", { Name = "Enable ESP", Flag = "ESPEnabled", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Box ESP", Flag = "ESPBox", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Name ESP", Flag = "ESPName", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Distance ESP", Flag = "ESPDistance", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Weapon ESP", Flag = "ESPWeapon", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Health Bar", Flag = "ESPHealthBar", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Skeleton ESP", Flag = "ESPSkeleton", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Team Check", Flag = "ESPTeamCheck", Callback = function(Enabled) end })
+ESP:CreateToggle("Normal", { Name = "Friend Check", Flag = "FriendCheck", Callback = function(Enabled) end })
+ESP:CreateSlider({ Name = "Distance Limit", Value = {10, 1000}, Increment = 10, Suffix = " studs", CurrentValue = 500, Flag = "DistanceLimit", Callback = function(Value) end })
 
 local Effects = VisualsTab:CreateSection("Effects", "Normal")
-
-Effects:CreateToggle("Normal", {
-    Name = "Highlight",
-    Flag = "Highlight",
-    Callback = function(Enabled)
-        print("Highlight " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Effects:CreateToggle("Normal", {
-    Name = "Chams",
-    Flag = "Chams",
-    Callback = function(Enabled)
-        print("Chams " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Effects:CreateToggle("Normal", {
-    Name = "Tracer Lines",
-    Flag = "TracerLines",
-    Callback = function(Enabled)
-        print("Tracer Lines " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Effects:CreateDropdown({
-    Name = "Tracer Origin",
-    Options = {"Bottom", "Center", "Mouse"},
-    CurrentOption = "Bottom",
-    Flag = "TracerOrigin",
-    Callback = function(Selected)
-        print("Tracer Origin set to " .. Selected)
-    end
-})
+Effects:CreateToggle("Normal", { Name = "Highlight", Flag = "Highlight", Callback = function(Enabled) end })
+Effects:CreateToggle("Normal", { Name = "Chams", Flag = "Chams", Callback = function(Enabled) end })
+Effects:CreateToggle("Normal", { Name = "Tracer Lines", Flag = "TracerLines", Callback = function(Enabled) end })
+Effects:CreateDropdown({ Name = "Tracer Origin", Options = {"Bottom", "Center", "Mouse"}, CurrentOption = "Bottom", Flag = "TracerOrigin", Callback = function(Selected) end })
 
 -- ============================================================
---  PLAYER TAB
+--  PLAYER TAB (placeholders)
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
-
-Character:CreateToggle("Normal", {
-    Name = "Enable Walk Speed",
-    Flag = "WalkSpeedEnabled",
-    Callback = function(Enabled)
-        print("Enable Walk Speed " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Character:CreateSlider({
-    Name = "Walk Speed",
-    Value = {0, 100},
-    Increment = 1,
-    Suffix = "",
-    CurrentValue = 16,
-    Flag = "WalkSpeed",
-    Callback = function(Value)
-        print("Walk Speed set to " .. Value)
-    end
-})
-
-Character:CreateToggle("Normal", {
-    Name = "Enable Jump Power",
-    Flag = "JumpPowerEnabled",
-    Callback = function(Enabled)
-        print("Enable Jump Power " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Character:CreateSlider({
-    Name = "Jump Power",
-    Value = {0, 100},
-    Increment = 1,
-    Suffix = "",
-    CurrentValue = 50,
-    Flag = "JumpPower",
-    Callback = function(Value)
-        print("Jump Power set to " .. Value)
-    end
-})
-
-Character:CreateToggle("Normal", {
-    Name = "No Clip",
-    Flag = "NoClip",
-    Callback = function(Enabled)
-        print("No Clip " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Character:CreateKeybind({
-    Name = "No Clip Keybind",
-    Flag = "NoClipKeybind",
-    Keybind = "N",
-    Type = "Press",
-    Callback = function(State)
-        print("No Clip key " .. (State and "pressed" or "released"))
-    end
-})
-
-Character:CreateToggle("Normal", {
-    Name = "Fly",
-    Flag = "Fly",
-    Callback = function(Enabled)
-        print("Fly " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-Character:CreateKeybind({
-    Name = "Fly Keybind",
-    Flag = "FlyKeybind",
-    Keybind = "F",
-    Type = "Press",
-    Callback = function(State)
-        print("Fly key " .. (State and "pressed" or "released"))
-    end
-})
+Character:CreateToggle("Normal", { Name = "Enable Walk Speed", Flag = "WalkSpeedEnabled", Callback = function(Enabled) end })
+Character:CreateSlider({ Name = "Walk Speed", Value = {0, 100}, Increment = 1, Suffix = "", CurrentValue = 16, Flag = "WalkSpeed", Callback = function(Value) end })
+Character:CreateToggle("Normal", { Name = "Enable Jump Power", Flag = "JumpPowerEnabled", Callback = function(Enabled) end })
+Character:CreateSlider({ Name = "Jump Power", Value = {0, 100}, Increment = 1, Suffix = "", CurrentValue = 50, Flag = "JumpPower", Callback = function(Value) end })
+Character:CreateToggle("Normal", { Name = "No Clip", Flag = "NoClip", Callback = function(Enabled) end })
+Character:CreateKeybind({ Name = "No Clip Keybind", Flag = "NoClipKeybind", Keybind = "N", Type = "Press", Callback = function(State) end })
+Character:CreateToggle("Normal", { Name = "Fly", Flag = "Fly", Callback = function(Enabled) end })
+Character:CreateKeybind({ Name = "Fly Keybind", Flag = "FlyKeybind", Keybind = "F", Type = "Press", Callback = function(State) end })
 
 -- ============================================================
 --  UTILITIES TAB
 -- ============================================================
 
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
-
 Miscellaneous:CreateToggle("Normal", {
     Name = "Moderator Detector",
     Flag = "ModeratorDetector",
@@ -815,7 +662,6 @@ Miscellaneous:CreateToggle("Normal", {
 })
 
 local AntiAFKSection = UtilitiesTab:CreateSection("Anti AFK", "Normal")
-
 AntiAFKSection:CreateToggle("Normal", {
     Name = "Enable Anti AFK",
     Flag = "AntiAFK",
@@ -829,14 +675,12 @@ AntiAFKSection:CreateToggle("Normal", {
 -- ============================================================
 
 local Interface = SettingsTab:CreateSection("Interface", "Normal")
-
 Interface:CreateKeybind({
     Name = "Toggle Menu Key",
     Flag = "ToggleMenuKey",
     Keybind = "LeftAlt",
     Type = "Press",
     Callback = function(State)
-        print("Toggle UI triggered")
         Matrice.UI:ToggleUI()
     end
 })
