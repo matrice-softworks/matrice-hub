@@ -770,37 +770,33 @@ EffectsSection:CreateDropdown({
 })
 
 -- ============================================================
---  PLAYER TAB – Fully functional Speed, Jump, NoClip, Fly
+--  PLAYER TAB – Fully functional with keybind toggle (master + active)
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
+-- State variables
 local SpeedEnabled = false
 local JumpEnabled = false
-local NoClipEnabled = false
-local FlyEnabled = false
-local FlySpeed = 50
-local CurrentWalkSpeed = 16
-local CurrentJumpPower = 50
+local WalkSpeedValue = 24
+local JumpPowerValue = 50
+local FlySpeedValue = 50
+
+-- NoClip: master toggle + active state (keybind toggles active)
+local NoClipMaster = false
+local NoClipActive = false
+
+-- Fly: master toggle + active state (keybind toggles active)
+local FlyMaster = false
+local FlyActive = false
 
 local PlayerModsCharacterAddedConnection = nil
-local SpeedToggleRef = nil
-local JumpToggleRef = nil
-local NoClipToggleRef = nil
-local FlyToggleRef = nil
 
+-- Apply speed/jump
 local function ApplySpeedJumpToHumanoid(Humanoid)
     if not Humanoid then return end
-    if SpeedEnabled then
-        Humanoid.WalkSpeed = CurrentWalkSpeed
-    else
-        Humanoid.WalkSpeed = 16
-    end
-    if JumpEnabled then
-        Humanoid.JumpPower = CurrentJumpPower
-    else
-        Humanoid.JumpPower = 50
-    end
+    Humanoid.WalkSpeed = SpeedEnabled and WalkSpeedValue or 16
+    Humanoid.JumpPower = JumpEnabled and JumpPowerValue or 50
 end
 
 local function ApplySpeedJumpToCharacter()
@@ -812,9 +808,11 @@ local function ApplySpeedJumpToCharacter()
     end
 end
 
-local function ApplyNoClip(State)
+-- NoClip apply
+local function ApplyNoClip()
     local Char = LocalPlayer.Character
     if not Char then return end
+    local State = NoClipMaster and NoClipActive
     for _, Part in ipairs(Char:GetDescendants()) do
         if Part:IsA("BasePart") then
             Part.CanCollide = not State
@@ -822,13 +820,14 @@ local function ApplyNoClip(State)
     end
 end
 
+-- Fly logic
 local FlyConnection = nil
 local FlyCharacterConnection = nil
 
 local function StartFly()
     if FlyConnection then return end
     FlyConnection = RunService.Heartbeat:Connect(function()
-        if not FlyEnabled or not LocalPlayer.Character then return end
+        if not (FlyMaster and FlyActive) or not LocalPlayer.Character then return end
         local Root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not Root then return end
         local Forward = Camera.CFrame.LookVector
@@ -842,7 +841,7 @@ local function StartFly()
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then MoveDirection = MoveDirection + Up end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then MoveDirection = MoveDirection - Up end
         if MoveDirection.Magnitude > 0 then
-            MoveDirection = MoveDirection.Unit * FlySpeed
+            MoveDirection = MoveDirection.Unit * FlySpeedValue
         end
         Root.CFrame = Root.CFrame + MoveDirection * RunService.Heartbeat:Wait()
         Root.Velocity = Vector3.new()
@@ -850,7 +849,7 @@ local function StartFly()
     end)
     if not FlyCharacterConnection then
         FlyCharacterConnection = LocalPlayer.CharacterAdded:Connect(function()
-            if FlyEnabled then
+            if FlyMaster and FlyActive then
                 task.wait(0.1)
                 local Root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if Root then
@@ -873,30 +872,20 @@ local function StopFly()
     end
 end
 
-local function ToggleFly(Enabled)
-    FlyEnabled = Enabled
-    if Enabled then
+-- Update fly state based on master + active
+local function UpdateFly()
+    if FlyMaster and FlyActive then
         StartFly()
     else
         StopFly()
     end
-    if FlyToggleRef then
-        FlyToggleRef:SetToggle(Enabled)
-    end
 end
 
-local function ToggleNoClip(Enabled)
-    NoClipEnabled = Enabled
-    ApplyNoClip(Enabled)
-    if NoClipToggleRef then
-        NoClipToggleRef:SetToggle(Enabled)
-    end
-end
-
+-- Character respawn handler
 local function OnCharacterAdded()
     task.wait(0.1)
     ApplySpeedJumpToCharacter()
-    ApplyNoClip(NoClipEnabled)
+    ApplyNoClip()
 end
 
 local function SetupCharacterAddedListener()
@@ -906,7 +895,8 @@ local function SetupCharacterAddedListener()
     PlayerModsCharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
 end
 
-SpeedToggleRef = Character:CreateToggle("Normal", {
+-- Create UI elements
+Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "WalkSpeedEnabled",
     CurrentValue = false,
@@ -925,7 +915,7 @@ Character:CreateSlider({
     CurrentValue = 24,
     Flag = "WalkSpeed",
     Callback = function(Value)
-        CurrentWalkSpeed = Value
+        WalkSpeedValue = Value
         if SpeedEnabled then
             ApplySpeedJumpToCharacter()
         end
@@ -933,7 +923,7 @@ Character:CreateSlider({
     end
 })
 
-JumpToggleRef = Character:CreateToggle("Normal", {
+Character:CreateToggle("Normal", {
     Name = "Enable Jump Power",
     Flag = "JumpPowerEnabled",
     CurrentValue = false,
@@ -952,7 +942,7 @@ Character:CreateSlider({
     CurrentValue = 50,
     Flag = "JumpPower",
     Callback = function(Value)
-        CurrentJumpPower = Value
+        JumpPowerValue = Value
         if JumpEnabled then
             ApplySpeedJumpToCharacter()
         end
@@ -960,53 +950,71 @@ Character:CreateSlider({
     end
 })
 
-NoClipToggleRef = Character:CreateToggle("Normal", {
+-- No Clip master toggle (no SetToggle anywhere)
+Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
     CurrentValue = false,
     Callback = function(Enabled)
-        ToggleNoClip(Enabled)
+        NoClipMaster = Enabled
+        if not Enabled then
+            NoClipActive = false
+        else
+            NoClipActive = true
+        end
+        ApplyNoClip()
         print("No Clip " .. (Enabled and "ON" or "OFF"))
     end
 })
 
+-- No Clip keybind – toggles active state (if master is ON)
 Character:CreateKeybind({
     Name = "No Clip Keybind",
     Flag = "NoClipKeybind",
     Keybind = "N",
     Type = "Press",
     Callback = function(State)
-        local NewState = not NoClipEnabled
-        ToggleNoClip(NewState)
-        if NoClipToggleRef then
-            NoClipToggleRef:SetToggle(NewState)
+        if NoClipMaster then
+            NoClipActive = not NoClipActive
+            ApplyNoClip()
+            print("No Clip active " .. (NoClipActive and "ON" or "OFF"))
+        else
+            print("No Clip master toggle is off, keybind ignored")
         end
-        print("No Clip key toggled")
     end
 })
 
-FlyToggleRef = Character:CreateToggle("Normal", {
+-- Fly master toggle (no SetToggle anywhere)
+Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "Fly",
     CurrentValue = false,
     Callback = function(Enabled)
-        ToggleFly(Enabled)
+        FlyMaster = Enabled
+        if not Enabled then
+            FlyActive = false
+        else
+            FlyActive = true
+        end
+        UpdateFly()
         print("Fly " .. (Enabled and "ON" or "OFF"))
     end
 })
 
+-- Fly keybind – toggles active state (if master is ON)
 Character:CreateKeybind({
     Name = "Fly Keybind",
     Flag = "FlyKeybind",
     Keybind = "F",
     Type = "Press",
     Callback = function(State)
-        local NewState = not FlyEnabled
-        ToggleFly(NewState)
-        if FlyToggleRef then
-            FlyToggleRef:SetToggle(NewState)
+        if FlyMaster then
+            FlyActive = not FlyActive
+            UpdateFly()
+            print("Fly active " .. (FlyActive and "ON" or "OFF"))
+        else
+            print("Fly master toggle is off, keybind ignored")
         end
-        print("Fly key toggled")
     end
 })
 
@@ -1018,7 +1026,7 @@ Character:CreateSlider({
     Flag = "FlySpeed",
     CurrentValue = 50,
     Callback = function(Value)
-        FlySpeed = Value
+        FlySpeedValue = Value
         print("Fly Speed set to " .. Value)
     end
 })
