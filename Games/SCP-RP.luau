@@ -2,14 +2,12 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 local Visuals = Matrice.Visuals
 
 local FriendList = {}
-local FriendListLoaded = false
 local FriendListUpdateTask = nil
 
 local function UpdateFriendList()
@@ -31,7 +29,6 @@ local function UpdateFriendList()
     for Item in IteratePages(Pages) do
         FriendList[Item.Id] = true
     end
-    FriendListLoaded = true
 end
 
 local function StartFriendListUpdates()
@@ -66,7 +63,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB
+--  COMBAT TAB (placeholders)
 -- ============================================================
 
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
@@ -221,13 +218,14 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB
+--  VISUALS TAB – FULL ESP WITH FIXED TRACER ORIGIN
 -- ============================================================
 
 local ESPEnabled = false
 local ESPData = {}
 local ESPConnection = nil
 local RenderConnection = nil
+local CurrentTracerOrigin = "Bottom"  -- local variable that updates immediately
 
 local function ClearESP(player)
     if ESPData[player] then
@@ -520,7 +518,7 @@ local function RenderESP()
                     end
 
                     if getgenv().TracerEnabled and esp[7] then
-                        local origin = getgenv().TracerOrigin
+                        local origin = CurrentTracerOrigin  -- uses the local variable
                         local from
                         if origin == "Bottom" then
                             from = Vector2.new(centerX, centerY)
@@ -732,6 +730,7 @@ EffectsSection:CreateDropdown({
     Flag = "TracerOrigin",
     Callback = function(Selected)
         getgenv().TracerOrigin = Selected
+        CurrentTracerOrigin = Selected  -- update local variable immediately
     end
 })
 
