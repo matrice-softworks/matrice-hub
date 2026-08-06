@@ -30,6 +30,10 @@ local SilentAimHookInstalled = false
 local SilentAimHook = nil
 local SilentAimOriginal = nil
 
+-- Target Selection & Priority (now functional)
+local TargetSelection = "FOV Priority"   -- "FOV Priority" | "Closest" | "Distance Priority"
+local TargetPriority = "Closest"         -- "Closest" | "Lowest Health" | "Crosshair Distance"
+
 local FOVCircleEnabled = false
 local FOVRadius = 150
 local FOVColor = Color3.fromRGB(255, 255, 255)
@@ -80,10 +84,15 @@ end
 
 local function GetSilentAimTarget()
     if not SilentAimEnabled then return nil end
+
     local Camera = workspace.CurrentCamera
     local Cursor = UserInputService:GetMouseLocation()
-    local ClosestPart = nil
-    local ClosestDistance = FOVRadius
+    local LocalChar = LocalPlayer.Character
+    if not LocalChar then return nil end
+    local LocalRoot = LocalChar:FindFirstChild("HumanoidRootPart")
+    if not LocalRoot then return nil end
+
+    local Candidates = {}
 
     for _, Player in ipairs(Players:GetPlayers()) do
         if Player ~= LocalPlayer and IsEnemy(Player) then
@@ -103,24 +112,65 @@ local function GetSilentAimTarget()
             if not OnScreen then continue end
 
             if SilentAimWallCheck then
-                local LocalCharacter = LocalPlayer.Character
-                if LocalCharacter then
-                    SilentAimRaycastParams.FilterDescendantsInstances = {LocalCharacter}
-                    local Result = workspace:Raycast(Camera.CFrame.Position, TargetPart.Position - Camera.CFrame.Position, SilentAimRaycastParams)
-                    if Result and not Result.Instance:IsDescendantOf(Character) then
-                        continue
-                    end
+                SilentAimRaycastParams.FilterDescendantsInstances = {LocalChar}
+                local Result = workspace:Raycast(Camera.CFrame.Position, TargetPart.Position - Camera.CFrame.Position, SilentAimRaycastParams)
+                if Result and not Result.Instance:IsDescendantOf(Character) then
+                    continue
                 end
             end
 
-            local Distance = (Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Cursor).Magnitude
-            if Distance < ClosestDistance then
-                ClosestPart = TargetPart
-                ClosestDistance = Distance
-            end
+            local WorldDist = (LocalRoot.Position - TargetPart.Position).Magnitude
+            local ScreenDist = (Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Cursor).Magnitude
+
+            table.insert(Candidates, {
+                Part = TargetPart,
+                WorldDistance = WorldDist,
+                ScreenDistance = ScreenDist,
+                Health = Humanoid.Health,
+                MaxHealth = Humanoid.MaxHealth,
+            })
         end
     end
-    return ClosestPart
+
+    if #Candidates == 0 then return nil end
+
+    -- Sort by primary selection
+    local function ComparePrimary(a, b)
+        if TargetSelection == "FOV Priority" then
+            return a.ScreenDistance < b.ScreenDistance
+        elseif TargetSelection == "Closest" then
+            return a.WorldDistance < b.WorldDistance
+        elseif TargetSelection == "Distance Priority" then
+            if a.WorldDistance ~= b.WorldDistance then
+                return a.WorldDistance < b.WorldDistance
+            else
+                return a.ScreenDistance < b.ScreenDistance
+            end
+        end
+        return false
+    end
+
+    -- Sort by secondary priority (tie‑breaker)
+    local function CompareSecondary(a, b)
+        if TargetPriority == "Closest" then
+            return a.WorldDistance < b.WorldDistance
+        elseif TargetPriority == "Lowest Health" then
+            local aHealthFrac = a.Health / a.MaxHealth
+            local bHealthFrac = b.Health / b.MaxHealth
+            return aHealthFrac < bHealthFrac
+        elseif TargetPriority == "Crosshair Distance" then
+            return a.ScreenDistance < b.ScreenDistance
+        end
+        return false
+    end
+
+    table.sort(Candidates, function(a, b)
+        local primary = ComparePrimary(a, b)
+        if primary ~= false then return primary end
+        return CompareSecondary(a, b)
+    end)
+
+    return Candidates[1].Part
 end
 
 local function FindBulletFunction()
@@ -163,19 +213,33 @@ local function InstallSilentAimHook()
         warn("Silent Aim: Could not find bullet function.")
         return false
     end
+
     SilentAimOriginal = BulletFunction
-    SilentAimHook = hookfunction(BulletFunction, function(_, HitResult, ...)
-        local Target = GetSilentAimTarget()
-        if Target and math.random(1, 100) <= SilentAimHitChance then
-            return SilentAimOriginal(_, {
-                Instance = Target,
-                Position = Target.Position,
-                Normal = Vector3.new(0, 1, 0),
-                Material = Target.Material,
-            }, ...)
-        end
-        return SilentAimOriginal(_, HitResult, ...)
+    local HookSuccess, HookError = pcall(function()
+        SilentAimHook = hookfunction(BulletFunction, function(...)
+            local Args = {...}
+            local HitResult = Args[2] -- bullet function's second argument is the hit result table
+            if HitResult and type(HitResult) == "table" then
+                local Target = GetSilentAimTarget()
+                if Target and math.random(1, 100) <= SilentAimHitChance then
+                    Args[2] = {
+                        Instance = Target,
+                        Position = Target.Position,
+                        Normal = Vector3.new(0, 1, 0),
+                        Material = Target.Material,
+                    }
+                end
+            end
+            return SilentAimOriginal(unpack(Args))
+        end)
     end)
+
+    if not HookSuccess then
+        warn("Silent Aim: Hook failed:", HookError)
+        SilentAimOriginal = nil
+        return false
+    end
+
     SilentAimHookInstalled = true
     return true
 end
@@ -405,10 +469,11 @@ Targeting:CreateSlider({
 
 Targeting:CreateDropdown({
     Name = "Target Selection",
-    Options = {"Distance Priority", "Closest", "FOV Priority"},
-    CurrentOption = "Distance Priority",
+    Options = {"FOV Priority", "Closest", "Distance Priority"},
+    CurrentOption = TargetSelection,
     Flag = "TargetSelection",
     Callback = function(Selected)
+        TargetSelection = Selected
         print("Target Selection set to " .. Selected)
     end
 })
@@ -416,9 +481,10 @@ Targeting:CreateDropdown({
 Targeting:CreateDropdown({
     Name = "Target Priority",
     Options = {"Closest", "Lowest Health", "Crosshair Distance"},
-    CurrentOption = "Closest",
+    CurrentOption = TargetPriority,
     Flag = "TargetPriority",
     Callback = function(Selected)
+        TargetPriority = Selected
         print("Target Priority set to " .. Selected)
     end
 })
