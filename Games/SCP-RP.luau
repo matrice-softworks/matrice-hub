@@ -7,10 +7,10 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
-local Mouse = LocalPlayer:GetMouse()  -- fallback for mouse position
+local Mouse = LocalPlayer:GetMouse()
 
 -- ============================================================
---  MOUSE POSITION HELPER (handles UserInputService or Mouse)
+--  MOUSE POSITION HELPER
 -- ============================================================
 
 local function GetMousePosition()
@@ -87,7 +87,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB – Silent Aim & Hitbox
+--  COMBAT TAB – Silent Aim, Hitbox, Auto Reload
 -- ============================================================
 
 -- ===== Silent Aim State & Config =====
@@ -119,7 +119,7 @@ local HitboxData = {
 -- ===== Auto Reload State =====
 getgenv().AutoReload = false
 local AutoReloadCooldown = 0
-local AutoReloadLoop = nil
+local AutoReloadConnection = nil
 
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
@@ -336,9 +336,9 @@ local function GetPlayerWeapon()
     return nil
 end
 
-local function AutoReloadLoop()
-    if AutoReloadLoop then return end
-    AutoReloadLoop = RunService.Heartbeat:Connect(function()
+local function StartAutoReloadLoop()
+    if AutoReloadConnection then return end
+    AutoReloadConnection = RunService.Heartbeat:Connect(function()
         if not getgenv().AutoReload then return end
         local weapon = GetPlayerWeapon()
         if not weapon then return end
@@ -359,16 +359,16 @@ local function AutoReloadLoop()
 end
 
 local function StopAutoReload()
-    if AutoReloadLoop then
-        AutoReloadLoop:Disconnect()
-        AutoReloadLoop = nil
+    if AutoReloadConnection then
+        AutoReloadConnection:Disconnect()
+        AutoReloadConnection = nil
     end
 end
 
 local function ToggleAutoReload(Enabled)
     getgenv().AutoReload = Enabled
     if Enabled then
-        AutoReloadLoop()
+        StartAutoReloadLoop()
     else
         StopAutoReload()
     end
