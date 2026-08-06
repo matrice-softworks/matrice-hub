@@ -2,10 +2,8 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
 local Visuals = Matrice.Visuals
 
 local FriendList = {}
@@ -64,7 +62,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB
+--  COMBAT TAB (placeholders)
 -- ============================================================
 
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
@@ -208,169 +206,18 @@ Automation:CreateSlider({
     end
 })
 
--- ============================================================
---  WEAPONS SECTION (with Auto Reload and weapon info)
--- ============================================================
+local Weapons = CombatTab:CreateSection("Weapons", "Normal")
 
-local WeaponsSection = CombatTab:CreateSection("Weapons", "Normal")
-
-local AutoReloadEnabled = false
-local AutoReloadLoop = nil
-local CurrentWeapon = nil
-
-local function GetPlayerWeapon()
-    local Character = LocalPlayer.Character
-    if not Character then return nil end
-
-    -- Check for tool in character (equipped)
-    for _, Tool in ipairs(Character:GetChildren()) do
-        if Tool:IsA("Tool") then
-            return Tool
-        end
-    end
-
-    -- Check backpack
-    local Backpack = LocalPlayer:FindFirstChild("Backpack")
-    if Backpack then
-        for _, Tool in ipairs(Backpack:GetChildren()) do
-            if Tool:IsA("Tool") then
-                return Tool
-            end
-        end
-    end
-
-    -- Check for weapons with attributes (parts inside character)
-    for _, Part in ipairs(Character:GetDescendants()) do
-        if Part:IsA("BasePart") and Part:FindFirstChild("Ammo") and Part:FindFirstChild("CurrentAmmo") then
-            return Part
-        end
-    end
-
-    return nil
-end
-
-local function GetWeaponInfo(Weapon)
-    if not Weapon then return nil end
-    local WeaponName = Weapon.Name
-
-    local Ammo = Weapon:FindFirstChild("Ammo")
-    local CurrentAmmo = Weapon:FindFirstChild("CurrentAmmo")
-    local Mag = Weapon:FindFirstChild("_Mag")
-    local Identifier = Weapon:FindFirstChild("Identifier")
-
-    if not Ammo or not CurrentAmmo then
-        return nil
-    end
-
-    local AmmoValue = Ammo:IsA("NumberValue") and Ammo.Value or Ammo:IsA("IntValue") and Ammo.Value or nil
-    local CurrentAmmoValue = CurrentAmmo:IsA("NumberValue") and CurrentAmmo.Value or CurrentAmmo:IsA("IntValue") and CurrentAmmo.Value or nil
-    local MagValue = Mag and (Mag:IsA("ObjectValue") and Mag.Value or nil) or nil
-    local IdentifierValue = Identifier and (Identifier:IsA("StringValue") and Identifier.Value or nil) or nil
-
-    return {
-        Name = WeaponName,
-        Ammo = AmmoValue,
-        CurrentAmmo = CurrentAmmoValue,
-        Mag = MagValue,
-        Identifier = IdentifierValue
-    }
-end
-
-local WeaponInfoLabel = nil
-
-local function UpdateWeaponInfo()
-    local Weapon = GetPlayerWeapon()
-    if Weapon then
-        local Info = GetWeaponInfo(Weapon)
-        if Info then
-            local DisplayText = string.format(
-                "Weapon: %s\nAmmo: %d / %d",
-                Info.Name or "Unknown",
-                Info.CurrentAmmo or 0,
-                Info.Ammo or 0
-            )
-            if WeaponInfoLabel then
-                WeaponInfoLabel:ChangeText(DisplayText)
-            end
-            CurrentWeapon = Info
-        else
-            if WeaponInfoLabel then
-                WeaponInfoLabel:ChangeText("Weapon: Unknown\nAmmo: ? / ?")
-            end
-            CurrentWeapon = nil
-        end
-    else
-        if WeaponInfoLabel then
-            WeaponInfoLabel:ChangeText("No weapon equipped")
-        end
-        CurrentWeapon = nil
-    end
-end
-
-local function AutoReloadLoop()
-    while AutoReloadEnabled do
-        if CurrentWeapon and CurrentWeapon.CurrentAmmo ~= nil and CurrentWeapon.Ammo ~= nil then
-            if CurrentWeapon.CurrentAmmo == 0 and CurrentWeapon.Ammo > 0 then
-                -- Trigger reload (simulate R key or call reload function)
-                -- Here we can simulate pressing R key (if keypress function available)
-                -- For now, we'll print and use a placeholder
-                print("Auto Reload triggered for " .. CurrentWeapon.Name)
-                -- Attempt to press R key if possible
-                if keypress then
-                    keypress(Enum.KeyCode.R)
-                else
-                    -- Placeholder: notify user to press R manually
-                    Matrice.UI:Notify("Normal", {
-                        Title = "Auto Reload",
-                        Content = "Press R to reload " .. CurrentWeapon.Name,
-                        Duration = 3,
-                        Image = Matrice.Asset("info.png")
-                    })
-                end
-                -- Wait for reload to complete (maybe check CurrentAmmo changes)
-                task.wait(1) -- avoid spamming
-            end
-        end
-        task.wait(0.2)
-    end
-end
-
-local AutoReloadToggle = WeaponsSection:CreateToggle("Normal", {
+Weapons:CreateToggle("Normal", {
     Name = "Auto Reload",
     Flag = "AutoReload",
-    CurrentValue = false,
     Callback = function(Enabled)
-        AutoReloadEnabled = Enabled
-        if Enabled then
-            if not AutoReloadLoop then
-                AutoReloadLoop = task.spawn(AutoReloadLoop)
-            end
-        else
-            if AutoReloadLoop then
-                task.cancel(AutoReloadLoop)
-                AutoReloadLoop = nil
-            end
-        end
         print("Auto Reload " .. (Enabled and "ON" or "OFF"))
     end
 })
 
--- Weapon Info Label
-WeaponsSection:CreateDivider()
-WeaponInfoLabel = WeaponsSection:CreateLabel({
-    Description = "Weapon: None\nAmmo: N/A"
-})
-
--- Update weapon info periodically
-task.spawn(function()
-    while true do
-        UpdateWeaponInfo()
-        task.wait(0.5)
-    end
-end)
-
 -- ============================================================
---  VISUALS TAB – ESP
+--  VISUALS TAB – ESP with Weapon Detection & Ammo
 -- ============================================================
 
 local ESPEnabled = false
@@ -440,7 +287,7 @@ local function BuildESP(player)
     weaponText.Outline = true
     weaponText.OutlineColor = Color3.new(0, 0, 0)
     weaponText.Color = Color3.new(1, 1, 1)
-    weaponText.Size = 12
+    weaponText.Size = 11   -- small text
     weaponText.Visible = false
     table.insert(esp, weaponText)
 
@@ -616,6 +463,7 @@ local function RenderESP()
                     local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                       (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude) or 0
 
+                    -- Box
                     if getgenv().BoxEnabled and esp[1] then
                         esp[1].Size = size
                         esp[1].Position = pos
@@ -625,6 +473,7 @@ local function RenderESP()
                         if esp[1] then esp[1].Visible = false end
                     end
 
+                    -- Name
                     if getgenv().NameEnabled and esp[2] then
                         esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 16)
                         esp[2].Text = player.Name
@@ -634,6 +483,7 @@ local function RenderESP()
                         if esp[2] then esp[2].Visible = false end
                     end
 
+                    -- Distance
                     if getgenv().DistanceEnabled and esp[3] then
                         esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 14)
                         esp[3].Text = math.floor(distance) .. " studs"
@@ -642,16 +492,44 @@ local function RenderESP()
                         if esp[3] then esp[3].Visible = false end
                     end
 
+                    -- Weapon with auto‑detection & ammo
                     if getgenv().WeaponEnabled and esp[4] then
-                        local weapon = player.Character:FindFirstChild("Tool")
-                        local weaponName = weapon and weapon.Name or "None"
+                        local weaponName = "None"
+                        local ammoText = ""
+                        local character = player.Character
+                        if character then
+                            -- Find tool that has Ammo, CurrentAmmo, _Mag, Identifier
+                            for _, child in ipairs(character:GetChildren()) do
+                                if child:IsA("Tool") then
+                                    local ammo = child:FindFirstChild("Ammo")
+                                    local currentAmmo = child:FindFirstChild("CurrentAmmo")
+                                    local mag = child:FindFirstChild("_Mag")
+                                    local identifier = child:FindFirstChild("Identifier")
+                                    if ammo and currentAmmo and mag and identifier then
+                                        weaponName = child.Name
+                                        if ammo:IsA("IntValue") and currentAmmo:IsA("IntValue") then
+                                            ammoText = " [" .. currentAmmo.Value .. "/" .. ammo.Value .. "]"
+                                        end
+                                        break
+                                    end
+                                end
+                            end
+                            -- fallback to any tool
+                            if weaponName == "None" then
+                                local tool = character:FindFirstChildOfClass("Tool")
+                                if tool then
+                                    weaponName = tool.Name
+                                end
+                            end
+                        end
+                        esp[4].Text = weaponName .. ammoText
                         esp[4].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 28)
-                        esp[4].Text = weaponName
                         esp[4].Visible = true
                     else
                         if esp[4] then esp[4].Visible = false end
                     end
 
+                    -- Health Bar
                     if getgenv().HealthBarEnabled and esp[5] and esp[6] then
                         local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
                         local barX = pos.X - 8
@@ -669,12 +547,13 @@ local function RenderESP()
                         if esp[6] then esp[6].Visible = false end
                     end
 
+                    -- Tracer
                     if getgenv().TracerEnabled and esp[7] then
                         local origin = CurrentTracerOrigin
                         local from
                         if origin == "Bottom" then
                             from = Vector2.new(centerX, centerY)
-                        else
+                        else -- Center
                             from = Vector2.new(centerX, centerY/2)
                         end
                         esp[7].From = from
