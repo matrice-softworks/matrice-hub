@@ -1,22 +1,26 @@
 -- Matrice Softworks
 
-local UI = Matrice.UI
-local Visuals = Matrice.Visuals
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
--- ===== Configuration =====
+local UI = Matrice.UI
+local Visuals = Matrice.Visuals
+
+-- ============================================================
+--  CONFIGURATION
+-- ============================================================
 local Config = {
     ESPEnabled = false,
-    HighlightEnabled = false,
     BoxEnabled = false,
+    HighlightEnabled = false,
     SkeletonEnabled = false,
-    ChamsEnabled = false,
     TracerEnabled = false,
     HealthBarEnabled = false,
+    ChamsEnabled = false,
     ESPRange = 600,
     SilentAimEnabled = false,
     SilentAimWallCheck = true,
@@ -33,57 +37,28 @@ local Config = {
     FlyEnabled = false,
     FlySpeed = 50,
     FlyKeybind = "F",
-    UIToggleKey = "RightControl",
+    UIToggleKey = "LeftAlt",
+    GreyscaleEnabled = false,
 }
 
--- Apply config to globals
-getgenv().ESPEnabled = Config.ESPEnabled
-getgenv().HighlightEnabled = Config.HighlightEnabled
-getgenv().BoxEnabled = Config.BoxEnabled
-getgenv().SkeletonEnabled = Config.SkeletonEnabled
-getgenv().ChamsEnabled = Config.ChamsEnabled
-getgenv().TracerEnabled = Config.TracerEnabled
-getgenv().HealthBarEnabled = Config.HealthBarEnabled
-getgenv().ESPRange = Config.ESPRange
-getgenv().SilentAimEnabled = Config.SilentAimEnabled
-getgenv().SilentAimWallCheck = Config.SilentAimWallCheck
-getgenv().SilentAimHitPart = Config.SilentAimHitPart
-getgenv().SilentAimHitChance = Config.SilentAimHitChance
-getgenv().FOVCircleEnabled = Config.FOVCircleEnabled
-getgenv().FOVRadius = Config.FOVRadius
-getgenv().FOVColor = Config.FOVColor
-getgenv().ModeratorDetector = Config.ModeratorDetector
-getgenv().MovementEnabled = Config.MovementEnabled
-getgenv().Walkspeed = Config.Walkspeed
-getgenv().Jumppower = Config.Jumppower
-getgenv().NoClipEnabled = Config.NoClipEnabled
-getgenv().FlyEnabled = Config.FlyEnabled
-getgenv().FlySpeed = Config.FlySpeed
-getgenv().FlyKeybind = Config.FlyKeybind
+local function SaveConfig()
+    local ok, err = Matrice.SaveConfiguration(Config, "SCP-RP-Config.json")
+    if not ok then warn("Failed to save config:", err) end
+end
 
--- ===== UI Library =====
-local Library = UI:CreateLibrary({
-    Name = "Matrice Hub - SCP:RP",
-    Icon = Matrice.Asset("matrice.png")
-})
+local function LoadConfig()
+    local data, err = Matrice.LoadConfiguration("SCP-RP-Config.json")
+    if data then
+        for k, v in pairs(data) do Config[k] = v end
+        return true
+    end
+    return false
+end
 
-Library:CreateAdvertisement(
-    "Rocheats",
-    Matrice.Asset("rocheats_banner.png"),
-    "https://rocheats.com/?ref=matrice",
-    "Link copied to your clipboard. Thanks for supporting Matrice <3"
-)
-
-local CombatTab = Library:CreateTab("Combat", Matrice.Asset("crosshair.png"))
-local VisualsTab = Library:CreateTab("Visuals", Matrice.Asset("palette.png"))
-local PlayerTab = Library:CreateTab("Player", Matrice.Asset("user.png"))
-local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox.png"))
-local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
-
-Library:SwitchTab()
+LoadConfig()
 
 -- ============================================================
---  SILENT AIM (from old script)
+--  SILENT AIM
 -- ============================================================
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
@@ -91,6 +66,7 @@ FOVCircle.Filled = false
 FOVCircle.Thickness = 1
 FOVCircle.NumSides = 64
 FOVCircle.Visible = false
+
 local SilentAimRaycastParams = RaycastParams.new()
 SilentAimRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
 SilentAimRaycastParams.IgnoreWater = true
@@ -115,16 +91,16 @@ local function IsEnemy(player)
 end
 
 local function GetSilentAimTarget()
-    if not getgenv().SilentAimEnabled then return nil end
+    if not Config.SilentAimEnabled then return nil end
     local camera = workspace.CurrentCamera
     local cursor = UserInputService:GetMouseLocation()
-    local closestPart, closestDistance = nil, getgenv().FOVRadius
+    local closestPart, closestDistance = nil, Config.FOVRadius
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and IsEnemy(player) then
             local character = player.Character
             local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-            local hitPartName = getgenv().SilentAimHitPart
+            local hitPartName = Config.SilentAimHitPart
             if hitPartName == "Randomized" then
                 local hitParts = {"Head", "UpperTorso", "HumanoidRootPart"}
                 hitPartName = hitParts[math.random(1, #hitParts)]
@@ -134,7 +110,7 @@ local function GetSilentAimTarget()
             if humanoid and humanoid.Health > 0 and targetPart then
                 local screenPosition, onScreen = camera:WorldToViewportPoint(targetPart.Position)
                 local visible = true
-                if getgenv().SilentAimWallCheck then
+                if Config.SilentAimWallCheck then
                     local localCharacter = LocalPlayer.Character
                     if localCharacter then
                         SilentAimRaycastParams.FilterDescendantsInstances = {localCharacter}
@@ -197,7 +173,7 @@ local function InstallSilentAimHook()
     local original
     original = hookfunction(bulletFunction, function(_, hitResult, ...)
         local target = GetSilentAimTarget()
-        if target and math.random(1, 100) <= getgenv().SilentAimHitChance then
+        if target and math.random(1, 100) <= Config.SilentAimHitChance then
             return original(_, {
                 Instance = target,
                 Position = target.Position,
@@ -212,7 +188,7 @@ local function InstallSilentAimHook()
 end
 
 -- ============================================================
---  VISUAL SYSTEM (ESP, Highlight, etc.) from old script
+--  ESP / VISUALS
 -- ============================================================
 local PlayerESPs = {}
 local Connections = {}
@@ -230,9 +206,7 @@ local function ClearPlayerESP(player)
         if PlayerESPs[player].Highlight then PlayerESPs[player].Highlight:Remove() end
         if PlayerESPs[player].Chams then
             for part, originalMaterial in pairs(PlayerESPs[player].Chams) do
-                if part and part.Parent then
-                    part.Material = originalMaterial
-                end
+                if part and part.Parent then part.Material = originalMaterial end
             end
         end
         PlayerESPs[player] = nil
@@ -244,9 +218,7 @@ local function ClearPlayerESP(player)
 end
 
 local function ClearESPs()
-    for player, _ in pairs(PlayerESPs) do
-        ClearPlayerESP(player)
-    end
+    for player, _ in pairs(PlayerESPs) do ClearPlayerESP(player) end
 end
 
 local function CreatePlayerESP(player)
@@ -254,7 +226,7 @@ local function CreatePlayerESP(player)
     local teamColor = player.TeamColor and player.TeamColor.Color or Color3.new(1, 1, 1)
 
     local box = nil
-    if getgenv().BoxEnabled then
+    if Config.BoxEnabled then
         box = Drawing.new("Square")
         box.Thickness = 1
         box.Color = teamColor
@@ -264,7 +236,7 @@ local function CreatePlayerESP(player)
     end
 
     local highlight = nil
-    if getgenv().HighlightEnabled then
+    if Config.HighlightEnabled then
         highlight = Visuals:CreateVisual("Highlight", {
             Target = player.Character,
             Color = teamColor,
@@ -275,7 +247,7 @@ local function CreatePlayerESP(player)
     end
 
     local skeleton = nil
-    if getgenv().SkeletonEnabled then
+    if Config.SkeletonEnabled then
         skeleton = Visuals:CreateVisual("Drawing", {
             Type = "Skeleton",
             Player = player,
@@ -285,7 +257,7 @@ local function CreatePlayerESP(player)
     end
 
     local tracer = nil
-    if getgenv().TracerEnabled then
+    if Config.TracerEnabled then
         tracer = Drawing.new("Line")
         tracer.Thickness = 1
         tracer.Color = teamColor
@@ -294,7 +266,7 @@ local function CreatePlayerESP(player)
     end
 
     local healthBarOutline, healthBarFill, healthBarTicks = nil, nil, nil
-    if getgenv().HealthBarEnabled then
+    if Config.HealthBarEnabled then
         healthBarOutline = Drawing.new("Square")
         healthBarOutline.Color = Color3.fromRGB(18, 20, 28)
         healthBarOutline.Filled = true
@@ -318,7 +290,7 @@ local function CreatePlayerESP(player)
     end
 
     local chams = nil
-    if getgenv().ChamsEnabled and player.Character then
+    if Config.ChamsEnabled and player.Character then
         chams = {}
         for _, v in pairs(player.Character:GetDescendants()) do
             if v:IsA("BasePart") then
@@ -356,7 +328,7 @@ local function CreatePlayerESP(player)
 end
 
 local function RebuildAllESPs()
-    if not getgenv().ESPEnabled then return end
+    if not Config.ESPEnabled then return end
     local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then return end
 
@@ -367,7 +339,7 @@ local function RebuildAllESPs()
             local targetHumanoid = player.Character and player.Character:FindFirstChild("Humanoid")
             if targetRoot and targetHumanoid and targetHumanoid.Health > 0 and player.Parent == Players then
                 local distance = (localRoot.Position - targetRoot.Position).Magnitude
-                if distance <= getgenv().ESPRange then
+                if distance <= Config.ESPRange then
                     CreatePlayerESP(player)
                 end
             end
@@ -375,10 +347,9 @@ local function RebuildAllESPs()
     end
 end
 
--- Background ESP loop
 task.spawn(function()
     while task.wait(0.5) do
-        if not getgenv().ESPEnabled then
+        if not Config.ESPEnabled then
             ClearESPs()
             continue
         end
@@ -387,9 +358,7 @@ task.spawn(function()
         if not localRoot then continue end
 
         for p, _ in pairs(PlayerESPs) do
-            if not p or p.Parent ~= Players then
-                ClearPlayerESP(p)
-            end
+            if not p or p.Parent ~= Players then ClearPlayerESP(p) end
         end
 
         for _, player in ipairs(Players:GetPlayers()) do
@@ -398,7 +367,7 @@ task.spawn(function()
                 local targetHumanoid = player.Character and player.Character:FindFirstChild("Humanoid")
                 if targetRoot and targetHumanoid and targetHumanoid.Health > 0 and player.Parent == Players then
                     local distance = (localRoot.Position - targetRoot.Position).Magnitude
-                    if distance <= getgenv().ESPRange then
+                    if distance <= Config.ESPRange then
                         if not PlayerESPs[player] or PlayerESPs[player].Character ~= player.Character then
                             if PlayerESPs[player] then ClearPlayerESP(player) end
                             CreatePlayerESP(player)
@@ -414,17 +383,15 @@ task.spawn(function()
     end
 end)
 
--- Render loop for drawing positions
 RunService.RenderStepped:Connect(function()
-    -- FOV circle
-    FOVCircle.Visible = getgenv().FOVCircleEnabled
-    if getgenv().FOVCircleEnabled then
+    FOVCircle.Visible = Config.FOVCircleEnabled
+    if Config.FOVCircleEnabled then
         FOVCircle.Position = UserInputService:GetMouseLocation()
-        FOVCircle.Radius = getgenv().FOVRadius
-        FOVCircle.Color = getgenv().FOVColor
+        FOVCircle.Radius = Config.FOVRadius
+        FOVCircle.Color = Config.FOVColor
     end
 
-    if not getgenv().ESPEnabled then return end
+    if not Config.ESPEnabled then return end
     for player, esp in pairs(PlayerESPs) do
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
             local onScreen, size, pos = Visuals:GetBoundingBox(player)
@@ -441,14 +408,14 @@ RunService.RenderStepped:Connect(function()
                     box.Size = size
                     box.Position = pos
                     box.Color = teamColor
-                    box.Visible = getgenv().BoxEnabled
+                    box.Visible = Config.BoxEnabled
                 end
                 if tracer then
                     local viewport = workspace.CurrentCamera.ViewportSize
                     tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
                     tracer.To = Vector2.new(pos.X + (size.X / 2), pos.Y + size.Y)
                     tracer.Color = teamColor
-                    tracer.Visible = getgenv().TracerEnabled
+                    tracer.Visible = Config.TracerEnabled
                 end
                 if healthBarOutline and healthBarFill then
                     local humanoid = player.Character.Humanoid
@@ -459,19 +426,19 @@ RunService.RenderStepped:Connect(function()
 
                     healthBarOutline.Position = Vector2.new(barX - 1, barY - 2)
                     healthBarOutline.Size = Vector2.new(5, barHeight + 4)
-                    healthBarOutline.Visible = getgenv().HealthBarEnabled
+                    healthBarOutline.Visible = Config.HealthBarEnabled
 
                     healthBarFill.Position = Vector2.new(barX, barY + barHeight * (1 - healthPercent))
                     healthBarFill.Size = Vector2.new(3, math.max(barHeight * healthPercent, 1))
                     healthBarFill.Color = Color3.fromHSV(healthPercent * 0.33, 0.9, 1)
-                    healthBarFill.Visible = getgenv().HealthBarEnabled
+                    healthBarFill.Visible = Config.HealthBarEnabled
 
                     if healthBarTicks then
                         for index, tick in ipairs(healthBarTicks) do
                             local y = barY + (barHeight * index / 5)
                             tick.From = Vector2.new(barX - 1, y)
                             tick.To = Vector2.new(barX + 4, y)
-                            tick.Visible = getgenv().HealthBarEnabled
+                            tick.Visible = Config.HealthBarEnabled
                         end
                     end
                 end
@@ -495,7 +462,7 @@ end)
 Players.PlayerRemoving:Connect(ClearPlayerESP)
 
 -- ============================================================
---  MOVEMENT SPOOF (undetected) from old script
+--  MOVEMENT SPOOF
 -- ============================================================
 local MovementSpoof = {}
 local SpoofActive = false
@@ -508,12 +475,8 @@ local TempHumanoid = Instance.new("Humanoid")
 local indexHook, newIndexHook
 local MovementCharacterConnection = nil
 
-function GetDebugIdHandler.OnInvoke(obj)
-    return obj:GetDebugId()
-end
-local function GetDebugId(obj)
-    return GetDebugIdHandler:Invoke(obj)
-end
+function GetDebugIdHandler.OnInvoke(obj) return obj:GetDebugId() end
+local function GetDebugId(obj) return GetDebugIdHandler:Invoke(obj) end
 
 local function GetSpoofValue(value)
     TempHumanoid.WalkSpeed = value
@@ -680,16 +643,12 @@ end
 
 local function ToggleMovement(enable)
     if enable then
-        if not SpoofActive then
-            MovementSpoof:Enable(getgenv().Walkspeed or 16, getgenv().Jumppower or 50)
-        end
+        if not SpoofActive then MovementSpoof:Enable(Config.Walkspeed, Config.Jumppower) end
     else
-        if SpoofActive then
-            MovementSpoof:Disable()
-        end
+        if SpoofActive then MovementSpoof:Disable() end
     end
-    getgenv().MovementEnabled = enable
     Config.MovementEnabled = enable
+    SaveConfig()
 end
 
 -- ============================================================
@@ -702,9 +661,7 @@ local function SetNoClip(state)
     local character = LocalPlayer.Character
     if not character then return end
     for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not state
-        end
+        if part:IsA("BasePart") then part.CanCollide = not state end
     end
 end
 
@@ -731,13 +688,9 @@ local function DisableNoClip()
 end
 
 local function ToggleNoClip(enable)
-    if enable then
-        EnableNoClip()
-    else
-        DisableNoClip()
-    end
-    getgenv().NoClipEnabled = enable
+    if enable then EnableNoClip() else DisableNoClip() end
     Config.NoClipEnabled = enable
+    SaveConfig()
 end
 
 -- ============================================================
@@ -746,16 +699,14 @@ end
 local FlyActive = false
 local FlyConnection = nil
 local FlyCharacterConnection = nil
-local FlySpeed = getgenv().FlySpeed or 50
+local FlySpeed = Config.FlySpeed or 50
 
 local function StartFly()
     if FlyActive or not LocalPlayer.Character then return end
     FlyActive = true
 
     FlyConnection = RunService.Heartbeat:Connect(function()
-        if not FlyActive or not LocalPlayer.Character then
-            return
-        end
+        if not FlyActive or not LocalPlayer.Character then return end
         local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
@@ -764,28 +715,14 @@ local function StartFly()
         local up = Vector3.new(0, 1, 0)
 
         local moveDirection = Vector3.new()
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveDirection = moveDirection + forward
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveDirection = moveDirection - forward
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveDirection = moveDirection - right
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveDirection = moveDirection + right
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveDirection = moveDirection + up
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            moveDirection = moveDirection - up
-        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection = moveDirection + forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection = moveDirection - forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection = moveDirection - right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection = moveDirection + right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection = moveDirection + up end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDirection = moveDirection - up end
 
-        if moveDirection.Magnitude > 0 then
-            moveDirection = moveDirection.Unit * FlySpeed
-        end
+        if moveDirection.Magnitude > 0 then moveDirection = moveDirection.Unit * FlySpeed end
 
         root.CFrame = root.CFrame + moveDirection * RunService.Heartbeat:Wait()
         root.Velocity = Vector3.new(0, 0, 0)
@@ -826,17 +763,13 @@ local function StopFly()
 end
 
 local function ToggleFly(enable)
-    if enable then
-        StartFly()
-    else
-        StopFly()
-    end
-    getgenv().FlyEnabled = enable
+    if enable then StartFly() else StopFly() end
     Config.FlyEnabled = enable
+    SaveConfig()
 end
 
 -- ============================================================
---  MODERATOR DETECTOR (from old script, with leave/join)
+--  MODERATOR DETECTOR
 -- ============================================================
 local ModeratorDetectorConnection = nil
 local ModNotifiedPlayers = {}
@@ -854,12 +787,7 @@ local function CheckModerators()
                     Duration = 10,
                     Image = Matrice.Asset("user-shield.png"),
                     Actions = {
-                        {
-                            Name = "Leave Game",
-                            Callback = function()
-                                game:Shutdown()
-                            end
-                        }
+                        { Name = "Leave Game", Callback = function() game:Shutdown() end }
                     }
                 })
                 ModNotifiedPlayers[player] = true
@@ -883,24 +811,13 @@ local function EnableModeratorDetector()
                     Duration = 10,
                     Image = Matrice.Asset("user-shield.png"),
                     Actions = {
-                        {
-                            Name = "Leave Game",
-                            Callback = function()
-                                game:Shutdown()
-                            end
-                        }
+                        { Name = "Leave Game", Callback = function() game:Shutdown() end }
                     }
                 })
                 ModNotifiedPlayers[player] = true
             end
         end
     end)
-    UI:Notify("Normal", {
-        Title = "Moderator Detector",
-        Content = "Enabled",
-        Duration = 3,
-        Image = Matrice.Asset("user-shield.png")
-    })
 end
 
 local function DisableModeratorDetector()
@@ -909,42 +826,57 @@ local function DisableModeratorDetector()
         ModeratorDetectorConnection = nil
         ModNotifiedPlayers = {}
     end
-    UI:Notify("Warning", {
-        Title = "Moderator Detector",
-        Content = "Disabled",
-        Duration = 3,
-        Image = Matrice.Asset("user-shield.png")
-    })
 end
 
 -- ============================================================
---  UI CREATION (using new layout but with functional callbacks)
+--  UI CREATION (NEW LAYOUT)
+-- ============================================================
+local Library = UI:CreateLibrary({
+    Name = "Matrice Hub - SCP:RP",
+    Icon = Matrice.Asset("matrice.png")
+})
+
+Library:CreateAdvertisement(
+    "Rocheats",
+    Matrice.Asset("rocheats_banner.png"),
+    "https://rocheats.com/?ref=matrice",
+    "Link copied to your clipboard. Thanks for supporting Matrice <3"
+)
+
+local CombatTab = Library:CreateTab("Combat", Matrice.Asset("crosshair.png"))
+local VisualsTab = Library:CreateTab("Visuals", Matrice.Asset("palette.png"))
+local PlayerTab = Library:CreateTab("Player", Matrice.Asset("user.png"))
+local UtilitiesTab = Library:CreateTab("Utilities", Matrice.Asset("toolbox.png"))
+local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
+
+Library:SwitchTab()
+
+-- ============================================================
+--  COMBAT TAB
 -- ============================================================
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
 
 Targeting:CreateToggle("Normal", {
     Name = "Silent Aim",
     Flag = "SilentAimEnabled",
-    CurrentValue = getgenv().SilentAimEnabled,
-    Callback = function(Value)
-        getgenv().SilentAimEnabled = Value
-        Config.SilentAimEnabled = Value
-        if Value and not InstallSilentAimHook() then
-            getgenv().SilentAimEnabled = false
+    CurrentValue = Config.SilentAimEnabled,
+    Callback = function(Enabled)
+        Config.SilentAimEnabled = Enabled
+        if Enabled and not InstallSilentAimHook() then
             Config.SilentAimEnabled = false
         end
+        SaveConfig()
     end
 })
 
 Targeting:CreateDropdown({
     Name = "Hit Part",
     Options = {"Head", "UpperTorso", "HumanoidRootPart", "Randomized"},
+    CurrentOption = Config.SilentAimHitPart,
     Flag = "SilentAimHitPart",
-    CurrentOption = getgenv().SilentAimHitPart,
-    MultipleOptions = false,
-    Callback = function(Option)
-        getgenv().SilentAimHitPart = Option
-        Config.SilentAimHitPart = Option
+    Callback = function(Selected)
+        Config.SilentAimHitPart = Selected
+        SaveConfig()
     end
 })
 
@@ -953,32 +885,31 @@ Targeting:CreateSlider({
     Value = {0, 100},
     Increment = 1,
     Suffix = "%",
+    CurrentValue = Config.SilentAimHitChance,
     Flag = "SilentAimHitChance",
-    CurrentValue = getgenv().SilentAimHitChance,
     Callback = function(Value)
-        getgenv().SilentAimHitChance = Value
         Config.SilentAimHitChance = Value
+        SaveConfig()
     end
 })
 
 Targeting:CreateToggle("Normal", {
     Name = "Wall Check",
     Flag = "SilentAimWallCheck",
-    CurrentValue = getgenv().SilentAimWallCheck,
-    Callback = function(Value)
-        getgenv().SilentAimWallCheck = Value
-        Config.SilentAimWallCheck = Value
+    CurrentValue = Config.SilentAimWallCheck,
+    Callback = function(Enabled)
+        Config.SilentAimWallCheck = Enabled
+        SaveConfig()
     end
 })
 
 Targeting:CreateToggle("Normal", {
     Name = "Show FOV",
     Flag = "FOVCircleEnabled",
-    CurrentValue = getgenv().FOVCircleEnabled,
-    Callback = function(Value)
-        getgenv().FOVCircleEnabled = Value
-        Config.FOVCircleEnabled = Value
-        if not Value then FOVCircle.Visible = false end
+    CurrentValue = Config.FOVCircleEnabled,
+    Callback = function(Enabled)
+        Config.FOVCircleEnabled = Enabled
+        SaveConfig()
     end
 })
 
@@ -987,101 +918,156 @@ Targeting:CreateSlider({
     Value = {25, 500},
     Increment = 5,
     Suffix = "px",
+    CurrentValue = Config.FOVRadius,
     Flag = "FOVRadius",
-    CurrentValue = getgenv().FOVRadius,
     Callback = function(Value)
-        getgenv().FOVRadius = Value
         Config.FOVRadius = Value
+        SaveConfig()
     end
 })
 
 Targeting:CreateColorPicker({
     Name = "FOV Color",
     Callback = function(Color)
-        getgenv().FOVColor = Color
         Config.FOVColor = Color
+        SaveConfig()
     end
 })
 
+local Checks = CombatTab:CreateSection("Checks", "Normal")
+Checks:CreateToggle("Normal", {
+    Name = "Wall Check",
+    Flag = "WallCheck",
+    Callback = function(Enabled) print("Wall Check " .. (Enabled and "ON" or "OFF")) end
+})
+Checks:CreateToggle("Normal", {
+    Name = "Team Check",
+    Flag = "TeamCheck",
+    Callback = function(Enabled) print("Team Check " .. (Enabled and "ON" or "OFF")) end
+})
+
+local FOVSection = CombatTab:CreateSection("FOV", "Normal")
+FOVSection:CreateToggle("Normal", {
+    Name = "Show FOV",
+    Flag = "ShowFOV",
+    Callback = function(Enabled) print("Show FOV " .. (Enabled and "ON" or "OFF")) end
+})
+FOVSection:CreateSlider({
+    Name = "FOV Radius",
+    Value = {1, 360},
+    Increment = 1,
+    Suffix = "°",
+    CurrentValue = 120,
+    Flag = "FOVRadius",
+    Callback = function(Value) print("FOV Radius set to " .. Value) end
+})
+FOVSection:CreateColorPicker({
+    Name = "FOV Color",
+    Callback = function(Color) print("FOV color changed to", Color) end
+})
+
+local Automation = CombatTab:CreateSection("Automation", "Normal")
+Automation:CreateToggle("Normal", {
+    Name = "Auto Trigger",
+    Flag = "AutoTrigger",
+    Callback = function(Enabled) print("Auto Trigger " .. (Enabled and "ON" or "OFF")) end
+})
+Automation:CreateSlider({
+    Name = "Trigger Delay",
+    Value = {0, 500},
+    Increment = 10,
+    Suffix = "ms",
+    CurrentValue = 50,
+    Flag = "TriggerDelay",
+    Callback = function(Value) print("Trigger Delay set to " .. Value .. "ms") end
+})
+
+local Weapons = CombatTab:CreateSection("Weapons", "Normal")
+Weapons:CreateToggle("Normal", {
+    Name = "Auto Reload",
+    Flag = "AutoReload",
+    Callback = function(Enabled) print("Auto Reload " .. (Enabled and "ON" or "OFF")) end
+})
+
 -- ============================================================
---  VISUALS TAB (functional)
+--  VISUALS TAB
 -- ============================================================
 local ESP = VisualsTab:CreateSection("ESP", "Normal")
 
 ESP:CreateToggle("Normal", {
     Name = "Enable ESP",
     Flag = "ESPEnabled",
-    CurrentValue = getgenv().ESPEnabled,
-    Callback = function(Value)
-        getgenv().ESPEnabled = Value
-        Config.ESPEnabled = Value
-        if not Value then ClearESPs() end
+    CurrentValue = Config.ESPEnabled,
+    Callback = function(Enabled)
+        Config.ESPEnabled = Enabled
+        if not Enabled then ClearESPs() end
+        SaveConfig()
     end
 })
 
 ESP:CreateToggle("Normal", {
     Name = "Box",
     Flag = "BoxEnabled",
-    CurrentValue = getgenv().BoxEnabled,
-    Callback = function(Value)
-        getgenv().BoxEnabled = Value
-        Config.BoxEnabled = Value
+    CurrentValue = Config.BoxEnabled,
+    Callback = function(Enabled)
+        Config.BoxEnabled = Enabled
         RebuildAllESPs()
+        SaveConfig()
     end
 })
 
 ESP:CreateToggle("Normal", {
     Name = "Highlight",
     Flag = "HighlightEnabled",
-    CurrentValue = getgenv().HighlightEnabled,
-    Callback = function(Value)
-        getgenv().HighlightEnabled = Value
-        Config.HighlightEnabled = Value
+    CurrentValue = Config.HighlightEnabled,
+    Callback = function(Enabled)
+        Config.HighlightEnabled = Enabled
         RebuildAllESPs()
+        SaveConfig()
     end
 })
 
 ESP:CreateToggle("Normal", {
     Name = "Skeleton",
     Flag = "SkeletonEnabled",
-    CurrentValue = getgenv().SkeletonEnabled,
-    Callback = function(Value)
-        getgenv().SkeletonEnabled = Value
-        Config.SkeletonEnabled = Value
+    CurrentValue = Config.SkeletonEnabled,
+    Callback = function(Enabled)
+        Config.SkeletonEnabled = Enabled
         RebuildAllESPs()
+        SaveConfig()
     end
 })
 
 ESP:CreateToggle("Normal", {
     Name = "Tracer Lines",
     Flag = "TracerEnabled",
-    CurrentValue = getgenv().TracerEnabled,
-    Callback = function(Value)
-        getgenv().TracerEnabled = Value
-        Config.TracerEnabled = Value
+    CurrentValue = Config.TracerEnabled,
+    Callback = function(Enabled)
+        Config.TracerEnabled = Enabled
         RebuildAllESPs()
+        SaveConfig()
     end
 })
 
 ESP:CreateToggle("Normal", {
     Name = "Health Bars",
     Flag = "HealthBarEnabled",
-    CurrentValue = getgenv().HealthBarEnabled,
-    Callback = function(Value)
-        getgenv().HealthBarEnabled = Value
-        Config.HealthBarEnabled = Value
+    CurrentValue = Config.HealthBarEnabled,
+    Callback = function(Enabled)
+        Config.HealthBarEnabled = Enabled
         RebuildAllESPs()
+        SaveConfig()
     end
 })
 
 ESP:CreateToggle("Normal", {
     Name = "Chams",
     Flag = "ChamsEnabled",
-    CurrentValue = getgenv().ChamsEnabled,
-    Callback = function(Value)
-        getgenv().ChamsEnabled = Value
-        Config.ChamsEnabled = Value
+    CurrentValue = Config.ChamsEnabled,
+    Callback = function(Enabled)
+        Config.ChamsEnabled = Enabled
         RebuildAllESPs()
+        SaveConfig()
     end
 })
 
@@ -1090,22 +1076,23 @@ ESP:CreateSlider({
     Value = {50, 2000},
     Increment = 50,
     Suffix = "studs",
+    CurrentValue = Config.ESPRange,
     Flag = "ESPRange",
-    CurrentValue = getgenv().ESPRange,
     Callback = function(Value)
-        getgenv().ESPRange = Value
         Config.ESPRange = Value
         RebuildAllESPs()
+        SaveConfig()
     end
 })
 
--- Greyscale effect
 local Effects = VisualsTab:CreateSection("Effects", "Normal")
 Effects:CreateToggle("Normal", {
     Name = "Greyscale World",
     Flag = "GreyscaleEnabled",
-    Callback = function(Value)
-        if Value then
+    CurrentValue = Config.GreyscaleEnabled,
+    Callback = function(Enabled)
+        Config.GreyscaleEnabled = Enabled
+        if Enabled then
             local cc = Instance.new("ColorCorrectionEffect")
             cc.Saturation = -1
             cc.Parent = Lighting
@@ -1116,20 +1103,28 @@ Effects:CreateToggle("Normal", {
                 getgenv()._GreyscaleEffect = nil
             end
         end
+        SaveConfig()
     end
 })
 
+if Config.GreyscaleEnabled then
+    local cc = Instance.new("ColorCorrectionEffect")
+    cc.Saturation = -1
+    cc.Parent = Lighting
+    getgenv()._GreyscaleEffect = cc
+end
+
 -- ============================================================
---  PLAYER TAB (functional movement, noclip, fly)
+--  PLAYER TAB
 -- ============================================================
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
 Character:CreateToggle("Normal", {
     Name = "Enable Movement Spoof",
     Flag = "MovementEnabled",
-    CurrentValue = getgenv().MovementEnabled or false,
-    Callback = function(Value)
-        ToggleMovement(Value)
+    CurrentValue = Config.MovementEnabled,
+    Callback = function(Enabled)
+        ToggleMovement(Enabled)
     end
 })
 
@@ -1138,15 +1133,15 @@ Character:CreateSlider({
     Value = {16, 100},
     Increment = 1,
     Suffix = "studs/s",
+    CurrentValue = Config.Walkspeed,
     Flag = "Walkspeed",
-    CurrentValue = getgenv().Walkspeed or 16,
     Callback = function(Value)
-        getgenv().Walkspeed = Value
         Config.Walkspeed = Value
         if SpoofActive then
             SpoofedWalk = Value
             MovementSpoof:SetWalkSpeed(Value)
         end
+        SaveConfig()
     end
 })
 
@@ -1155,15 +1150,15 @@ Character:CreateSlider({
     Value = {50, 200},
     Increment = 5,
     Suffix = "strength",
+    CurrentValue = Config.Jumppower,
     Flag = "Jumppower",
-    CurrentValue = getgenv().Jumppower or 50,
     Callback = function(Value)
-        getgenv().Jumppower = Value
         Config.Jumppower = Value
         if SpoofActive then
             SpoofedJump = Value
             MovementSpoof:SetJumpPower(Value)
         end
+        SaveConfig()
     end
 })
 
@@ -1172,9 +1167,9 @@ Character:CreateDivider()
 Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClipEnabled",
-    CurrentValue = getgenv().NoClipEnabled or false,
-    Callback = function(Value)
-        ToggleNoClip(Value)
+    CurrentValue = Config.NoClipEnabled,
+    Callback = function(Enabled)
+        ToggleNoClip(Enabled)
     end
 })
 
@@ -1193,9 +1188,9 @@ Character:CreateDivider()
 Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "FlyEnabled",
-    CurrentValue = getgenv().FlyEnabled or false,
-    Callback = function(Value)
-        ToggleFly(Value)
+    CurrentValue = Config.FlyEnabled,
+    Callback = function(Enabled)
+        ToggleFly(Enabled)
     end
 })
 
@@ -1204,50 +1199,49 @@ Character:CreateSlider({
     Value = {10, 200},
     Increment = 5,
     Suffix = "studs/s",
+    CurrentValue = Config.FlySpeed,
     Flag = "FlySpeed",
-    CurrentValue = getgenv().FlySpeed or 50,
     Callback = function(Value)
         FlySpeed = Value
-        getgenv().FlySpeed = Value
         Config.FlySpeed = Value
+        SaveConfig()
     end
 })
 
 Character:CreateKeybind({
     Name = "Fly Toggle",
     Flag = "FlyKeybind",
-    Keybind = getgenv().FlyKeybind or "F",
+    Keybind = Config.FlyKeybind or "F",
     Type = "Press",
     Callback = function()
-        local newState = not getgenv().FlyEnabled
+        local newState = not Config.FlyEnabled
         ToggleFly(newState)
     end
 })
 
 -- ============================================================
---  UTILITIES TAB (Moderator Detector, Anti-AFK)
+--  UTILITIES TAB
 -- ============================================================
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
 Miscellaneous:CreateToggle("Normal", {
     Name = "Moderator Detector",
     Flag = "ModeratorDetector",
-    CurrentValue = getgenv().ModeratorDetector or false,
-    Callback = function(Value)
-        getgenv().ModeratorDetector = Value
-        Config.ModeratorDetector = Value
-        if Value then
+    CurrentValue = Config.ModeratorDetector,
+    Callback = function(Enabled)
+        Config.ModeratorDetector = Enabled
+        if Enabled then
             EnableModeratorDetector()
         else
             DisableModeratorDetector()
         end
+        SaveConfig()
     end
 })
 
+local AntiAFKSection = UtilitiesTab:CreateSection("Anti AFK", "Normal")
 local AntiAFKEnabled = false
 local AntiAFKConnection = nil
-
-local AntiAFKSection = UtilitiesTab:CreateSection("Anti AFK", "Normal")
 
 AntiAFKSection:CreateToggle("Normal", {
     Name = "Enable Anti AFK",
@@ -1255,7 +1249,6 @@ AntiAFKSection:CreateToggle("Normal", {
     Callback = function(Enabled)
         AntiAFKEnabled = Enabled
         if Enabled then
-            local LocalPlayer = Players.LocalPlayer
             if getconnections then
                 for _, Connection in ipairs(getconnections(LocalPlayer.Idled)) do
                     pcall(function()
@@ -1268,7 +1261,6 @@ AntiAFKSection:CreateToggle("Normal", {
                 AntiAFKConnection:Disconnect()
                 AntiAFKConnection = nil
             end
-            local VirtualUser = game:GetService("VirtualUser")
             AntiAFKConnection = LocalPlayer.Idled:Connect(function()
                 VirtualUser:CaptureController()
                 VirtualUser:ClickButton2(Vector2.new())
@@ -1291,11 +1283,82 @@ local Interface = SettingsTab:CreateSection("Interface", "Normal")
 Interface:CreateKeybind({
     Name = "Toggle Menu Key",
     Flag = "ToggleMenuKey",
-    Keybind = "LeftAlt",
+    Keybind = Config.UIToggleKey or "LeftAlt",
     Type = "Press",
     Callback = function(State)
-        print("Toggle UI triggered")
         UI:ToggleUI()
+    end
+})
+
+local SettingsConfig = SettingsTab:CreateSection("Configuration", "Normal")
+
+SettingsConfig:CreateButton({
+    Name = "Load Configuration",
+    Callback = function()
+        LoadConfig()
+        -- Update UI elements (this would require refreshing the UI or re-applying toggles)
+        UI:Notify("Normal", {
+            Title = "Config Loaded",
+            Content = "Settings loaded successfully.",
+            Duration = 3,
+            Image = Matrice.Asset("info.png")
+        })
+    end
+})
+
+SettingsConfig:CreateButton({
+    Name = "Reset to Default",
+    Callback = function()
+        Library:Notify({
+            Title = "Reset Settings",
+            Content = "Are you sure you want to reset all settings to default?",
+            Duration = 5,
+            Actions = {
+                {
+                    Name = "Yes",
+                    Callback = function()
+                        Config = {
+                            ESPEnabled = false,
+                            BoxEnabled = false,
+                            HighlightEnabled = false,
+                            SkeletonEnabled = false,
+                            TracerEnabled = false,
+                            HealthBarEnabled = false,
+                            ChamsEnabled = false,
+                            ESPRange = 600,
+                            SilentAimEnabled = false,
+                            SilentAimWallCheck = true,
+                            SilentAimHitPart = "Head",
+                            SilentAimHitChance = 100,
+                            FOVCircleEnabled = false,
+                            FOVRadius = 150,
+                            FOVColor = Color3.fromRGB(255, 255, 255),
+                            ModeratorDetector = false,
+                            MovementEnabled = false,
+                            Walkspeed = 16,
+                            Jumppower = 50,
+                            NoClipEnabled = false,
+                            FlyEnabled = false,
+                            FlySpeed = 50,
+                            FlyKeybind = "F",
+                            UIToggleKey = "LeftAlt",
+                            GreyscaleEnabled = false,
+                        }
+                        SaveConfig()
+                        UI:Notify("Warning", {
+                            Title = "Reset",
+                            Content = "Settings reset to defaults. Please reload the script.",
+                            Duration = 5,
+                            Image = Matrice.Asset("info.png")
+                        })
+                    end
+                },
+                {
+                    Name = "No",
+                    Callback = function() print("Reset cancelled.") end
+                }
+            }
+        })
     end
 })
 
@@ -1343,23 +1406,11 @@ Interface:CreateParagraph({
 -- ============================================================
 --  STARTUP STATE RESTORATION
 -- ============================================================
-if getgenv().ESPEnabled then
-    RebuildAllESPs()
-end
-if getgenv().SilentAimEnabled then
-    InstallSilentAimHook()
-end
-if getgenv().ModeratorDetector then
-    EnableModeratorDetector()
-end
-if getgenv().MovementEnabled then
-    ToggleMovement(true)
-end
-if getgenv().NoClipEnabled then
-    ToggleNoClip(true)
-end
-if getgenv().FlyEnabled then
-    ToggleFly(true)
-end
+if Config.ESPEnabled then RebuildAllESPs() end
+if Config.SilentAimEnabled then InstallSilentAimHook() end
+if Config.ModeratorDetector then EnableModeratorDetector() end
+if Config.MovementEnabled then ToggleMovement(true) end
+if Config.NoClipEnabled then ToggleNoClip(true) end
+if Config.FlyEnabled then ToggleFly(true) end
 
-print("SCP:RP UI loaded with full visuals.")
+print("SCP:RP UI loaded with all features.")
