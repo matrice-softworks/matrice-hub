@@ -5,7 +5,45 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
 local Visuals = Matrice.Visuals
+
+local FriendList = {}
+local FriendListLoaded = false
+local FriendListUpdateTask = nil
+
+local function UpdateFriendList()
+    if not LocalPlayer then return end
+    local Success, Pages = pcall(Players.GetFriendsAsync, Players, LocalPlayer.UserId)
+    if not Success or not Pages then return end
+    FriendList = {}
+    local function IteratePages(Pages)
+        return coroutine.wrap(function()
+            while true do
+                for _, Item in ipairs(Pages:GetCurrentPage()) do
+                    coroutine.yield(Item)
+                end
+                if Pages.IsFinished then break end
+                Pages:AdvanceToNextPageAsync()
+            end
+        end)
+    end
+    for Item in IteratePages(Pages) do
+        FriendList[Item.Id] = true
+    end
+    FriendListLoaded = true
+end
+
+local function StartFriendListUpdates()
+    if FriendListUpdateTask then return end
+    UpdateFriendList()
+    FriendListUpdateTask = task.spawn(function()
+        while true do
+            task.wait(300) -- refresh every 5 minutes
+            UpdateFriendList()
+        end
+    end)
+end
 
 local Library = Matrice.UI:CreateLibrary({
     Name = "Matrice Hub - SCP:RP",
@@ -319,7 +357,6 @@ local function BuildESP(player)
             end
         end
     end
-    -- store chams in a special way
     local chamsCleanup = {
         Remove = function()
             for part, mat in pairs(chams) do
@@ -386,7 +423,6 @@ local function UpdateESP()
             end
         end
     end
-    -- remove esp for players not active
     for p, _ in pairs(ESPData) do
         if not activePlayers[p] then
             ClearESP(p)
@@ -396,7 +432,6 @@ end
 
 local function RenderESP()
     if not ESPEnabled then
-        -- ensure all drawing objects invisible
         for _, esp in pairs(ESPData) do
             for _, obj in ipairs(esp) do
                 if obj.Visible ~= nil then
@@ -410,11 +445,33 @@ local function RenderESP()
     local viewport = Camera.ViewportSize
     local centerX = viewport.X / 2
     local centerY = viewport.Y
+    local localTeam = LocalPlayer.Team
 
     for player, esp in pairs(ESPData) do
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
+                -- Team Check
+                if getgenv().TeamCheckEnabled and localTeam and player.Team == localTeam then
+                    -- hide all objects
+                    for _, obj in ipairs(esp) do
+                        if obj.Visible ~= nil then
+                            obj.Visible = false
+                        end
+                    end
+                    continue
+                end
+
+                -- Friend Check
+                if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
+                    for _, obj in ipairs(esp) do
+                        if obj.Visible ~= nil then
+                            obj.Visible = false
+                        end
+                    end
+                    continue
+                end
+
                 local onScreen, size, pos, torsoPos = Visuals:GetBoundingBox(player)
                 if onScreen then
                     local teamColor = GetPlayerColor(player)
@@ -547,11 +604,13 @@ local function StartESP()
     if RenderConnection then RenderConnection:Disconnect() end
     ESPConnection = RunService.Heartbeat:Connect(UpdateESP)
     RenderConnection = RunService.RenderStepped:Connect(RenderESP)
+    StartFriendListUpdates()
 end
 
 local function StopESP()
     if ESPConnection then ESPConnection:Disconnect(); ESPConnection = nil end
     if RenderConnection then RenderConnection:Disconnect(); RenderConnection = nil end
+    if FriendListUpdateTask then task.cancel(FriendListUpdateTask); FriendListUpdateTask = nil end
     ClearAllESP()
 end
 
