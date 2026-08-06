@@ -8,237 +8,6 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
 
--- ============================================================
---  WALK SPEED & JUMP POWER SPOOFING (hookmetamethod based)
--- ============================================================
-
-local function SetupSpoofing()
-    -- Use cloneref if available
-    local cloneref = cloneref or function(x) return x end
-
-    local PlayersService = cloneref(game:GetService("Players"))
-    if not PlayersService.LocalPlayer then
-        PlayersService:GetPropertyChangedSignal("LocalPlayer"):Wait()
-    end
-    local LocalPlayerRef = cloneref(PlayersService.LocalPlayer)
-
-    local split = string.split
-
-    local GetDebugIdHandler = Instance.new("BindableFunction")
-    local TempHumanoid = Instance.new("Humanoid")
-
-    local cachedHumanoids = {}
-    local CurrentHumanoid = nil
-
-    function GetDebugIdHandler.OnInvoke(obj)
-        return obj:GetDebugId()
-    end
-
-    local function GetDebugId(obj)
-        return GetDebugIdHandler:Invoke(obj)
-    end
-
-    local function GetWalkSpeed(obj)
-        TempHumanoid.WalkSpeed = obj
-        return TempHumanoid.WalkSpeed
-    end
-
-    local function GetJumpPower(obj)
-        TempHumanoid.JumpPower = obj
-        return TempHumanoid.JumpPower
-    end
-
-    function cachedHumanoids:cacheHumanoid(DebugId, Humanoid)
-        cachedHumanoids[DebugId] = {
-            currentWalkSpeed = indexhook(Humanoid, "WalkSpeed"),
-            currentJumpPower = indexhook(Humanoid, "JumpPower"),
-            lastWalkSpeed = nil,
-            lastJumpPower = nil,
-        }
-        return self[DebugId]
-    end
-
-    -- Hook __index
-    local indexhook = hookmetamethod(game, "__index", function(self, index)
-        if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
-            local DebugId = GetDebugId(self)
-            local cached = cachedHumanoids[DebugId]
-            if self:IsDescendantOf(LocalPlayerRef.Character) or cached then
-                if type(index) == "string" then
-                    local cleanIndex = split(index, "\0")[1]
-                    if cleanIndex == "WalkSpeed" then
-                        if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                            CurrentHumanoid = cloneref(self)
-                        end
-                        return cached.lastWalkSpeed or cached.currentWalkSpeed
-                    elseif cleanIndex == "JumpPower" then
-                        if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                            CurrentHumanoid = cloneref(self)
-                        end
-                        return cached.lastJumpPower or cached.currentJumpPower
-                    end
-                end
-            end
-        end
-        return indexhook(self, index)
-    end)
-
-    -- Hook __newindex
-    local newindexhook = hookmetamethod(game, "__newindex", function(self, index, newIndex)
-        if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
-            local DebugId = GetDebugId(self)
-            local cached = cachedHumanoids[DebugId]
-            if self:IsDescendantOf(LocalPlayerRef.Character) or cached then
-                if type(index) == "string" then
-                    local cleanIndex = split(index, "\0")[1]
-                    if cleanIndex == "WalkSpeed" then
-                        if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                            CurrentHumanoid = cloneref(self)
-                        end
-                        cached.lastWalkSpeed = GetWalkSpeed(newIndex)
-                        return CurrentHumanoid.WalkSpeed
-                    elseif cleanIndex == "JumpPower" then
-                        if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
-                        if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
-                            CurrentHumanoid = cloneref(self)
-                        end
-                        cached.lastJumpPower = GetJumpPower(newIndex)
-                        return CurrentHumanoid.JumpPower
-                    end
-                end
-            end
-        end
-        return newindexhook(self, index, newIndex)
-    end)
-
-    -- Spoof object
-    local Spoof = {
-        _humanoid = nil,
-        _cachedHumanoids = cachedHumanoids,
-        _indexhook = indexhook,
-        _newindexhook = newindexhook,
-        _GetDebugIdHandler = GetDebugIdHandler,
-        _TempHumanoid = TempHumanoid,
-        _LocalPlayerRef = LocalPlayerRef,
-    }
-
-    function Spoof:GetHumanoid()
-        if self._humanoid and self._humanoid:IsDescendantOf(game) then
-            return self._humanoid
-        end
-        local char = self._LocalPlayerRef.Character
-        if char then
-            local hum = char:FindFirstChildWhichIsA("Humanoid")
-            if hum then
-                self._humanoid = cloneref(hum)
-                -- ensure cached
-                local id = GetDebugId(hum)
-                if not cachedHumanoids[id] then
-                    cachedHumanoids:cacheHumanoid(id, hum)
-                end
-                return self._humanoid
-            end
-        end
-        return nil
-    end
-
-    function Spoof:SetWalkSpeed(speed)
-        local hum = self:GetHumanoid()
-        if hum then
-            local connections = {}
-            local function AddConnectionsFromSignal(signal)
-                for _, conn in ipairs(getconnections(signal)) do
-                    if conn.State then
-                        conn:Disable()
-                        table.insert(connections, conn)
-                    end
-                end
-            end
-            AddConnectionsFromSignal(hum.Changed)
-            AddConnectionsFromSignal(hum:GetPropertyChangedSignal("WalkSpeed"))
-            hum.WalkSpeed = speed
-            for _, conn in ipairs(connections) do
-                conn:Enable()
-            end
-        end
-    end
-
-    function Spoof:SetJumpPower(power)
-        local hum = self:GetHumanoid()
-        if hum then
-            local connections = {}
-            local function AddConnectionsFromSignal(signal)
-                for _, conn in ipairs(getconnections(signal)) do
-                    if conn.State then
-                        conn:Disable()
-                        table.insert(connections, conn)
-                    end
-                end
-            end
-            AddConnectionsFromSignal(hum.Changed)
-            AddConnectionsFromSignal(hum:GetPropertyChangedSignal("JumpPower"))
-            hum.JumpPower = power
-            for _, conn in ipairs(connections) do
-                conn:Enable()
-            end
-        end
-    end
-
-    function Spoof:RestoreWalkSpeed()
-        local hum = self:GetHumanoid()
-        if hum then
-            local id = GetDebugId(hum)
-            local cached = cachedHumanoids[id]
-            if cached then
-                self:SetWalkSpeed(cached.lastWalkSpeed or cached.currentWalkSpeed)
-            end
-        end
-    end
-
-    function Spoof:RestoreJumpPower()
-        local hum = self:GetHumanoid()
-        if hum then
-            local id = GetDebugId(hum)
-            local cached = cachedHumanoids[id]
-            if cached then
-                self:SetJumpPower(cached.lastJumpPower or cached.currentJumpPower)
-            end
-        end
-    end
-
-    function Spoof:Disable()
-        self:RestoreWalkSpeed()
-        self:RestoreJumpPower()
-        -- Cleanup hooks (optional, but leave them for safety)
-        -- No direct way to unhook, but we can ignore after.
-        self._GetDebugIdHandler:Destroy()
-        self._TempHumanoid:Destroy()
-        -- Clear references
-        for k, v in pairs(Spoof) do
-            if type(v) ~= "function" then
-                Spoof[k] = nil
-            end
-        end
-        getgenv().WalkSpeedSpoof = nil
-        getgenv().JumpPowerSpoof = nil
-    end
-
-    return Spoof
-end
-
--- Initialize spoof objects (if not already)
-if not getgenv().WalkSpeedSpoof then
-    getgenv().WalkSpeedSpoof = SetupSpoofing()
-end
-local Spoof = getgenv().WalkSpeedSpoof
-
--- ============================================================
---  FRIEND LIST
--- ============================================================
-
 local FriendList = {}
 local FriendListUpdateTask = nil
 
@@ -274,10 +43,6 @@ local function StartFriendListUpdates()
     end)
 end
 
--- ============================================================
---  UI LIBRARY
--- ============================================================
-
 local Library = Matrice.UI:CreateLibrary({
     Name = "Matrice Hub - SCP:RP",
     Icon = Matrice.Asset("matrice.png")
@@ -299,7 +64,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB (Placeholders)
+--  COMBAT TAB (Placeholders – no logic yet)
 -- ============================================================
 
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
@@ -466,7 +231,7 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB (unchanged)
+--  VISUALS TAB – Fully functional ESP
 -- ============================================================
 
 local ESPEnabled = false
@@ -497,11 +262,13 @@ end
 
 local function BuildESP(player)
     if player == LocalPlayer or not player.Character then return end
+
     local teamColor = GetPlayerColor(player)
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if not humanoid or humanoid.Health <= 0 then return end
 
     local esp = {}
+
     local box = Drawing.new("Square")
     box.Thickness = 1
     box.Color = teamColor
@@ -611,6 +378,7 @@ local function RebuildESP()
     if not ESPEnabled then return end
     local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then return end
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             local targetRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -632,6 +400,7 @@ local function UpdateESP()
         ClearAllESP()
         return
     end
+
     local activePlayers = {}
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
@@ -645,15 +414,21 @@ local function UpdateESP()
                         BuildESP(player)
                     end
                 else
-                    if ESPData[player] then ClearESP(player) end
+                    if ESPData[player] then
+                        ClearESP(player)
+                    end
                 end
             else
-                if ESPData[player] then ClearESP(player) end
+                if ESPData[player] then
+                    ClearESP(player)
+                end
             end
         end
     end
     for p, _ in pairs(ESPData) do
-        if not activePlayers[p] then ClearESP(p) end
+        if not activePlayers[p] then
+            ClearESP(p)
+        end
     end
 end
 
@@ -661,36 +436,47 @@ local function RenderESP()
     if not ESPEnabled then
         for _, esp in pairs(ESPData) do
             for _, obj in ipairs(esp) do
-                if obj.Visible ~= nil then obj.Visible = false end
+                if obj.Visible ~= nil then
+                    obj.Visible = false
+                end
             end
         end
         return
     end
+
     local viewport = Camera.ViewportSize
     local centerX = viewport.X / 2
     local centerY = viewport.Y
     local localTeam = LocalPlayer.Team
+
     for player, esp in pairs(ESPData) do
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
                 if getgenv().TeamCheckEnabled and localTeam and player.Team == localTeam then
                     for _, obj in ipairs(esp) do
-                        if obj.Visible ~= nil then obj.Visible = false end
+                        if obj.Visible ~= nil then
+                            obj.Visible = false
+                        end
                     end
                     continue
                 end
+
                 if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
                     for _, obj in ipairs(esp) do
-                        if obj.Visible ~= nil then obj.Visible = false end
+                        if obj.Visible ~= nil then
+                            obj.Visible = false
+                        end
                     end
                     continue
                 end
+
                 local onScreen, size, pos, torsoPos = Visuals:GetBoundingBox(player)
                 if onScreen then
                     local teamColor = GetPlayerColor(player)
                     local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                       (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude) or 0
+
                     if getgenv().BoxEnabled and esp[1] then
                         esp[1].Size = size
                         esp[1].Position = pos
@@ -699,6 +485,7 @@ local function RenderESP()
                     else
                         if esp[1] then esp[1].Visible = false end
                     end
+
                     if getgenv().NameEnabled and esp[2] then
                         esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 20)
                         esp[2].Text = player.Name
@@ -707,6 +494,7 @@ local function RenderESP()
                     else
                         if esp[2] then esp[2].Visible = false end
                     end
+
                     if getgenv().DistanceEnabled and esp[3] then
                         esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 16)
                         esp[3].Text = math.floor(distance) .. " studs"
@@ -714,6 +502,7 @@ local function RenderESP()
                     else
                         if esp[3] then esp[3].Visible = false end
                     end
+
                     if getgenv().WeaponEnabled and esp[4] then
                         local weaponName = "None"
                         local ammoText = ""
@@ -736,7 +525,9 @@ local function RenderESP()
                             end
                             if weaponName == "None" then
                                 local tool = character:FindFirstChildOfClass("Tool")
-                                if tool then weaponName = tool.Name end
+                                if tool then
+                                    weaponName = tool.Name
+                                end
                             end
                         end
                         esp[4].Text = weaponName .. ammoText
@@ -745,6 +536,7 @@ local function RenderESP()
                     else
                         if esp[4] then esp[4].Visible = false end
                     end
+
                     if getgenv().HealthBarEnabled and esp[5] and esp[6] then
                         local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
                         local barX = pos.X - 8
@@ -761,6 +553,7 @@ local function RenderESP()
                         if esp[5] then esp[5].Visible = false end
                         if esp[6] then esp[6].Visible = false end
                     end
+
                     if getgenv().TracerEnabled and esp[7] then
                         local origin = CurrentTracerOrigin
                         local from
@@ -778,17 +571,23 @@ local function RenderESP()
                     end
                 else
                     for _, obj in ipairs(esp) do
-                        if obj.Visible ~= nil then obj.Visible = false end
+                        if obj.Visible ~= nil then
+                            obj.Visible = false
+                        end
                     end
                 end
             else
                 for _, obj in ipairs(esp) do
-                    if obj.Visible ~= nil then obj.Visible = false end
+                    if obj.Visible ~= nil then
+                        obj.Visible = false
+                    end
                 end
             end
         else
             for _, obj in ipairs(esp) do
-                if obj.Visible ~= nil then obj.Visible = false end
+                if obj.Visible ~= nil then
+                    obj.Visible = false
+                end
             end
         end
     end
@@ -833,7 +632,11 @@ ESPSection:CreateToggle("Normal", {
     Callback = function(Enabled)
         ESPEnabled = Enabled
         getgenv().ESPEnabled = Enabled
-        if Enabled then StartESP() else StopESP() end
+        if Enabled then
+            StartESP()
+        else
+            StopESP()
+        end
     end
 })
 
@@ -967,42 +770,205 @@ EffectsSection:CreateDropdown({
 })
 
 -- ============================================================
---  PLAYER TAB – with spoofed Walk Speed & Jump Power
+--  PLAYER TAB – Walkspeed & JumpPower Spoof (undetectable)
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
--- State variables
+-- ===== Spoofing logic (adapted from older Matrice) =====
+local SpoofActive = false
+local SpoofedWalk = 16
+local SpoofedJump = 50
+local cachedHumanoids = {}
+local GetDebugIdHandler = Instance.new("BindableFunction")
+local TempHumanoid = Instance.new("Humanoid")
+local indexHook, newIndexHook
+local MovementCharacterConnection = nil
+
+function GetDebugIdHandler.OnInvoke(obj)
+    return obj:GetDebugId()
+end
+local function GetDebugId(obj)
+    return GetDebugIdHandler:Invoke(obj)
+end
+
+local function GetSpoofValue(value)
+    TempHumanoid.WalkSpeed = value
+    return TempHumanoid.WalkSpeed
+end
+
+function cachedHumanoids:cacheHumanoid(DebugId, Humanoid)
+    cachedHumanoids[DebugId] = {
+        currentWalk = indexHook(Humanoid, "WalkSpeed"),
+        currentJump = indexHook(Humanoid, "JumpPower"),
+        lastWalk = nil,
+        lastJump = nil,
+    }
+    return self[DebugId]
+end
+
+indexHook = hookmetamethod(game, "__index", function(self, index)
+    if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
+        local DebugId = GetDebugId(self)
+        local cached = cachedHumanoids[DebugId]
+        if self:IsDescendantOf(LocalPlayer.Character) or cached then
+            if type(index) == "string" then
+                local clean = string.split(index, "\0")[1]
+                if clean == "WalkSpeed" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    return cached.lastWalk or cached.currentWalk
+                elseif clean == "JumpPower" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    return cached.lastJump or cached.currentJump
+                end
+            end
+        end
+    end
+    return indexHook(self, index)
+end)
+
+newIndexHook = hookmetamethod(game, "__newindex", function(self, index, newValue)
+    if not checkcaller() and typeof(self) == "Instance" and self:IsA("Humanoid") then
+        local DebugId = GetDebugId(self)
+        local cached = cachedHumanoids[DebugId]
+        if self:IsDescendantOf(LocalPlayer.Character) or cached then
+            if type(index) == "string" then
+                local clean = string.split(index, "\0")[1]
+                if clean == "WalkSpeed" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    cached.lastWalk = GetSpoofValue(newValue)
+                    return CurrentHumanoid.WalkSpeed
+                elseif clean == "JumpPower" then
+                    if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
+                    if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
+                        CurrentHumanoid = cloneref(self)
+                    end
+                    cached.lastJump = GetSpoofValue(newValue)
+                    return CurrentHumanoid.JumpPower
+                end
+            end
+        end
+    end
+    return newIndexHook(self, index, newValue)
+end)
+
+local function GetHumanoid()
+    return CurrentHumanoid or (function()
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildWhichIsA("Humanoid")
+        if humanoid then
+            cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
+            return cloneref(humanoid)
+        end
+    end)()
+end
+
+local function SetWalkSpeed(speed)
+    local humanoid = GetHumanoid()
+    if not humanoid then return end
+    local connections = {}
+    local function AddConnections(Signal)
+        for _, conn in getconnections(Signal) do
+            if conn.State then
+                conn:Disable()
+                table.insert(connections, conn)
+            end
+        end
+    end
+    AddConnections(humanoid.Changed)
+    AddConnections(humanoid:GetPropertyChangedSignal("WalkSpeed"))
+    humanoid.WalkSpeed = speed
+    for _, conn in connections do conn:Enable() end
+end
+
+local function SetJumpPower(power)
+    local humanoid = GetHumanoid()
+    if not humanoid then return end
+    local connections = {}
+    local function AddConnections(Signal)
+        for _, conn in getconnections(Signal) do
+            if conn.State then
+                conn:Disable()
+                table.insert(connections, conn)
+            end
+        end
+    end
+    AddConnections(humanoid.Changed)
+    AddConnections(humanoid:GetPropertyChangedSignal("JumpPower"))
+    humanoid.JumpPower = power
+    for _, conn in connections do conn:Enable() end
+end
+
+local function RestoreMovement()
+    local humanoid = GetHumanoid()
+    if humanoid then
+        local debugId = humanoid:GetDebugId()
+        local cached = cachedHumanoids[debugId]
+        if cached then
+            SetWalkSpeed(cached.lastWalk or cached.currentWalk)
+            SetJumpPower(cached.lastJump or cached.currentJump)
+        else
+            SetWalkSpeed(16)
+            SetJumpPower(50)
+        end
+    end
+end
+
+local function EnableSpoof(walk, jump)
+    SpoofActive = true
+    SpoofedWalk = walk or SpoofedWalk
+    SpoofedJump = jump or SpoofedJump
+    local humanoid = GetHumanoid()
+    if humanoid then
+        cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
+        SetWalkSpeed(SpoofedWalk)
+        SetJumpPower(SpoofedJump)
+    end
+    if not MovementCharacterConnection then
+        MovementCharacterConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+            task.wait(0.1)
+            local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+            if humanoid and SpoofActive then
+                cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
+                SetWalkSpeed(SpoofedWalk)
+                SetJumpPower(SpoofedJump)
+            end
+        end)
+    end
+end
+
+local function DisableSpoof()
+    SpoofActive = false
+    RestoreMovement()
+    if MovementCharacterConnection then
+        MovementCharacterConnection:Disconnect()
+        MovementCharacterConnection = nil
+    end
+end
+
+-- State variables for UI
 local SpeedEnabled = false
 local JumpEnabled = false
 local WalkSpeedValue = 24
 local JumpPowerValue = 50
-local FlySpeedValue = 50
 
+-- NoClip & Fly state (unchanged)
 local NoClipMaster = false
 local NoClipActive = false
 local FlyMaster = false
 local FlyActive = false
+local FlySpeedValue = 50
 
 local PlayerModsCharacterAddedConnection = nil
-
--- Apply spoofed walk speed
-local function ApplySpoofedWalkSpeed()
-    if SpeedEnabled then
-        Spoof:SetWalkSpeed(WalkSpeedValue)
-    else
-        Spoof:RestoreWalkSpeed()
-    end
-end
-
--- Apply spoofed jump power
-local function ApplySpoofedJumpPower()
-    if JumpEnabled then
-        Spoof:SetJumpPower(JumpPowerValue)
-    else
-        Spoof:RestoreJumpPower()
-    end
-end
 
 -- NoClip apply
 local function ApplyNoClip()
@@ -1016,7 +982,7 @@ local function ApplyNoClip()
     end
 end
 
--- Fly logic
+-- Fly logic (unchanged)
 local FlyConnection = nil
 local FlyCharacterConnection = nil
 
@@ -1076,12 +1042,11 @@ local function UpdateFly()
     end
 end
 
--- Character respawn handler
+-- Character respawn handler (for NoClip & Fly)
 local function OnCharacterAdded()
     task.wait(0.1)
-    ApplySpoofedWalkSpeed()
-    ApplySpoofedJumpPower()
     ApplyNoClip()
+    -- Speed/jump spoof will be reapplied by the CharacterAdded connection in EnableSpoof
 end
 
 local function SetupCharacterAddedListener()
@@ -1091,14 +1056,41 @@ local function SetupCharacterAddedListener()
     PlayerModsCharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
 end
 
--- Create UI elements
+-- UI elements
 Character:CreateToggle("Normal", {
     Name = "Enable Walk Speed",
     Flag = "WalkSpeedEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
         SpeedEnabled = Enabled
-        ApplySpoofedWalkSpeed()
+        if Enabled then
+            if not SpoofActive then
+                EnableSpoof(WalkSpeedValue, JumpPowerValue)
+            else
+                SpoofedWalk = WalkSpeedValue
+                SetWalkSpeed(WalkSpeedValue)
+            end
+        else
+            -- If speed is off, but jump might still be on; we need to decide if we turn off spoof entirely.
+            -- Better: if either speed or jump is enabled, keep spoof active.
+            if JumpEnabled then
+                -- keep spoof active, only reset speed to original
+                local humanoid = GetHumanoid()
+                if humanoid then
+                    local debugId = humanoid:GetDebugId()
+                    local cached = cachedHumanoids[debugId]
+                    if cached and cached.currentWalk then
+                        SetWalkSpeed(cached.currentWalk)
+                    else
+                        SetWalkSpeed(16)
+                    end
+                end
+                -- but we also need to set SpoofedWalk to not affect future? We can keep it, but next time speed is enabled it will set.
+            else
+                -- both off, disable spoof entirely
+                DisableSpoof()
+            end
+        end
         print("Enable Walk Speed " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -1112,8 +1104,9 @@ Character:CreateSlider({
     Flag = "WalkSpeed",
     Callback = function(Value)
         WalkSpeedValue = Value
-        if SpeedEnabled then
-            ApplySpoofedWalkSpeed()
+        if SpeedEnabled and SpoofActive then
+            SpoofedWalk = Value
+            SetWalkSpeed(Value)
         end
         print("Walk Speed set to " .. Value)
     end
@@ -1125,7 +1118,29 @@ Character:CreateToggle("Normal", {
     CurrentValue = false,
     Callback = function(Enabled)
         JumpEnabled = Enabled
-        ApplySpoofedJumpPower()
+        if Enabled then
+            if not SpoofActive then
+                EnableSpoof(WalkSpeedValue, JumpPowerValue)
+            else
+                SpoofedJump = JumpPowerValue
+                SetJumpPower(JumpPowerValue)
+            end
+        else
+            if SpeedEnabled then
+                local humanoid = GetHumanoid()
+                if humanoid then
+                    local debugId = humanoid:GetDebugId()
+                    local cached = cachedHumanoids[debugId]
+                    if cached and cached.currentJump then
+                        SetJumpPower(cached.currentJump)
+                    else
+                        SetJumpPower(50)
+                    end
+                end
+            else
+                DisableSpoof()
+            end
+        end
         print("Enable Jump Power " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -1139,13 +1154,15 @@ Character:CreateSlider({
     Flag = "JumpPower",
     Callback = function(Value)
         JumpPowerValue = Value
-        if JumpEnabled then
-            ApplySpoofedJumpPower()
+        if JumpEnabled and SpoofActive then
+            SpoofedJump = Value
+            SetJumpPower(Value)
         end
         print("Jump Power set to " .. Value)
     end
 })
 
+-- No Clip master toggle
 Character:CreateToggle("Normal", {
     Name = "No Clip",
     Flag = "NoClip",
@@ -1162,6 +1179,7 @@ Character:CreateToggle("Normal", {
     end
 })
 
+-- No Clip keybind
 Character:CreateKeybind({
     Name = "No Clip Keybind",
     Flag = "NoClipKeybind",
@@ -1178,6 +1196,7 @@ Character:CreateKeybind({
     end
 })
 
+-- Fly master toggle
 Character:CreateToggle("Normal", {
     Name = "Fly",
     Flag = "Fly",
@@ -1194,6 +1213,7 @@ Character:CreateToggle("Normal", {
     end
 })
 
+-- Fly keybind
 Character:CreateKeybind({
     Name = "Fly Keybind",
     Flag = "FlyKeybind",
@@ -1252,7 +1272,12 @@ Miscellaneous:CreateToggle("Normal", {
                             Duration = 10,
                             Image = Matrice.Asset("user-shield.png"),
                             Actions = {
-                                { Name = "Leave Game", Callback = function() game:Shutdown() end }
+                                {
+                                    Name = "Leave Game",
+                                    Callback = function()
+                                        game:Shutdown()
+                                    end
+                                }
                             }
                         })
                     end
@@ -1275,7 +1300,12 @@ Miscellaneous:CreateToggle("Normal", {
                             Duration = 10,
                             Image = Matrice.Asset("user-shield.png"),
                             Actions = {
-                                { Name = "Leave Game", Callback = function() game:Shutdown() end }
+                                {
+                                    Name = "Leave Game",
+                                    Callback = function()
+                                        game:Shutdown()
+                                    end
+                                }
                             }
                         })
                     end
@@ -1297,7 +1327,12 @@ Miscellaneous:CreateToggle("Normal", {
                             Duration = 10,
                             Image = Matrice.Asset("user-shield.png"),
                             Actions = {
-                                { Name = "Leave Game", Callback = function() game:Shutdown() end }
+                                {
+                                    Name = "Leave Game",
+                                    Callback = function()
+                                        game:Shutdown()
+                                    end
+                                }
                             }
                         })
                     end
