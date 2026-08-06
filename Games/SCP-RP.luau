@@ -39,7 +39,7 @@ local function StartFriendListUpdates()
     UpdateFriendList()
     FriendListUpdateTask = task.spawn(function()
         while true do
-            task.wait(300) -- refresh every 5 minutes
+            task.wait(300)
             UpdateFriendList()
         end
     end)
@@ -66,7 +66,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB (Placeholders – no logic yet)
+--  COMBAT TAB
 -- ============================================================
 
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
@@ -221,11 +221,11 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP
+--  VISUALS TAB
 -- ============================================================
 
 local ESPEnabled = false
-local ESPData = {} -- per-player data
+local ESPData = {}
 local ESPConnection = nil
 local RenderConnection = nil
 
@@ -258,7 +258,6 @@ local function BuildESP(player)
 
     local esp = {}
 
-    -- Box
     local box = Drawing.new("Square")
     box.Thickness = 1
     box.Color = teamColor
@@ -267,7 +266,6 @@ local function BuildESP(player)
     box.Visible = false
     table.insert(esp, box)
 
-    -- Name
     local nameText = Drawing.new("Text")
     nameText.Center = true
     nameText.Outline = true
@@ -278,7 +276,6 @@ local function BuildESP(player)
     nameText.Text = player.Name
     table.insert(esp, nameText)
 
-    -- Distance
     local distText = Drawing.new("Text")
     distText.Center = true
     distText.Outline = true
@@ -288,7 +285,6 @@ local function BuildESP(player)
     distText.Visible = false
     table.insert(esp, distText)
 
-    -- Weapon
     local weaponText = Drawing.new("Text")
     weaponText.Center = true
     weaponText.Outline = true
@@ -298,7 +294,6 @@ local function BuildESP(player)
     weaponText.Visible = false
     table.insert(esp, weaponText)
 
-    -- Health Bar (outline + fill)
     local healthOutline = Drawing.new("Square")
     healthOutline.Thickness = 0
     healthOutline.Filled = true
@@ -314,7 +309,6 @@ local function BuildESP(player)
     healthFill.Visible = false
     table.insert(esp, healthFill)
 
-    -- Tracer
     local tracer = Drawing.new("Line")
     tracer.Thickness = 1
     tracer.Color = teamColor
@@ -322,7 +316,6 @@ local function BuildESP(player)
     tracer.Visible = false
     table.insert(esp, tracer)
 
-    -- Skeleton (uses VisualLibrary)
     local skeleton = nil
     if getgenv().SkeletonEnabled then
         skeleton = Visuals:CreateVisual("Drawing", {
@@ -334,7 +327,6 @@ local function BuildESP(player)
         table.insert(esp, skeleton)
     end
 
-    -- Highlight (VisualLibrary)
     local highlight = nil
     if getgenv().HighlightEnabled then
         highlight = Visuals:CreateVisual("Highlight", {
@@ -347,7 +339,6 @@ local function BuildESP(player)
         table.insert(esp, highlight)
     end
 
-    -- Chams (material override)
     local chams = {}
     if getgenv().ChamsEnabled and player.Character then
         for _, part in ipairs(player.Character:GetDescendants()) do
@@ -451,9 +442,7 @@ local function RenderESP()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                -- Team Check
                 if getgenv().TeamCheckEnabled and localTeam and player.Team == localTeam then
-                    -- hide all objects
                     for _, obj in ipairs(esp) do
                         if obj.Visible ~= nil then
                             obj.Visible = false
@@ -462,7 +451,6 @@ local function RenderESP()
                     continue
                 end
 
-                -- Friend Check
                 if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
                     for _, obj in ipairs(esp) do
                         if obj.Visible ~= nil then
@@ -478,7 +466,6 @@ local function RenderESP()
                     local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                       (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude) or 0
 
-                    -- Box
                     if getgenv().BoxEnabled and esp[1] then
                         esp[1].Size = size
                         esp[1].Position = pos
@@ -488,7 +475,6 @@ local function RenderESP()
                         if esp[1] then esp[1].Visible = false end
                     end
 
-                    -- Name
                     if getgenv().NameEnabled and esp[2] then
                         esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 16)
                         esp[2].Text = player.Name
@@ -498,7 +484,6 @@ local function RenderESP()
                         if esp[2] then esp[2].Visible = false end
                     end
 
-                    -- Distance
                     if getgenv().DistanceEnabled and esp[3] then
                         esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 14)
                         esp[3].Text = math.floor(distance) .. " studs"
@@ -507,7 +492,6 @@ local function RenderESP()
                         if esp[3] then esp[3].Visible = false end
                     end
 
-                    -- Weapon
                     if getgenv().WeaponEnabled and esp[4] then
                         local weapon = player.Character:FindFirstChild("Tool")
                         local weaponName = weapon and weapon.Name or "None"
@@ -518,7 +502,6 @@ local function RenderESP()
                         if esp[4] then esp[4].Visible = false end
                     end
 
-                    -- Health Bar
                     if getgenv().HealthBarEnabled and esp[5] and esp[6] then
                         local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
                         local barX = pos.X - 8
@@ -536,7 +519,6 @@ local function RenderESP()
                         if esp[6] then esp[6].Visible = false end
                     end
 
-                    -- Tracer
                     if getgenv().TracerEnabled and esp[7] then
                         local origin = getgenv().TracerOrigin
                         local from
@@ -544,7 +526,7 @@ local function RenderESP()
                             from = Vector2.new(centerX, centerY)
                         elseif origin == "Center" then
                             from = Vector2.new(centerX, centerY/2)
-                        else -- Mouse
+                        else
                             from = Vector2.new(Mouse.X, Mouse.Y)
                         end
                         esp[7].From = from
@@ -554,11 +536,7 @@ local function RenderESP()
                     else
                         if esp[7] then esp[7].Visible = false end
                     end
-
-                    -- Skeleton (managed by VisualLibrary internally)
-                    -- Highlight (managed by VisualLibrary)
                 else
-                    -- hide all drawing objects
                     for _, obj in ipairs(esp) do
                         if obj.Visible ~= nil then
                             obj.Visible = false
@@ -582,7 +560,6 @@ local function RenderESP()
     end
 end
 
--- Global settings (will be loaded from Flags)
 getgenv().ESPEnabled = false
 getgenv().BoxEnabled = false
 getgenv().NameEnabled = false
@@ -597,7 +574,6 @@ getgenv().HighlightEnabled = false
 getgenv().ChamsEnabled = false
 getgenv().TracerEnabled = false
 getgenv().TracerOrigin = "Bottom"
-getgenv().GreyscaleEnabled = false
 
 local function StartESP()
     if ESPConnection then ESPConnection:Disconnect() end
@@ -614,7 +590,6 @@ local function StopESP()
     ClearAllESP()
 end
 
--- ESP Section
 local ESPSection = VisualsTab:CreateSection("ESP", "Normal")
 
 ESPSection:CreateToggle("Normal", {
@@ -719,7 +694,6 @@ ESPSection:CreateSlider({
     end
 })
 
--- Effects Section
 local EffectsSection = VisualsTab:CreateSection("Effects", "Normal")
 
 EffectsSection:CreateToggle("Normal", {
@@ -758,31 +732,6 @@ EffectsSection:CreateDropdown({
     Flag = "TracerOrigin",
     Callback = function(Selected)
         getgenv().TracerOrigin = Selected
-    end
-})
-
--- Misc Visuals
-local MiscSection = VisualsTab:CreateSection("Miscellaneous", "Normal")
-
-MiscSection:CreateToggle("Normal", {
-    Name = "Greyscale World",
-    Flag = "GreyscaleEnabled",
-    CurrentValue = false,
-    Callback = function(Enabled)
-        getgenv().GreyscaleEnabled = Enabled
-        if Enabled then
-            if not getgenv()._GreyscaleEffect then
-                local cc = Instance.new("ColorCorrectionEffect")
-                cc.Saturation = -1
-                cc.Parent = Lighting
-                getgenv()._GreyscaleEffect = cc
-            end
-        else
-            if getgenv()._GreyscaleEffect then
-                getgenv()._GreyscaleEffect:Destroy()
-                getgenv()._GreyscaleEffect = nil
-            end
-        end
     end
 })
 
