@@ -72,7 +72,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB – Silent Aim (fully functional)
+--  COMBAT TAB – Silent Aim & Hitbox
 -- ============================================================
 
 -- ===== Silent Aim State & Config =====
@@ -86,6 +86,20 @@ getgenv().FOVColor = Color3.fromRGB(255, 255, 255)
 getgenv().SilentAimFriendCheck = false
 getgenv().TargetSelection = "Distance Priority"
 getgenv().TargetPriority = "Closest"
+
+-- ===== Hitbox State =====
+getgenv().HitboxEnabled = false
+getgenv().HitboxSize = 10
+local HitboxData = {
+    OriginalSizes = {},
+    OriginalCollisions = {},
+    Connections = {
+        PlayerAdded = nil,
+        PlayerRemoving = nil,
+        SteppedLoops = {},
+        CharacterAdded = {},
+    }
+}
 
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
@@ -122,6 +136,143 @@ local function IsFriend(player)
     return FriendList[player.UserId] or false
 end
 
+-- ===== Hitbox Functions =====
+local function ApplyHitboxToPlayer(player)
+    if player == LocalPlayer then return end
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    local rootPart = humanoid.RootPart
+    if not rootPart then return end
+
+    local size = getgenv().HitboxSize
+    local debugId = player.UserId .. "_" .. character.Name
+
+    if not HitboxData.OriginalSizes[debugId] then
+        HitboxData.OriginalSizes[debugId] = {}
+        HitboxData.OriginalCollisions[debugId] = {}
+    end
+
+    if not HitboxData.OriginalSizes[debugId].RootPart then
+        HitboxData.OriginalSizes[debugId].RootPart = rootPart.Size
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if not HitboxData.OriginalCollisions[debugId][part] then
+                HitboxData.OriginalCollisions[debugId][part] = part.CanCollide
+            end
+            part.CanCollide = false
+        end
+    end
+
+    rootPart.Size = Vector3.new(size, size, size)
+
+    local loopKey = "SteppedLoop_" .. debugId
+    if not HitboxData.Connections.SteppedLoops[loopKey] then
+        HitboxData.Connections.SteppedLoops[loopKey] = RunService.Stepped:Connect(function()
+            if not getgenv().HitboxEnabled then return end
+            if not player.Character or not player.Character.Parent then return end
+            local root = player.Character:FindFirstChildOfClass("Humanoid") and player.Character:FindFirstChildOfClass("Humanoid").RootPart
+            if root then
+                root.Size = Vector3.new(getgenv().HitboxSize, getgenv().HitboxSize, getgenv().HitboxSize)
+            end
+        end)
+    end
+end
+
+local function RestoreHitboxForPlayer(player)
+    local debugId = player.UserId .. "_" .. (player.Character and player.Character.Name or "Unknown")
+    if HitboxData.OriginalSizes[debugId] then
+        if HitboxData.OriginalSizes[debugId].RootPart then
+            local rootPart = player.Character and player.Character:FindFirstChildOfClass("Humanoid") and player.Character:FindFirstChildOfClass("Humanoid").RootPart
+            if rootPart then
+                rootPart.Size = HitboxData.OriginalSizes[debugId].RootPart
+            end
+        end
+        HitboxData.OriginalSizes[debugId] = nil
+    end
+
+    if HitboxData.OriginalCollisions[debugId] then
+        for part, canCollide in pairs(HitboxData.OriginalCollisions[debugId]) do
+            if part and part.Parent then
+                part.CanCollide = canCollide
+            end
+        end
+        HitboxData.OriginalCollisions[debugId] = nil
+    end
+
+    local loopKey = "SteppedLoop_" .. debugId
+    if HitboxData.Connections.SteppedLoops[loopKey] then
+        HitboxData.Connections.SteppedLoops[loopKey]:Disconnect()
+        HitboxData.Connections.SteppedLoops[loopKey] = nil
+    end
+end
+
+local function ApplyHitboxToAllPlayers()
+    if not getgenv().HitboxEnabled then return end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            ApplyHitboxToPlayer(player)
+        end
+    end
+end
+
+local function RestoreHitboxForAllPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        RestoreHitboxForPlayer(player)
+    end
+end
+
+local function ToggleHitbox(Enabled)
+    getgenv().HitboxEnabled = Enabled
+    if Enabled then
+        ApplyHitboxToAllPlayers()
+        if not HitboxData.Connections.PlayerAdded then
+            HitboxData.Connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)
+                if player ~= LocalPlayer and getgenv().HitboxEnabled then
+                    local charAddedConn
+                    charAddedConn = player.CharacterAdded:Connect(function(char)
+                        charAddedConn:Disconnect()
+                        task.wait(0.1)
+                        ApplyHitboxToPlayer(player)
+                    end)
+                    HitboxData.Connections.CharacterAdded[player] = charAddedConn
+                end
+            end)
+        end
+        if not HitboxData.Connections.PlayerRemoving then
+            HitboxData.Connections.PlayerRemoving = Players.PlayerRemoving:Connect(function(player)
+                RestoreHitboxForPlayer(player)
+                if HitboxData.Connections.CharacterAdded[player] then
+                    HitboxData.Connections.CharacterAdded[player]:Disconnect()
+                    HitboxData.Connections.CharacterAdded[player] = nil
+                end
+            end)
+        end
+    else
+        RestoreHitboxForAllPlayers()
+        if HitboxData.Connections.PlayerAdded then
+            HitboxData.Connections.PlayerAdded:Disconnect()
+            HitboxData.Connections.PlayerAdded = nil
+        end
+        if HitboxData.Connections.PlayerRemoving then
+            HitboxData.Connections.PlayerRemoving:Disconnect()
+            HitboxData.Connections.PlayerRemoving = nil
+        end
+        for player, conn in pairs(HitboxData.Connections.CharacterAdded) do
+            conn:Disconnect()
+        end
+        HitboxData.Connections.CharacterAdded = {}
+        for key, conn in pairs(HitboxData.Connections.SteppedLoops) do
+            conn:Disconnect()
+        end
+        HitboxData.Connections.SteppedLoops = {}
+    end
+end
+
+-- ===== Silent Aim Functions =====
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
     local cursor = UserInputService:GetMouseLocation()
@@ -158,7 +309,6 @@ local function GetSilentAimTarget()
                 if onScreen and visible then
                     local distCursor = (Vector2.new(screenPosition.X, screenPosition.Y) - cursor).Magnitude
                     if distCursor <= fovRadius then
-                        -- Compute additional metrics
                         local distPlayer = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                             (LocalPlayer.Character.HumanoidRootPart.Position - targetPart.Position).Magnitude) or math.huge
                         local health = humanoid.Health / math.max(humanoid.MaxHealth, 1)
@@ -177,30 +327,20 @@ local function GetSilentAimTarget()
 
     if #candidates == 0 then return nil end
 
-    -- Sort candidates by primary metric (Target Selection)
-    local primaryKey
-    if targetSelection == "Distance Priority" or targetSelection == "Closest" then
-        primaryKey = "DistPlayer"
-    else -- FOV Priority
-        primaryKey = "DistCursor"
-    end
-
-    -- Secondary key (Target Priority)
+    local primaryKey = (targetSelection == "Distance Priority" or targetSelection == "Closest") and "DistPlayer" or "DistCursor"
     local secondaryKey
     if targetPriority == "Closest" then
         secondaryKey = "DistPlayer"
     elseif targetPriority == "Lowest Health" then
         secondaryKey = "Health"
-    else -- Crosshair Distance
+    else
         secondaryKey = "DistCursor"
     end
 
-    -- Sort: ascending for DistPlayer, DistCursor, Health
     table.sort(candidates, function(a, b)
         if a[primaryKey] ~= b[primaryKey] then
             return a[primaryKey] < b[primaryKey]
         end
-        -- If primary ties, use secondary (if different)
         if primaryKey ~= secondaryKey then
             return a[secondaryKey] < b[secondaryKey]
         end
@@ -326,7 +466,6 @@ Targeting:CreateSlider({
     end
 })
 
--- Fully functional Target Selection
 Targeting:CreateDropdown({
     Name = "Target Selection",
     Options = {"Distance Priority", "Closest", "FOV Priority"},
@@ -338,7 +477,6 @@ Targeting:CreateDropdown({
     end
 })
 
--- Fully functional Target Priority
 Targeting:CreateDropdown({
     Name = "Target Priority",
     Options = {"Closest", "Lowest Health", "Crosshair Distance"},
@@ -347,6 +485,33 @@ Targeting:CreateDropdown({
     Callback = function(Selected)
         getgenv().TargetPriority = Selected
         print("Target Priority set to " .. Selected)
+    end
+})
+
+-- ===== Hitbox Toggle & Slider =====
+Targeting:CreateToggle("Normal", {
+    Name = "Hitbox",
+    Flag = "HitboxEnabled",
+    CurrentValue = false,
+    Callback = function(Enabled)
+        ToggleHitbox(Enabled)
+        print("Hitbox " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+Targeting:CreateSlider({
+    Name = "Hitbox Size",
+    Value = {1, 20},
+    Increment = 0.5,
+    Suffix = "studs",
+    CurrentValue = 10,
+    Flag = "HitboxSize",
+    Callback = function(Value)
+        getgenv().HitboxSize = Value
+        if getgenv().HitboxEnabled then
+            ApplyHitboxToAllPlayers()
+        end
+        print("Hitbox Size set to " .. Value)
     end
 })
 
@@ -451,7 +616,7 @@ Weapons:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP (unchanged)
+--  VISUALS TAB – Fully functional ESP
 -- ============================================================
 
 local ESPEnabled = false
@@ -995,7 +1160,7 @@ EffectsSection:CreateDropdown({
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
--- Spoofing logic (unchanged)
+-- Spoofing logic
 local SpoofActive = false
 local SpoofedWalk = 16
 local SpoofedJump = 50
@@ -1455,7 +1620,7 @@ Character:CreateSlider({
 SetupCharacterAddedListener()
 
 -- ============================================================
---  UTILITIES TAB (unchanged)
+--  UTILITIES TAB
 -- ============================================================
 
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
