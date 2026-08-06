@@ -61,10 +61,6 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
 Library:SwitchTab()
 
--- ============================================================
---  COMBAT TAB (placeholders)
--- ============================================================
-
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
 
 Targeting:CreateToggle("Normal", {
@@ -216,10 +212,6 @@ Weapons:CreateToggle("Normal", {
     end
 })
 
--- ============================================================
---  VISUALS TAB – ESP with Weapon Detection & Ammo
--- ============================================================
-
 local ESPEnabled = false
 local ESPData = {}
 local ESPConnection = nil
@@ -268,7 +260,7 @@ local function BuildESP(player)
     nameText.Outline = true
     nameText.OutlineColor = Color3.new(0, 0, 0)
     nameText.Color = teamColor
-    nameText.Size = 14
+    nameText.Size = 18
     nameText.Visible = false
     nameText.Text = player.Name
     table.insert(esp, nameText)
@@ -278,7 +270,7 @@ local function BuildESP(player)
     distText.Outline = true
     distText.OutlineColor = Color3.new(0, 0, 0)
     distText.Color = Color3.new(1, 1, 1)
-    distText.Size = 12
+    distText.Size = 14
     distText.Visible = false
     table.insert(esp, distText)
 
@@ -287,7 +279,7 @@ local function BuildESP(player)
     weaponText.Outline = true
     weaponText.OutlineColor = Color3.new(0, 0, 0)
     weaponText.Color = Color3.new(1, 1, 1)
-    weaponText.Size = 11   -- small text
+    weaponText.Size = 14
     weaponText.Visible = false
     table.insert(esp, weaponText)
 
@@ -463,7 +455,6 @@ local function RenderESP()
                     local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                       (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude) or 0
 
-                    -- Box
                     if getgenv().BoxEnabled and esp[1] then
                         esp[1].Size = size
                         esp[1].Position = pos
@@ -473,9 +464,8 @@ local function RenderESP()
                         if esp[1] then esp[1].Visible = false end
                     end
 
-                    -- Name
                     if getgenv().NameEnabled and esp[2] then
-                        esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 16)
+                        esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 20)
                         esp[2].Text = player.Name
                         esp[2].Color = teamColor
                         esp[2].Visible = true
@@ -483,22 +473,19 @@ local function RenderESP()
                         if esp[2] then esp[2].Visible = false end
                     end
 
-                    -- Distance
                     if getgenv().DistanceEnabled and esp[3] then
-                        esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 14)
+                        esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 16)
                         esp[3].Text = math.floor(distance) .. " studs"
                         esp[3].Visible = true
                     else
                         if esp[3] then esp[3].Visible = false end
                     end
 
-                    -- Weapon with auto‑detection & ammo
                     if getgenv().WeaponEnabled and esp[4] then
                         local weaponName = "None"
                         local ammoText = ""
                         local character = player.Character
                         if character then
-                            -- Find tool that has Ammo, CurrentAmmo, _Mag, Identifier
                             for _, child in ipairs(character:GetChildren()) do
                                 if child:IsA("Tool") then
                                     local ammo = child:FindFirstChild("Ammo")
@@ -514,7 +501,6 @@ local function RenderESP()
                                     end
                                 end
                             end
-                            -- fallback to any tool
                             if weaponName == "None" then
                                 local tool = character:FindFirstChildOfClass("Tool")
                                 if tool then
@@ -523,13 +509,12 @@ local function RenderESP()
                             end
                         end
                         esp[4].Text = weaponName .. ammoText
-                        esp[4].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 28)
+                        esp[4].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 34)
                         esp[4].Visible = true
                     else
                         if esp[4] then esp[4].Visible = false end
                     end
 
-                    -- Health Bar
                     if getgenv().HealthBarEnabled and esp[5] and esp[6] then
                         local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
                         local barX = pos.X - 8
@@ -547,13 +532,12 @@ local function RenderESP()
                         if esp[6] then esp[6].Visible = false end
                     end
 
-                    -- Tracer
                     if getgenv().TracerEnabled and esp[7] then
                         local origin = CurrentTracerOrigin
                         local from
                         if origin == "Bottom" then
                             from = Vector2.new(centerX, centerY)
-                        else -- Center
+                        else
                             from = Vector2.new(centerX, centerY/2)
                         end
                         esp[7].From = from
@@ -763,10 +747,6 @@ EffectsSection:CreateDropdown({
     end
 })
 
--- ============================================================
---  PLAYER TAB
--- ============================================================
-
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
 Character:CreateToggle("Normal", {
@@ -844,10 +824,6 @@ Character:CreateKeybind({
         print("Fly key " .. (State and "pressed" or "released"))
     end
 })
-
--- ============================================================
---  UTILITIES TAB
--- ============================================================
 
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
@@ -988,10 +964,6 @@ AntiAFKSection:CreateToggle("Normal", {
         print("Anti AFK " .. (Enabled and "ON" or "OFF"))
     end
 })
-
--- ============================================================
---  SETTINGS TAB
--- ============================================================
 
 local Interface = SettingsTab:CreateSection("Interface", "Normal")
 
