@@ -771,6 +771,7 @@ EffectsSection:CreateDropdown({
 
 -- ============================================================
 --  PLAYER TAB – Walkspeed & JumpPower Spoof (undetectable)
+--  with Sprint support (walk = base, sprint = base * 1.5)
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
@@ -779,6 +780,8 @@ local Character = PlayerTab:CreateSection("Character", "Normal")
 local SpoofActive = false
 local SpoofedWalk = 16
 local SpoofedJump = 50
+local OriginalWalk = 16   -- base walk speed (original)
+local OriginalJump = 50
 local cachedHumanoids = {}
 local GetDebugIdHandler = Instance.new("BindableFunction")
 local TempHumanoid = Instance.new("Humanoid")
@@ -793,6 +796,8 @@ local function GetDebugId(obj)
 end
 
 local function GetSpoofValue(value)
+    -- For WalkSpeed: scale value by (SpoofedWalk / OriginalWalk)
+    -- For JumpPower: just return value (no scaling)
     TempHumanoid.WalkSpeed = value
     return TempHumanoid.WalkSpeed
 end
@@ -845,7 +850,10 @@ newIndexHook = hookmetamethod(game, "__newindex", function(self, index, newValue
                     if not (CurrentHumanoid and CurrentHumanoid:IsDescendantOf(game)) then
                         CurrentHumanoid = cloneref(self)
                     end
-                    cached.lastWalk = GetSpoofValue(newValue)
+                    -- Scale the written value to spoofed walk speed ratio
+                    local ratio = SpoofActive and (SpoofedWalk / OriginalWalk) or 1
+                    local scaled = newValue * ratio
+                    cached.lastWalk = GetSpoofValue(scaled)
                     return CurrentHumanoid.WalkSpeed
                 elseif clean == "JumpPower" then
                     if not cached then cached = cachedHumanoids:cacheHumanoid(DebugId, self) end
@@ -914,8 +922,8 @@ local function RestoreMovement()
         local debugId = humanoid:GetDebugId()
         local cached = cachedHumanoids[debugId]
         if cached then
-            SetWalkSpeed(cached.lastWalk or cached.currentWalk)
-            SetJumpPower(cached.lastJump or cached.currentJump)
+            SetWalkSpeed(cached.currentWalk)
+            SetJumpPower(cached.currentJump)
         else
             SetWalkSpeed(16)
             SetJumpPower(50)
@@ -929,7 +937,11 @@ local function EnableSpoof(walk, jump)
     SpoofedJump = jump or SpoofedJump
     local humanoid = GetHumanoid()
     if humanoid then
+        -- store original walk speed (for scaling)
+        OriginalWalk = humanoid.WalkSpeed
+        OriginalJump = humanoid.JumpPower
         cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
+        -- force apply the spoofed values
         SetWalkSpeed(SpoofedWalk)
         SetJumpPower(SpoofedJump)
     else
@@ -939,6 +951,8 @@ local function EnableSpoof(walk, jump)
                 task.wait(0.2)
                 local h = GetHumanoid()
                 if h then
+                    OriginalWalk = h.WalkSpeed
+                    OriginalJump = h.JumpPower
                     cachedHumanoids:cacheHumanoid(h:GetDebugId(), h)
                     SetWalkSpeed(SpoofedWalk)
                     SetJumpPower(SpoofedJump)
@@ -952,6 +966,8 @@ local function EnableSpoof(walk, jump)
             task.wait(0.1)
             local humanoid = char:FindFirstChildWhichIsA("Humanoid")
             if humanoid and SpoofActive then
+                OriginalWalk = humanoid.WalkSpeed
+                OriginalJump = humanoid.JumpPower
                 cachedHumanoids:cacheHumanoid(humanoid:GetDebugId(), humanoid)
                 SetWalkSpeed(SpoofedWalk)
                 SetJumpPower(SpoofedJump)
@@ -1080,10 +1096,9 @@ Character:CreateToggle("Normal", {
             if not SpoofActive then
                 EnableSpoof(WalkSpeedValue, JumpPowerValue)
             else
+                -- Update spoofed walk speed
                 SpoofedWalk = WalkSpeedValue
-                SpoofedJump = JumpPowerValue
                 SetWalkSpeed(WalkSpeedValue)
-                SetJumpPower(JumpPowerValue)
             end
         else
             if JumpEnabled then
@@ -1118,6 +1133,7 @@ Character:CreateSlider({
         WalkSpeedValue = Value
         if SpeedEnabled and SpoofActive then
             SpoofedWalk = Value
+            -- Reapply speed to update scaling
             SetWalkSpeed(Value)
         end
         print("Walk Speed set to " .. Value)
@@ -1134,9 +1150,7 @@ Character:CreateToggle("Normal", {
             if not SpoofActive then
                 EnableSpoof(WalkSpeedValue, JumpPowerValue)
             else
-                SpoofedWalk = WalkSpeedValue
                 SpoofedJump = JumpPowerValue
-                SetWalkSpeed(WalkSpeedValue)
                 SetJumpPower(JumpPowerValue)
             end
         else
