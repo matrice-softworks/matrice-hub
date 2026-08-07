@@ -462,16 +462,19 @@ local function StopAutoTrigger()
     end
 end
 
--- ===== Auto Reload Functions =====
+-- ===== Auto Reload Functions (FIXED) =====
 local function SimulateKeyPress(KeyCode)
-    -- Convert Enum to number if needed
+    local keyNumber
     if type(KeyCode) == "EnumItem" then
-        KeyCode = KeyCode.Value
+        keyNumber = KeyCode.Value
+    else
+        keyNumber = KeyCode
     end
+
     if keypress and keyrelease then
-        keypress(KeyCode)
+        keypress(keyNumber)
         task.wait(0.05)
-        keyrelease(KeyCode)
+        keyrelease(keyNumber)
         return true
     else
         local VIM = game:GetService("VirtualInputManager")
