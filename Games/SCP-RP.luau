@@ -111,7 +111,6 @@ local LastTriggerTime = 0
 getgenv().AutoReloadEnabled = false
 local AutoReloadConnection = nil
 local ReloadPressed = false
-local lastReloadState = false
 
 local SilentAimHookInstalled = false
 local FOVCircle = Drawing.new("Circle")
@@ -465,6 +464,10 @@ end
 
 -- ===== Auto Reload Functions =====
 local function SimulateKeyPress(KeyCode)
+    -- Convert Enum to number if needed
+    if type(KeyCode) == "EnumItem" then
+        KeyCode = KeyCode.Value
+    end
     if keypress and keyrelease then
         keypress(KeyCode)
         task.wait(0.05)
@@ -495,7 +498,6 @@ local function StartAutoReload()
 
         local visible = reloadFrame.Visible
         if visible and not ReloadPressed then
-            -- Press R key
             SimulateKeyPress(Enum.KeyCode.R)
             ReloadPressed = true
         elseif not visible then
@@ -733,17 +735,6 @@ Automation:CreateToggle("Normal", {
         else
             StopAutoReload()
         end
-        print("Auto Reload " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
--- Weapons Section (placeholder)
-local Weapons = CombatTab:CreateSection("Weapons", "Normal")
-
-Weapons:CreateToggle("Normal", {
-    Name = "Auto Reload",
-    Flag = "AutoReload",
-    Callback = function(Enabled)
         print("Auto Reload " .. (Enabled and "ON" or "OFF"))
     end
 })
