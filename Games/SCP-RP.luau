@@ -419,7 +419,7 @@ local function InstallSilentAimHook()
 end
 
 -- ============================================================
---  AUTO TRIGGER – HOLD‑BASED (fixes jamming)
+--  AUTO TRIGGER – HOLD‑BASED
 -- ============================================================
 
 local function PressShoot()
@@ -766,7 +766,7 @@ Automation:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP (unchanged)
+--  VISUALS TAB – Fully functional ESP (Team & Friend check fixed)
 -- ============================================================
 
 local ESPEnabled = false
@@ -804,6 +804,7 @@ local function BuildESP(player)
 
     local esp = {}
 
+    -- Box
     local box = Drawing.new("Square")
     box.Thickness = 1
     box.Color = teamColor
@@ -812,6 +813,7 @@ local function BuildESP(player)
     box.Visible = false
     table.insert(esp, box)
 
+    -- Name
     local nameText = Drawing.new("Text")
     nameText.Center = true
     nameText.Outline = true
@@ -822,6 +824,7 @@ local function BuildESP(player)
     nameText.Text = player.Name
     table.insert(esp, nameText)
 
+    -- Distance
     local distText = Drawing.new("Text")
     distText.Center = true
     distText.Outline = true
@@ -831,6 +834,7 @@ local function BuildESP(player)
     distText.Visible = false
     table.insert(esp, distText)
 
+    -- Weapon
     local weaponText = Drawing.new("Text")
     weaponText.Center = true
     weaponText.Outline = true
@@ -840,6 +844,7 @@ local function BuildESP(player)
     weaponText.Visible = false
     table.insert(esp, weaponText)
 
+    -- Health Bar Outline
     local healthOutline = Drawing.new("Square")
     healthOutline.Thickness = 0
     healthOutline.Filled = true
@@ -848,6 +853,7 @@ local function BuildESP(player)
     healthOutline.Visible = false
     table.insert(esp, healthOutline)
 
+    -- Health Bar Fill
     local healthFill = Drawing.new("Square")
     healthFill.Thickness = 0
     healthFill.Filled = true
@@ -855,6 +861,7 @@ local function BuildESP(player)
     healthFill.Visible = false
     table.insert(esp, healthFill)
 
+    -- Tracer
     local tracer = Drawing.new("Line")
     tracer.Thickness = 1
     tracer.Color = teamColor
@@ -862,6 +869,7 @@ local function BuildESP(player)
     tracer.Visible = false
     table.insert(esp, tracer)
 
+    -- Skeleton (VisualLibrary)
     local skeleton = nil
     if getgenv().SkeletonEnabled then
         skeleton = Visuals:CreateVisual("Drawing", {
@@ -873,6 +881,7 @@ local function BuildESP(player)
         table.insert(esp, skeleton)
     end
 
+    -- Highlight (VisualLibrary)
     local highlight = nil
     if getgenv().HighlightEnabled then
         highlight = Visuals:CreateVisual("Highlight", {
@@ -885,6 +894,7 @@ local function BuildESP(player)
         table.insert(esp, highlight)
     end
 
+    -- Chams (material override)
     local chams = {}
     if getgenv().ChamsEnabled and player.Character then
         for _, part in ipairs(player.Character:GetDescendants()) do
@@ -967,12 +977,36 @@ local function UpdateESP()
     end
 end
 
+local function HideESP(player)
+    local esp = ESPData[player]
+    if not esp then return end
+    for _, obj in ipairs(esp) do
+        if obj.Visible ~= nil then
+            obj.Visible = false
+        end
+        -- Handle skeleton
+        if obj.StartTracking then
+            obj:StartTracking(false)
+        end
+        -- Handle highlight
+        if obj.Object and obj.Object:IsA("Highlight") then
+            obj.Object.Enabled = false
+        end
+    end
+end
+
 local function RenderESP()
     if not ESPEnabled then
         for _, esp in pairs(ESPData) do
             for _, obj in ipairs(esp) do
                 if obj.Visible ~= nil then
                     obj.Visible = false
+                end
+                if obj.StartTracking then
+                    obj:StartTracking(false)
+                end
+                if obj.Object and obj.Object:IsA("Highlight") then
+                    obj.Object.Enabled = false
                 end
             end
         end
@@ -988,21 +1022,17 @@ local function RenderESP()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
+                -- Check Team and Friend
+                local excluded = false
                 if getgenv().TeamCheckEnabled and localTeam and player.Team == localTeam then
-                    for _, obj in ipairs(esp) do
-                        if obj.Visible ~= nil then
-                            obj.Visible = false
-                        end
-                    end
-                    continue
+                    excluded = true
+                end
+                if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
+                    excluded = true
                 end
 
-                if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
-                    for _, obj in ipairs(esp) do
-                        if obj.Visible ~= nil then
-                            obj.Visible = false
-                        end
-                    end
+                if excluded then
+                    HideESP(player)
                     continue
                 end
 
@@ -1012,6 +1042,7 @@ local function RenderESP()
                     local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                       (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude) or 0
 
+                    -- Box
                     if getgenv().BoxEnabled and esp[1] then
                         esp[1].Size = size
                         esp[1].Position = pos
@@ -1021,6 +1052,7 @@ local function RenderESP()
                         if esp[1] then esp[1].Visible = false end
                     end
 
+                    -- Name
                     if getgenv().NameEnabled and esp[2] then
                         esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 20)
                         esp[2].Text = player.Name
@@ -1030,6 +1062,7 @@ local function RenderESP()
                         if esp[2] then esp[2].Visible = false end
                     end
 
+                    -- Distance
                     if getgenv().DistanceEnabled and esp[3] then
                         esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 16)
                         esp[3].Text = math.floor(distance) .. " studs"
@@ -1038,6 +1071,7 @@ local function RenderESP()
                         if esp[3] then esp[3].Visible = false end
                     end
 
+                    -- Weapon
                     if getgenv().WeaponEnabled and esp[4] then
                         local weaponName = "None"
                         local ammoText = ""
@@ -1072,6 +1106,7 @@ local function RenderESP()
                         if esp[4] then esp[4].Visible = false end
                     end
 
+                    -- Health Bar
                     if getgenv().HealthBarEnabled and esp[5] and esp[6] then
                         local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
                         local barX = pos.X - 8
@@ -1089,6 +1124,7 @@ local function RenderESP()
                         if esp[6] then esp[6].Visible = false end
                     end
 
+                    -- Tracer
                     if getgenv().TracerEnabled and esp[7] then
                         local origin = CurrentTracerOrigin
                         local from
@@ -1104,26 +1140,36 @@ local function RenderESP()
                     else
                         if esp[7] then esp[7].Visible = false end
                     end
+
+                    -- Skeleton – ensure tracking is on
+                    if esp[8] and esp[8].StartTracking then
+                        esp[8]:StartTracking(true)
+                    end
+
+                    -- Highlight – enable if exists
+                    if esp[9] and esp[9].Object and esp[9].Object:IsA("Highlight") then
+                        esp[9].Object.Enabled = true
+                    end
+
                 else
+                    -- Off-screen: hide drawing objects, but keep skeleton and highlight visible? No, they should be hidden too.
                     for _, obj in ipairs(esp) do
                         if obj.Visible ~= nil then
                             obj.Visible = false
                         end
+                        if obj.StartTracking then
+                            obj:StartTracking(false)
+                        end
+                        if obj.Object and obj.Object:IsA("Highlight") then
+                            obj.Object.Enabled = false
+                        end
                     end
                 end
             else
-                for _, obj in ipairs(esp) do
-                    if obj.Visible ~= nil then
-                        obj.Visible = false
-                    end
-                end
+                HideESP(player)
             end
         else
-            for _, obj in ipairs(esp) do
-                if obj.Visible ~= nil then
-                    obj.Visible = false
-                end
-            end
+            HideESP(player)
         end
     end
 end
@@ -1767,9 +1813,197 @@ Character:CreateSlider({
 SetupCharacterAddedListener()
 
 -- ============================================================
---  UTILITIES TAB
+--  UTILITIES TAB – Teleport Spoof, Moderator Detector, Anti AFK
 -- ============================================================
 
+-- ===== Teleport Spoof System =====
+local TeleportSpoof = {
+    Enabled = false,
+    TargetCFrame = nil,
+    CurrentCFrame = nil,
+    Speed = 50,
+}
+
+local realRoot = nil
+local spoofedRoot = nil
+local SpoofLoopConnection = nil
+local SpoofMetatableRestored = false
+
+local function SetupSpoof()
+    if not LocalPlayer.Character then return end
+    realRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not realRoot then return end
+
+    if spoofedRoot then spoofedRoot:Destroy() end
+    spoofedRoot = Instance.new("Part")
+    spoofedRoot.Name = "SpoofedRoot"
+    spoofedRoot.Anchored = true
+    spoofedRoot.CanCollide = false
+    spoofedRoot.Transparency = 1
+    spoofedRoot.Size = Vector3.new(1,1,1)
+    spoofedRoot.Parent = LocalPlayer.Character
+    spoofedRoot.CFrame = realRoot.CFrame
+
+    if not SpoofMetatableRestored then
+        local mt = getrawmetatable(game)
+        local oldIndex = mt.__index
+        local oldNewIndex = mt.__newindex
+
+        mt.__index = function(self, index)
+            if self == realRoot and index == "CFrame" and not checkcaller() then
+                return spoofedRoot.CFrame
+            end
+            return oldIndex(self, index)
+        end
+
+        mt.__newindex = function(self, index, value)
+            if self == realRoot and index == "CFrame" and not checkcaller() then
+                return
+            end
+            return oldNewIndex(self, index, value)
+        end
+
+        setrawmetatable(game, mt)
+        SpoofMetatableRestored = true
+    end
+
+    if not SpoofLoopConnection then
+        SpoofLoopConnection = RunService.Heartbeat:Connect(function()
+            if not TeleportSpoof.Enabled or not realRoot or not spoofedRoot then return end
+            local target = TeleportSpoof.TargetCFrame
+            if target then
+                local current = realRoot.CFrame
+                local diff = target.Position - current.Position
+                local step = TeleportSpoof.Speed * RunService.Heartbeat:Wait()
+                if diff.Magnitude < step then
+                    realRoot.CFrame = target
+                    spoofedRoot.CFrame = target
+                    TeleportSpoof.TargetCFrame = nil
+                else
+                    local newPos = current.Position + diff.Unit * step
+                    realRoot.CFrame = CFrame.new(newPos) * current.Rotation
+                    spoofedRoot.CFrame = realRoot.CFrame
+                end
+            end
+        end)
+    end
+end
+
+local function CleanupSpoof()
+    if SpoofLoopConnection then
+        SpoofLoopConnection:Disconnect()
+        SpoofLoopConnection = nil
+    end
+    if spoofedRoot then
+        spoofedRoot:Destroy()
+        spoofedRoot = nil
+    end
+    if SpoofMetatableRestored then
+        local mt = getrawmetatable(game)
+        mt.__index = nil
+        mt.__newindex = nil
+        setrawmetatable(game, mt)
+        SpoofMetatableRestored = false
+    end
+    realRoot = nil
+end
+
+function TeleportSpoof:TeleportTo(cframe)
+    if not self.Enabled then return end
+    if not realRoot then SetupSpoof() end
+    self.TargetCFrame = cframe
+end
+
+function TeleportSpoof:Enable()
+    if self.Enabled then return end
+    self.Enabled = true
+    SetupSpoof()
+end
+
+function TeleportSpoof:Disable()
+    self.Enabled = false
+    CleanupSpoof()
+end
+
+-- ===== Teleport UI =====
+local TeleportSection = UtilitiesTab:CreateSection("Teleport", "Normal")
+
+local TeleportCoordsTextbox
+
+TeleportSection:CreateToggle("Normal", {
+    Name = "Enable Teleport Spoof",
+    Flag = "TeleportSpoofEnabled",
+    CurrentValue = false,
+    Callback = function(Enabled)
+        if Enabled then
+            TeleportSpoof:Enable()
+        else
+            TeleportSpoof:Disable()
+        end
+        print("Teleport Spoof " .. (Enabled and "ON" or "OFF"))
+    end
+})
+
+TeleportCoordsTextbox = TeleportSection:CreateTextbox({
+    Name = "Teleport Coordinates",
+    PlaceholderText = "X, Y, Z (e.g., 0, 50, 0)",
+    Flag = "TeleportCoordinates",
+    Callback = function(Text)
+    end
+})
+
+TeleportSection:CreateButton({
+    Name = "Teleport",
+    Callback = function()
+        local coords = TeleportCoordsTextbox and TeleportCoordsTextbox.Text or ""
+        if coords == "" then
+            Matrice.UI:Notify("Error", {
+                Title = "Teleport Error",
+                Content = "Please enter coordinates.",
+                Duration = 3,
+                Image = Matrice.Asset("circle-x.png")
+            })
+            return
+        end
+        local parts = {}
+        for part in string.gmatch(coords, "[^,]+") do
+            local trimmed = part:match("^%s*(.-)%s*$")
+            if trimmed ~= "" then
+                table.insert(parts, trimmed)
+            end
+        end
+        if #parts ~= 3 then
+            Matrice.UI:Notify("Error", {
+                Title = "Teleport Error",
+                Content = "Invalid format. Use X, Y, Z",
+                Duration = 3,
+                Image = Matrice.Asset("circle-x.png")
+            })
+            return
+        end
+        local x = tonumber(parts[1])
+        local y = tonumber(parts[2])
+        local z = tonumber(parts[3])
+        if not x or not y or not z then
+            Matrice.UI:Notify("Error", {
+                Title = "Teleport Error",
+                Content = "Invalid numbers.",
+                Duration = 3,
+                Image = Matrice.Asset("circle-x.png")
+            })
+            return
+        end
+        TeleportSpoof:TeleportTo(CFrame.new(x, y, z))
+        Matrice.UI:Notify("Normal", {
+            Title = "Teleporting",
+            Content = "Teleporting to " .. x .. ", " .. y .. ", " .. z,
+            Duration = 3,
+            Image = Matrice.Asset("globe.png")
+        })
+    end
+})
+
+-- ===== Moderator Detector =====
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
 local ModeratorDetectorEnabled = false
