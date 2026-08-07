@@ -663,7 +663,7 @@ Automation:CreateSlider({
     end
 })
 
--- ===== Weapons Section – Auto Reload (Fixed) =====
+-- ===== Weapons Section – Auto Reload (FIXED) =====
 local Weapons = CombatTab:CreateSection("Weapons", "Normal")
 
 local AutoReloadEnabled = false
@@ -671,18 +671,19 @@ local CurrentWeapon = nil
 local AmmoConnection = nil
 local ReloadCooldown = 0
 
+-- Improved weapon finder: searches descendants for any BasePart/Model/Tool that has the required objects
 local function FindCurrentWeapon()
     local Character = LocalPlayer.Character
     if not Character then return nil end
-    for _, Child in ipairs(Character:GetChildren()) do
-        if Child:IsA("Tool") then
-            local Ammo = Child:FindFirstChild("Ammo")
-            local CurrentAmmo = Child:FindFirstChild("CurrentAmmo")
-            local Mag = Child:FindFirstChild("_Mag")
-            local Identifier = Child:FindFirstChild("Identifier")
+    for _, obj in ipairs(Character:GetDescendants()) do
+        if obj:IsA("BasePart") or obj:IsA("Model") or obj:IsA("Tool") then
+            local Ammo = obj:FindFirstChild("Ammo")
+            local CurrentAmmo = obj:FindFirstChild("CurrentAmmo")
+            local Mag = obj:FindFirstChild("_Mag")
+            local Identifier = obj:FindFirstChild("Identifier")
             if Ammo and CurrentAmmo and Mag and Identifier then
-                print("[AutoReload] Found weapon: " .. Child.Name)
-                return Child
+                print("[AutoReload] Found weapon: " .. obj.Name)
+                return obj
             end
         end
     end
@@ -724,32 +725,9 @@ local function OnCharacterChanged()
     SetupWeaponMonitoring(Weapon)
 end
 
-local function OnChildAdded(Child)
-    if Child:IsA("Tool") then
-        local Ammo = Child:FindFirstChild("Ammo")
-        local CurrentAmmo = Child:FindFirstChild("CurrentAmmo")
-        local Mag = Child:FindFirstChild("_Mag")
-        local Identifier = Child:FindFirstChild("Identifier")
-        if Ammo and CurrentAmmo and Mag and Identifier then
-            print("[AutoReload] Tool added: " .. Child.Name)
-            if AutoReloadEnabled then
-                SetupWeaponMonitoring(Child)
-            end
-        end
-    end
-end
-
-local function OnChildRemoved(Child)
-    if Child == CurrentWeapon then
-        print("[AutoReload] Weapon removed, clearing")
-        SetupWeaponMonitoring(nil)
-    end
-end
-
 local CharacterAddedConnection = nil
 local CharacterRemovingConnection = nil
 local ChildAddedConnection = nil
-local ChildRemovedConnection = nil
 
 local function StartAutoReloadMonitoring()
     if CharacterAddedConnection then
@@ -764,10 +742,6 @@ local function StartAutoReloadMonitoring()
         ChildAddedConnection:Disconnect()
         ChildAddedConnection = nil
     end
-    if ChildRemovedConnection then
-        ChildRemovedConnection:Disconnect()
-        ChildRemovedConnection = nil
-    end
 
     CharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterChanged)
     CharacterRemovingConnection = LocalPlayer.CharacterRemoving:Connect(function()
@@ -777,8 +751,12 @@ local function StartAutoReloadMonitoring()
 
     local Character = LocalPlayer.Character
     if Character then
-        ChildAddedConnection = Character.ChildAdded:Connect(OnChildAdded)
-        ChildRemovedConnection = Character.ChildRemoved:Connect(OnChildRemoved)
+        -- Monitor child additions to detect weapon equips
+        ChildAddedConnection = Character.ChildAdded:Connect(function(Child)
+            -- If a new child is added, re‑scan for the weapon
+            print("[AutoReload] Child added: " .. Child.Name)
+            OnCharacterChanged()
+        end)
         OnCharacterChanged()
     end
 end
@@ -795,10 +773,6 @@ local function StopAutoReloadMonitoring()
     if ChildAddedConnection then
         ChildAddedConnection:Disconnect()
         ChildAddedConnection = nil
-    end
-    if ChildRemovedConnection then
-        ChildRemovedConnection:Disconnect()
-        ChildRemovedConnection = nil
     end
     if AmmoConnection then
         AmmoConnection:Disconnect()
