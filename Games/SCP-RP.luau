@@ -419,7 +419,7 @@ local function InstallSilentAimHook()
 end
 
 -- ============================================================
---  AUTO TRIGGER – HOLD‑BASED
+--  AUTO TRIGGER – HOLD‑BASED (fixes jamming)
 -- ============================================================
 
 local function PressShoot()
@@ -766,7 +766,7 @@ Automation:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP (Team & Friend check fixed)
+--  VISUALS TAB – Fully functional ESP (unchanged)
 -- ============================================================
 
 local ESPEnabled = false
@@ -804,7 +804,6 @@ local function BuildESP(player)
 
     local esp = {}
 
-    -- Box
     local box = Drawing.new("Square")
     box.Thickness = 1
     box.Color = teamColor
@@ -813,7 +812,6 @@ local function BuildESP(player)
     box.Visible = false
     table.insert(esp, box)
 
-    -- Name
     local nameText = Drawing.new("Text")
     nameText.Center = true
     nameText.Outline = true
@@ -824,7 +822,6 @@ local function BuildESP(player)
     nameText.Text = player.Name
     table.insert(esp, nameText)
 
-    -- Distance
     local distText = Drawing.new("Text")
     distText.Center = true
     distText.Outline = true
@@ -834,7 +831,6 @@ local function BuildESP(player)
     distText.Visible = false
     table.insert(esp, distText)
 
-    -- Weapon
     local weaponText = Drawing.new("Text")
     weaponText.Center = true
     weaponText.Outline = true
@@ -844,7 +840,6 @@ local function BuildESP(player)
     weaponText.Visible = false
     table.insert(esp, weaponText)
 
-    -- Health Bar Outline
     local healthOutline = Drawing.new("Square")
     healthOutline.Thickness = 0
     healthOutline.Filled = true
@@ -853,7 +848,6 @@ local function BuildESP(player)
     healthOutline.Visible = false
     table.insert(esp, healthOutline)
 
-    -- Health Bar Fill
     local healthFill = Drawing.new("Square")
     healthFill.Thickness = 0
     healthFill.Filled = true
@@ -861,7 +855,6 @@ local function BuildESP(player)
     healthFill.Visible = false
     table.insert(esp, healthFill)
 
-    -- Tracer
     local tracer = Drawing.new("Line")
     tracer.Thickness = 1
     tracer.Color = teamColor
@@ -869,7 +862,6 @@ local function BuildESP(player)
     tracer.Visible = false
     table.insert(esp, tracer)
 
-    -- Skeleton (VisualLibrary)
     local skeleton = nil
     if getgenv().SkeletonEnabled then
         skeleton = Visuals:CreateVisual("Drawing", {
@@ -881,7 +873,6 @@ local function BuildESP(player)
         table.insert(esp, skeleton)
     end
 
-    -- Highlight (VisualLibrary)
     local highlight = nil
     if getgenv().HighlightEnabled then
         highlight = Visuals:CreateVisual("Highlight", {
@@ -894,7 +885,6 @@ local function BuildESP(player)
         table.insert(esp, highlight)
     end
 
-    -- Chams (material override)
     local chams = {}
     if getgenv().ChamsEnabled and player.Character then
         for _, part in ipairs(player.Character:GetDescendants()) do
@@ -977,36 +967,12 @@ local function UpdateESP()
     end
 end
 
-local function HideESP(player)
-    local esp = ESPData[player]
-    if not esp then return end
-    for _, obj in ipairs(esp) do
-        if obj.Visible ~= nil then
-            obj.Visible = false
-        end
-        -- Handle skeleton
-        if obj.StartTracking then
-            obj:StartTracking(false)
-        end
-        -- Handle highlight
-        if obj.Object and obj.Object:IsA("Highlight") then
-            obj.Object.Enabled = false
-        end
-    end
-end
-
 local function RenderESP()
     if not ESPEnabled then
         for _, esp in pairs(ESPData) do
             for _, obj in ipairs(esp) do
                 if obj.Visible ~= nil then
                     obj.Visible = false
-                end
-                if obj.StartTracking then
-                    obj:StartTracking(false)
-                end
-                if obj.Object and obj.Object:IsA("Highlight") then
-                    obj.Object.Enabled = false
                 end
             end
         end
@@ -1022,17 +988,21 @@ local function RenderESP()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                -- Check Team and Friend
-                local excluded = false
                 if getgenv().TeamCheckEnabled and localTeam and player.Team == localTeam then
-                    excluded = true
-                end
-                if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
-                    excluded = true
+                    for _, obj in ipairs(esp) do
+                        if obj.Visible ~= nil then
+                            obj.Visible = false
+                        end
+                    end
+                    continue
                 end
 
-                if excluded then
-                    HideESP(player)
+                if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
+                    for _, obj in ipairs(esp) do
+                        if obj.Visible ~= nil then
+                            obj.Visible = false
+                        end
+                    end
                     continue
                 end
 
@@ -1042,7 +1012,6 @@ local function RenderESP()
                     local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                       (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude) or 0
 
-                    -- Box
                     if getgenv().BoxEnabled and esp[1] then
                         esp[1].Size = size
                         esp[1].Position = pos
@@ -1052,7 +1021,6 @@ local function RenderESP()
                         if esp[1] then esp[1].Visible = false end
                     end
 
-                    -- Name
                     if getgenv().NameEnabled and esp[2] then
                         esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 20)
                         esp[2].Text = player.Name
@@ -1062,7 +1030,6 @@ local function RenderESP()
                         if esp[2] then esp[2].Visible = false end
                     end
 
-                    -- Distance
                     if getgenv().DistanceEnabled and esp[3] then
                         esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 16)
                         esp[3].Text = math.floor(distance) .. " studs"
@@ -1071,7 +1038,6 @@ local function RenderESP()
                         if esp[3] then esp[3].Visible = false end
                     end
 
-                    -- Weapon
                     if getgenv().WeaponEnabled and esp[4] then
                         local weaponName = "None"
                         local ammoText = ""
@@ -1106,7 +1072,6 @@ local function RenderESP()
                         if esp[4] then esp[4].Visible = false end
                     end
 
-                    -- Health Bar
                     if getgenv().HealthBarEnabled and esp[5] and esp[6] then
                         local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
                         local barX = pos.X - 8
@@ -1124,7 +1089,6 @@ local function RenderESP()
                         if esp[6] then esp[6].Visible = false end
                     end
 
-                    -- Tracer
                     if getgenv().TracerEnabled and esp[7] then
                         local origin = CurrentTracerOrigin
                         local from
@@ -1140,36 +1104,26 @@ local function RenderESP()
                     else
                         if esp[7] then esp[7].Visible = false end
                     end
-
-                    -- Skeleton – ensure tracking is on
-                    if esp[8] and esp[8].StartTracking then
-                        esp[8]:StartTracking(true)
-                    end
-
-                    -- Highlight – enable if exists
-                    if esp[9] and esp[9].Object and esp[9].Object:IsA("Highlight") then
-                        esp[9].Object.Enabled = true
-                    end
-
                 else
-                    -- Off-screen: hide drawing objects, but keep skeleton and highlight visible? No, they should be hidden too.
                     for _, obj in ipairs(esp) do
                         if obj.Visible ~= nil then
                             obj.Visible = false
                         end
-                        if obj.StartTracking then
-                            obj:StartTracking(false)
-                        end
-                        if obj.Object and obj.Object:IsA("Highlight") then
-                            obj.Object.Enabled = false
-                        end
                     end
                 end
             else
-                HideESP(player)
+                for _, obj in ipairs(esp) do
+                    if obj.Visible ~= nil then
+                        obj.Visible = false
+                    end
+                end
             end
         else
-            HideESP(player)
+            for _, obj in ipairs(esp) do
+                if obj.Visible ~= nil then
+                    obj.Visible = false
+                end
+            end
         end
     end
 end
@@ -1351,7 +1305,7 @@ EffectsSection:CreateDropdown({
 })
 
 -- ============================================================
---  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly (unchanged)
+--  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
@@ -1949,6 +1903,7 @@ TeleportCoordsTextbox = TeleportSection:CreateTextbox({
     PlaceholderText = "X, Y, Z (e.g., 0, 50, 0)",
     Flag = "TeleportCoordinates",
     Callback = function(Text)
+        -- Just store the text, we'll use it when the button is pressed
     end
 })
 
