@@ -63,6 +63,10 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 
 Library:SwitchTab()
 
+-- ============================================================
+--  COMBAT TAB – Silent Aim & Hitbox & Auto Reload
+-- ============================================================
+
 getgenv().SilentAimEnabled = false
 getgenv().SilentAimWallCheck = true
 getgenv().SilentAimHitPart = "Head"
@@ -126,6 +130,7 @@ local function IsFriend(player)
     return FriendList[player.UserId] or false
 end
 
+-- ===== Hitbox Functions (unchanged) =====
 local function ApplyHitboxToPlayer(player)
     if player == LocalPlayer then return end
     local character = player.Character
@@ -261,6 +266,7 @@ local function ToggleHitbox(Enabled)
     end
 end
 
+-- ===== Silent Aim Functions =====
 local function GetSilentAimTarget()
     if not getgenv().SilentAimEnabled then return nil end
     local cursor = UserInputService:GetMouseLocation()
@@ -394,6 +400,7 @@ local function InstallSilentAimHook()
     return true
 end
 
+-- ===== Auto Trigger & Reload Functions =====
 local function SimulateReload()
     if keypress and keyrelease then
         keypress(0x52)
@@ -464,6 +471,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- ===== UI Elements =====
 local Targeting = CombatTab:CreateSection("Targeting", "Normal")
 
 Targeting:CreateToggle("Normal", {
@@ -655,6 +663,7 @@ Automation:CreateSlider({
     end
 })
 
+-- ===== Weapons Section – Auto Reload (Fixed) =====
 local Weapons = CombatTab:CreateSection("Weapons", "Normal")
 
 local AutoReloadEnabled = false
@@ -672,6 +681,7 @@ local function FindCurrentWeapon()
             local Mag = Child:FindFirstChild("_Mag")
             local Identifier = Child:FindFirstChild("Identifier")
             if Ammo and CurrentAmmo and Mag and Identifier then
+                print("[AutoReload] Found weapon: " .. Child.Name)
                 return Child
             end
         end
@@ -687,32 +697,59 @@ local function OnAmmoChanged()
     local CurrentAmmo = Weapon:FindFirstChild("CurrentAmmo")
     if not CurrentAmmo or not CurrentAmmo:IsA("IntValue") then return end
     if CurrentAmmo.Value == 0 then
+        print("[AutoReload] Ammo reached 0, pressing R")
         ReloadCooldown = tick()
         SimulateReload()
     end
 end
 
-local function SetupWeaponMonitoring()
+local function SetupWeaponMonitoring(Weapon)
     if AmmoConnection then
         AmmoConnection:Disconnect()
         AmmoConnection = nil
     end
-    CurrentWeapon = FindCurrentWeapon()
-    if CurrentWeapon then
-        local CurrentAmmo = CurrentWeapon:FindFirstChild("CurrentAmmo")
+    CurrentWeapon = Weapon
+    if Weapon then
+        local CurrentAmmo = Weapon:FindFirstChild("CurrentAmmo")
         if CurrentAmmo and CurrentAmmo:IsA("IntValue") then
             AmmoConnection = CurrentAmmo.Changed:Connect(OnAmmoChanged)
+            print("[AutoReload] Monitoring weapon: " .. Weapon.Name)
         end
     end
 end
 
 local function OnCharacterChanged()
     task.wait(0.1)
-    SetupWeaponMonitoring()
+    local Weapon = FindCurrentWeapon()
+    SetupWeaponMonitoring(Weapon)
+end
+
+local function OnChildAdded(Child)
+    if Child:IsA("Tool") then
+        local Ammo = Child:FindFirstChild("Ammo")
+        local CurrentAmmo = Child:FindFirstChild("CurrentAmmo")
+        local Mag = Child:FindFirstChild("_Mag")
+        local Identifier = Child:FindFirstChild("Identifier")
+        if Ammo and CurrentAmmo and Mag and Identifier then
+            print("[AutoReload] Tool added: " .. Child.Name)
+            if AutoReloadEnabled then
+                SetupWeaponMonitoring(Child)
+            end
+        end
+    end
+end
+
+local function OnChildRemoved(Child)
+    if Child == CurrentWeapon then
+        print("[AutoReload] Weapon removed, clearing")
+        SetupWeaponMonitoring(nil)
+    end
 end
 
 local CharacterAddedConnection = nil
 local CharacterRemovingConnection = nil
+local ChildAddedConnection = nil
+local ChildRemovedConnection = nil
 
 local function StartAutoReloadMonitoring()
     if CharacterAddedConnection then
@@ -723,15 +760,27 @@ local function StartAutoReloadMonitoring()
         CharacterRemovingConnection:Disconnect()
         CharacterRemovingConnection = nil
     end
+    if ChildAddedConnection then
+        ChildAddedConnection:Disconnect()
+        ChildAddedConnection = nil
+    end
+    if ChildRemovedConnection then
+        ChildRemovedConnection:Disconnect()
+        ChildRemovedConnection = nil
+    end
+
     CharacterAddedConnection = LocalPlayer.CharacterAdded:Connect(OnCharacterChanged)
     CharacterRemovingConnection = LocalPlayer.CharacterRemoving:Connect(function()
-        if AmmoConnection then
-            AmmoConnection:Disconnect()
-            AmmoConnection = nil
-        end
-        CurrentWeapon = nil
+        print("[AutoReload] Character removed, cleaning")
+        SetupWeaponMonitoring(nil)
     end)
-    SetupWeaponMonitoring()
+
+    local Character = LocalPlayer.Character
+    if Character then
+        ChildAddedConnection = Character.ChildAdded:Connect(OnChildAdded)
+        ChildRemovedConnection = Character.ChildRemoved:Connect(OnChildRemoved)
+        OnCharacterChanged()
+    end
 end
 
 local function StopAutoReloadMonitoring()
@@ -742,6 +791,14 @@ local function StopAutoReloadMonitoring()
     if CharacterRemovingConnection then
         CharacterRemovingConnection:Disconnect()
         CharacterRemovingConnection = nil
+    end
+    if ChildAddedConnection then
+        ChildAddedConnection:Disconnect()
+        ChildAddedConnection = nil
+    end
+    if ChildRemovedConnection then
+        ChildRemovedConnection:Disconnect()
+        ChildRemovedConnection = nil
     end
     if AmmoConnection then
         AmmoConnection:Disconnect()
@@ -757,13 +814,19 @@ Weapons:CreateToggle("Normal", {
     Callback = function(Enabled)
         AutoReloadEnabled = Enabled
         if Enabled then
+            print("[AutoReload] Enabled")
             StartAutoReloadMonitoring()
         else
+            print("[AutoReload] Disabled")
             StopAutoReloadMonitoring()
         end
         print("Auto Reload " .. (Enabled and "ON" or "OFF"))
     end
 })
+
+-- ============================================================
+--  VISUALS TAB – Fully functional ESP
+-- ============================================================
 
 local ESPEnabled = false
 local ESPData = {}
@@ -1300,6 +1363,10 @@ EffectsSection:CreateDropdown({
     end
 })
 
+-- ============================================================
+--  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly
+-- ============================================================
+
 local Character = PlayerTab:CreateSection("Character", "Normal")
 
 local SpoofActive = false
@@ -1755,6 +1822,10 @@ Character:CreateSlider({
 
 SetupCharacterAddedListener()
 
+-- ============================================================
+--  UTILITIES TAB
+-- ============================================================
+
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
 local ModeratorDetectorEnabled = false
@@ -1894,6 +1965,10 @@ AntiAFKSection:CreateToggle("Normal", {
         print("Anti AFK " .. (Enabled and "ON" or "OFF"))
     end
 })
+
+-- ============================================================
+--  SETTINGS TAB
+-- ============================================================
 
 local Interface = SettingsTab:CreateSection("Interface", "Normal")
 
