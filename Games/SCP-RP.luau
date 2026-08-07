@@ -9,17 +9,83 @@ local Camera = workspace.CurrentCamera
 local Visuals = Matrice.Visuals
 
 -- ============================================================
+--  CONFIGURATION (centralised state)
+-- ============================================================
+
+local Config = {
+    -- Combat
+    SilentAimEnabled = false,
+    SilentAimWallCheck = true,
+    SilentAimHitPart = "Head",
+    SilentAimHitChance = 100,
+    FOVCircleEnabled = false,
+    FOVRadius = 150,
+    FOVColor = Color3.fromRGB(255, 255, 255),
+    SilentAimFriendCheck = false,
+    TargetSelection = "Distance Priority",
+    TargetPriority = "Closest",
+
+    -- Hitbox
+    HitboxEnabled = false,
+    HitboxSize = 10,
+
+    -- Auto Trigger
+    AutoTriggerEnabled = false,
+
+    -- Auto Reload
+    AutoReloadEnabled = false,
+
+    -- ESP
+    ESPEnabled = false,
+    BoxEnabled = false,
+    NameEnabled = false,
+    DistanceEnabled = false,
+    WeaponEnabled = false,
+    HealthBarEnabled = false,
+    SkeletonEnabled = false,
+    TeamCheckEnabled = false,
+    FriendCheckEnabled = false,
+    DistanceLimit = 600,
+    HighlightEnabled = false,
+    ChamsEnabled = false,
+    TracerEnabled = false,
+    TracerOrigin = "Bottom",
+}
+
+-- ============================================================
 --  FRIEND LIST (shared between Visuals & Silent Aim)
 -- ============================================================
 
 local FriendList = {}
 local FriendListUpdateTask = nil
+local FriendListAddedConnection = nil
 
 local function UpdateFriendList()
     if not LocalPlayer then return end
     local Success, Pages = pcall(Players.GetFriendsAsync, Players, LocalPlayer.UserId)
     if not Success or not Pages then return end
     FriendList = {}
+    local function IteratePages(Pages)
+        return coroutine.wrap(function()
+            while true do
+                for _, Item in ipairs(Pages:GetCurrentPage()) do
+                    coroutine.yield(Item)
+                end
+                if Pages.IsFinished then break end
+                Pages:AdvanceToNextPageAsync()
+            end
+        end)
+    end
+    for Item in IteratePages(Pages) do
+        FriendList[Item.Id] = true
+    end
+end
+
+local function CheckAndAddFriend(Player)
+    if not LocalPlayer then return end
+    if FriendList[Player.UserId] then return end
+    local Success, Pages = pcall(Players.GetFriendsAsync, Players, LocalPlayer.UserId)
+    if not Success or not Pages then return end
     local function IteratePages(Pages)
         return coroutine.wrap(function()
             while true do
@@ -45,6 +111,11 @@ local function StartFriendListUpdates()
             UpdateFriendList()
         end
     end)
+    if not FriendListAddedConnection then
+        FriendListAddedConnection = Players.PlayerAdded:Connect(function(Player)
+            CheckAndAddFriend(Player)
+        end)
+    end
 end
 
 -- ============================================================
@@ -72,24 +143,9 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB – Silent Aim, Hitbox, Auto Trigger (hold), Auto Reload
+--  COMBAT TAB – Silent Aim, Hitbox, Auto Trigger, Auto Reload
 -- ============================================================
 
--- ===== Silent Aim State & Config =====
-getgenv().SilentAimEnabled = false
-getgenv().SilentAimWallCheck = true
-getgenv().SilentAimHitPart = "Head"
-getgenv().SilentAimHitChance = 100
-getgenv().FOVCircleEnabled = false
-getgenv().FOVRadius = 150
-getgenv().FOVColor = Color3.fromRGB(255, 255, 255)
-getgenv().SilentAimFriendCheck = false
-getgenv().TargetSelection = "Distance Priority"
-getgenv().TargetPriority = "Closest"
-
--- ===== Hitbox State =====
-getgenv().HitboxEnabled = false
-getgenv().HitboxSize = 10
 local HitboxData = {
     OriginalSizes = {},
     OriginalCollisions = {},
@@ -101,14 +157,9 @@ local HitboxData = {
     }
 }
 
--- ===== Auto Trigger State (HOLD based) =====
-getgenv().AutoTriggerEnabled = false
-getgenv().TriggerDelay = 50
 local AutoTriggerConnection = nil
 local ShootHeld = false
 
--- ===== Auto Reload State =====
-getgenv().AutoReloadEnabled = false
 local AutoReloadConnection = nil
 local ReloadPressed = false
 
@@ -157,7 +208,7 @@ local function ApplyHitboxToPlayer(player)
     local rootPart = humanoid.RootPart
     if not rootPart then return end
 
-    local size = getgenv().HitboxSize
+    local size = Config.HitboxSize
     local debugId = player.UserId .. "_" .. character.Name
 
     if not HitboxData.OriginalSizes[debugId] then
@@ -183,11 +234,11 @@ local function ApplyHitboxToPlayer(player)
     local loopKey = "SteppedLoop_" .. debugId
     if not HitboxData.Connections.SteppedLoops[loopKey] then
         HitboxData.Connections.SteppedLoops[loopKey] = RunService.Stepped:Connect(function()
-            if not getgenv().HitboxEnabled then return end
+            if not Config.HitboxEnabled then return end
             if not player.Character or not player.Character.Parent then return end
             local root = player.Character:FindFirstChildOfClass("Humanoid") and player.Character:FindFirstChildOfClass("Humanoid").RootPart
             if root then
-                root.Size = Vector3.new(getgenv().HitboxSize, getgenv().HitboxSize, getgenv().HitboxSize)
+                root.Size = Vector3.new(Config.HitboxSize, Config.HitboxSize, Config.HitboxSize)
             end
         end)
     end
@@ -222,7 +273,7 @@ local function RestoreHitboxForPlayer(player)
 end
 
 local function ApplyHitboxToAllPlayers()
-    if not getgenv().HitboxEnabled then return end
+    if not Config.HitboxEnabled then return end
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             ApplyHitboxToPlayer(player)
@@ -237,12 +288,12 @@ local function RestoreHitboxForAllPlayers()
 end
 
 local function ToggleHitbox(Enabled)
-    getgenv().HitboxEnabled = Enabled
+    Config.HitboxEnabled = Enabled
     if Enabled then
         ApplyHitboxToAllPlayers()
         if not HitboxData.Connections.PlayerAdded then
             HitboxData.Connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)
-                if player ~= LocalPlayer and getgenv().HitboxEnabled then
+                if player ~= LocalPlayer and Config.HitboxEnabled then
                     local charAddedConn
                     charAddedConn = player.CharacterAdded:Connect(function(char)
                         charAddedConn:Disconnect()
@@ -285,21 +336,21 @@ end
 
 -- ===== Silent Aim Target Detection =====
 local function GetSilentAimTarget()
-    if not getgenv().SilentAimEnabled then return nil end
+    if not Config.SilentAimEnabled then return nil end
     local cursor = UserInputService:GetMouseLocation()
-    local fovRadius = getgenv().FOVRadius
-    local targetSelection = getgenv().TargetSelection or "Distance Priority"
-    local targetPriority = getgenv().TargetPriority or "Closest"
+    local fovRadius = Config.FOVRadius
+    local targetSelection = Config.TargetSelection or "Distance Priority"
+    local targetPriority = Config.TargetPriority or "Closest"
 
     local candidates = {}
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and IsEnemy(player) then
-            if getgenv().SilentAimFriendCheck and IsFriend(player) then continue end
+            if Config.SilentAimFriendCheck and IsFriend(player) then continue end
 
             local character = player.Character
             local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-            local hitPartName = getgenv().SilentAimHitPart
+            local hitPartName = Config.SilentAimHitPart
             if hitPartName == "Randomized" then
                 local hitParts = {"Head", "UpperTorso", "HumanoidRootPart"}
                 hitPartName = hitParts[math.random(1, #hitParts)]
@@ -309,7 +360,7 @@ local function GetSilentAimTarget()
             if humanoid and humanoid.Health > 0 and targetPart then
                 local screenPosition, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                 local visible = true
-                if getgenv().SilentAimWallCheck then
+                if Config.SilentAimWallCheck then
                     local localCharacter = LocalPlayer.Character
                     if localCharacter then
                         SilentAimRaycastParams.FilterDescendantsInstances = {localCharacter}
@@ -404,7 +455,7 @@ local function InstallSilentAimHook()
     local original
     original = hookfunction(bulletFunction, function(_, hitResult, ...)
         local target = GetSilentAimTarget()
-        if target and math.random(1, 100) <= getgenv().SilentAimHitChance then
+        if target and math.random(1, 100) <= Config.SilentAimHitChance then
             return original(_, {
                 Instance = target,
                 Position = target.Position,
@@ -459,7 +510,7 @@ end
 local function StartAutoTrigger()
     if AutoTriggerConnection then return end
     AutoTriggerConnection = RunService.RenderStepped:Connect(function()
-        if not getgenv().AutoTriggerEnabled then
+        if not Config.AutoTriggerEnabled then
             if ShootHeld then
                 ReleaseShoot()
                 ShootHeld = false
@@ -515,7 +566,7 @@ end
 local function StartAutoReload()
     if AutoReloadConnection then return end
     AutoReloadConnection = RunService.RenderStepped:Connect(function()
-        if not getgenv().AutoReloadEnabled then return end
+        if not Config.AutoReloadEnabled then return end
         local playerGui = LocalPlayer.PlayerGui
         if not playerGui then return end
         local weaponUI = playerGui:FindFirstChild("WeaponUI")
@@ -543,11 +594,11 @@ end
 
 -- ===== Render loop for FOV circle =====
 RunService.RenderStepped:Connect(function()
-    FOVCircle.Visible = getgenv().FOVCircleEnabled
-    if getgenv().FOVCircleEnabled then
+    FOVCircle.Visible = Config.FOVCircleEnabled
+    if Config.FOVCircleEnabled then
         FOVCircle.Position = UserInputService:GetMouseLocation()
-        FOVCircle.Radius = getgenv().FOVRadius
-        FOVCircle.Color = getgenv().FOVColor
+        FOVCircle.Radius = Config.FOVRadius
+        FOVCircle.Color = Config.FOVColor
     end
 end)
 
@@ -563,10 +614,10 @@ Targeting:CreateToggle("Normal", {
     Flag = "SilentAimEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().SilentAimEnabled = Enabled
+        Config.SilentAimEnabled = Enabled
         if Enabled then
             if not InstallSilentAimHook() then
-                getgenv().SilentAimEnabled = false
+                Config.SilentAimEnabled = false
                 Matrice.UI:Notify("Error", {
                     Title = "Hook Failed",
                     Content = "Could not find bullet function.",
@@ -585,7 +636,7 @@ Targeting:CreateDropdown({
     CurrentOption = "Head",
     Flag = "SilentAimHitPart",
     Callback = function(Selected)
-        getgenv().SilentAimHitPart = Selected
+        Config.SilentAimHitPart = Selected
         print("Hit Part set to " .. Selected)
     end
 })
@@ -598,7 +649,7 @@ Targeting:CreateSlider({
     CurrentValue = 100,
     Flag = "SilentAimHitChance",
     Callback = function(Value)
-        getgenv().SilentAimHitChance = Value
+        Config.SilentAimHitChance = Value
         print("Hit Chance set to " .. Value .. "%")
     end
 })
@@ -609,7 +660,7 @@ Targeting:CreateDropdown({
     CurrentOption = "Distance Priority",
     Flag = "TargetSelection",
     Callback = function(Selected)
-        getgenv().TargetSelection = Selected
+        Config.TargetSelection = Selected
         print("Target Selection set to " .. Selected)
     end
 })
@@ -620,7 +671,7 @@ Targeting:CreateDropdown({
     CurrentOption = "Closest",
     Flag = "TargetPriority",
     Callback = function(Selected)
-        getgenv().TargetPriority = Selected
+        Config.TargetPriority = Selected
         print("Target Priority set to " .. Selected)
     end
 })
@@ -644,8 +695,8 @@ Targeting:CreateSlider({
     CurrentValue = 10,
     Flag = "HitboxSize",
     Callback = function(Value)
-        getgenv().HitboxSize = Value
-        if getgenv().HitboxEnabled then
+        Config.HitboxSize = Value
+        if Config.HitboxEnabled then
             ApplyHitboxToAllPlayers()
         end
         print("Hitbox Size set to " .. Value)
@@ -660,7 +711,7 @@ Checks:CreateToggle("Normal", {
     Flag = "SilentAimWallCheck",
     CurrentValue = true,
     Callback = function(Enabled)
-        getgenv().SilentAimWallCheck = Enabled
+        Config.SilentAimWallCheck = Enabled
         print("Wall Check " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -679,7 +730,7 @@ Checks:CreateToggle("Normal", {
     Flag = "SilentAimFriendCheck",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().SilentAimFriendCheck = Enabled
+        Config.SilentAimFriendCheck = Enabled
         print("Friend Check (Silent Aim) " .. (Enabled and "ON" or "OFF"))
     end
 })
@@ -692,7 +743,7 @@ FOV:CreateToggle("Normal", {
     Flag = "FOVCircleEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().FOVCircleEnabled = Enabled
+        Config.FOVCircleEnabled = Enabled
         if not Enabled then FOVCircle.Visible = false end
         print("Show FOV Circle " .. (Enabled and "ON" or "OFF"))
     end
@@ -706,7 +757,7 @@ FOV:CreateSlider({
     Flag = "FOVRadius",
     CurrentValue = 150,
     Callback = function(Value)
-        getgenv().FOVRadius = Value
+        Config.FOVRadius = Value
         print("FOV Radius set to " .. Value)
     end
 })
@@ -714,7 +765,7 @@ FOV:CreateSlider({
 FOV:CreateColorPicker({
     Name = "FOV Color",
     Callback = function(Color)
-        getgenv().FOVColor = Color
+        Config.FOVColor = Color
         print("FOV color changed to", Color)
     end
 })
@@ -727,7 +778,7 @@ Automation:CreateToggle("Normal", {
     Flag = "AutoTrigger",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().AutoTriggerEnabled = Enabled
+        Config.AutoTriggerEnabled = Enabled
         if Enabled then
             StartAutoTrigger()
         else
@@ -737,25 +788,12 @@ Automation:CreateToggle("Normal", {
     end
 })
 
-Automation:CreateSlider({
-    Name = "Trigger Delay",
-    Value = {0, 500},
-    Increment = 10,
-    Suffix = "ms",
-    Flag = "TriggerDelay",
-    CurrentValue = 50,
-    Callback = function(Value)
-        getgenv().TriggerDelay = Value
-        print("Trigger Delay set to " .. Value .. "ms")
-    end
-})
-
 Automation:CreateToggle("Normal", {
     Name = "Auto Reload",
     Flag = "AutoReload",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().AutoReloadEnabled = Enabled
+        Config.AutoReloadEnabled = Enabled
         if Enabled then
             StartAutoReload()
         else
@@ -766,10 +804,9 @@ Automation:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP (unchanged)
+--  VISUALS TAB – Fully functional ESP
 -- ============================================================
 
-local ESPEnabled = false
 local ESPData = {}
 local ESPConnection = nil
 local RenderConnection = nil
@@ -863,7 +900,7 @@ local function BuildESP(player)
     table.insert(esp, tracer)
 
     local skeleton = nil
-    if getgenv().SkeletonEnabled then
+    if Config.SkeletonEnabled then
         skeleton = Visuals:CreateVisual("Drawing", {
             Type = "Skeleton",
             Player = player,
@@ -874,7 +911,7 @@ local function BuildESP(player)
     end
 
     local highlight = nil
-    if getgenv().HighlightEnabled then
+    if Config.HighlightEnabled then
         highlight = Visuals:CreateVisual("Highlight", {
             Target = player.Character,
             Color = teamColor,
@@ -886,7 +923,7 @@ local function BuildESP(player)
     end
 
     local chams = {}
-    if getgenv().ChamsEnabled and player.Character then
+    if Config.ChamsEnabled and player.Character then
         for _, part in ipairs(player.Character:GetDescendants()) do
             if part:IsA("BasePart") then
                 chams[part] = part.Material
@@ -910,7 +947,7 @@ end
 
 local function RebuildESP()
     ClearAllESP()
-    if not ESPEnabled then return end
+    if not Config.ESPEnabled then return end
     local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then return end
 
@@ -920,7 +957,7 @@ local function RebuildESP()
             local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
             if targetRoot and humanoid and humanoid.Health > 0 and player.Parent == Players then
                 local distance = (localRoot.Position - targetRoot.Position).Magnitude
-                if distance <= getgenv().DistanceLimit then
+                if distance <= Config.DistanceLimit then
                     BuildESP(player)
                 end
             end
@@ -929,7 +966,7 @@ local function RebuildESP()
 end
 
 local function UpdateESP()
-    if not ESPEnabled then return end
+    if not Config.ESPEnabled then return end
     local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if not localRoot then
         ClearAllESP()
@@ -943,7 +980,7 @@ local function UpdateESP()
             local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
             if root and humanoid and humanoid.Health > 0 and player.Parent == Players then
                 local distance = (localRoot.Position - root.Position).Magnitude
-                if distance <= getgenv().DistanceLimit then
+                if distance <= Config.DistanceLimit then
                     activePlayers[player] = true
                     if not ESPData[player] then
                         BuildESP(player)
@@ -968,7 +1005,7 @@ local function UpdateESP()
 end
 
 local function RenderESP()
-    if not ESPEnabled then
+    if not Config.ESPEnabled then
         for _, esp in pairs(ESPData) do
             for _, obj in ipairs(esp) do
                 if obj.Visible ~= nil then
@@ -988,7 +1025,7 @@ local function RenderESP()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                if getgenv().TeamCheckEnabled and localTeam and player.Team == localTeam then
+                if Config.TeamCheckEnabled and localTeam and player.Team == localTeam then
                     for _, obj in ipairs(esp) do
                         if obj.Visible ~= nil then
                             obj.Visible = false
@@ -997,7 +1034,7 @@ local function RenderESP()
                     continue
                 end
 
-                if getgenv().FriendCheckEnabled and FriendList[player.UserId] then
+                if Config.FriendCheckEnabled and FriendList[player.UserId] then
                     for _, obj in ipairs(esp) do
                         if obj.Visible ~= nil then
                             obj.Visible = false
@@ -1012,7 +1049,7 @@ local function RenderESP()
                     local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and
                                       (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude) or 0
 
-                    if getgenv().BoxEnabled and esp[1] then
+                    if Config.BoxEnabled and esp[1] then
                         esp[1].Size = size
                         esp[1].Position = pos
                         esp[1].Color = teamColor
@@ -1021,7 +1058,7 @@ local function RenderESP()
                         if esp[1] then esp[1].Visible = false end
                     end
 
-                    if getgenv().NameEnabled and esp[2] then
+                    if Config.NameEnabled and esp[2] then
                         esp[2].Position = Vector2.new(pos.X + size.X/2, pos.Y - 20)
                         esp[2].Text = player.Name
                         esp[2].Color = teamColor
@@ -1030,7 +1067,7 @@ local function RenderESP()
                         if esp[2] then esp[2].Visible = false end
                     end
 
-                    if getgenv().DistanceEnabled and esp[3] then
+                    if Config.DistanceEnabled and esp[3] then
                         esp[3].Position = Vector2.new(pos.X + size.X/2, pos.Y + size.Y + 16)
                         esp[3].Text = math.floor(distance) .. " studs"
                         esp[3].Visible = true
@@ -1038,7 +1075,7 @@ local function RenderESP()
                         if esp[3] then esp[3].Visible = false end
                     end
 
-                    if getgenv().WeaponEnabled and esp[4] then
+                    if Config.WeaponEnabled and esp[4] then
                         local weaponName = "None"
                         local ammoText = ""
                         local character = player.Character
@@ -1072,7 +1109,7 @@ local function RenderESP()
                         if esp[4] then esp[4].Visible = false end
                     end
 
-                    if getgenv().HealthBarEnabled and esp[5] and esp[6] then
+                    if Config.HealthBarEnabled and esp[5] and esp[6] then
                         local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
                         local barX = pos.X - 8
                         local barY = pos.Y
@@ -1089,7 +1126,7 @@ local function RenderESP()
                         if esp[6] then esp[6].Visible = false end
                     end
 
-                    if getgenv().TracerEnabled and esp[7] then
+                    if Config.TracerEnabled and esp[7] then
                         local origin = CurrentTracerOrigin
                         local from
                         if origin == "Bottom" then
@@ -1128,21 +1165,6 @@ local function RenderESP()
     end
 end
 
-getgenv().ESPEnabled = false
-getgenv().BoxEnabled = false
-getgenv().NameEnabled = false
-getgenv().DistanceEnabled = false
-getgenv().WeaponEnabled = false
-getgenv().HealthBarEnabled = false
-getgenv().SkeletonEnabled = false
-getgenv().TeamCheckEnabled = false
-getgenv().FriendCheckEnabled = false
-getgenv().DistanceLimit = 600
-getgenv().HighlightEnabled = false
-getgenv().ChamsEnabled = false
-getgenv().TracerEnabled = false
-getgenv().TracerOrigin = "Bottom"
-
 local function StartESP()
     if ESPConnection then ESPConnection:Disconnect() end
     if RenderConnection then RenderConnection:Disconnect() end
@@ -1154,6 +1176,10 @@ end
 local function StopESP()
     if ESPConnection then ESPConnection:Disconnect(); ESPConnection = nil end
     if RenderConnection then RenderConnection:Disconnect(); RenderConnection = nil end
+    if FriendListAddedConnection then
+        FriendListAddedConnection:Disconnect()
+        FriendListAddedConnection = nil
+    end
     if FriendListUpdateTask then task.cancel(FriendListUpdateTask); FriendListUpdateTask = nil end
     ClearAllESP()
 end
@@ -1165,8 +1191,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "ESPEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        ESPEnabled = Enabled
-        getgenv().ESPEnabled = Enabled
+        Config.ESPEnabled = Enabled
         if Enabled then
             StartESP()
         else
@@ -1182,7 +1207,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "BoxEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().BoxEnabled = Enabled
+        Config.BoxEnabled = Enabled
     end
 })
 
@@ -1191,7 +1216,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "NameEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().NameEnabled = Enabled
+        Config.NameEnabled = Enabled
     end
 })
 
@@ -1200,7 +1225,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "DistanceEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().DistanceEnabled = Enabled
+        Config.DistanceEnabled = Enabled
     end
 })
 
@@ -1209,7 +1234,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "WeaponEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().WeaponEnabled = Enabled
+        Config.WeaponEnabled = Enabled
     end
 })
 
@@ -1218,7 +1243,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "HealthBarEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().HealthBarEnabled = Enabled
+        Config.HealthBarEnabled = Enabled
     end
 })
 
@@ -1227,8 +1252,8 @@ ESPSection:CreateToggle("Normal", {
     Flag = "SkeletonEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().SkeletonEnabled = Enabled
-        if ESPEnabled then RebuildESP() end
+        Config.SkeletonEnabled = Enabled
+        if Config.ESPEnabled then RebuildESP() end
     end
 })
 
@@ -1237,7 +1262,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "TeamCheckEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().TeamCheckEnabled = Enabled
+        Config.TeamCheckEnabled = Enabled
     end
 })
 
@@ -1246,7 +1271,7 @@ ESPSection:CreateToggle("Normal", {
     Flag = "FriendCheckEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().FriendCheckEnabled = Enabled
+        Config.FriendCheckEnabled = Enabled
     end
 })
 
@@ -1258,7 +1283,7 @@ ESPSection:CreateSlider({
     Flag = "DistanceLimit",
     CurrentValue = 600,
     Callback = function(Value)
-        getgenv().DistanceLimit = Value
+        Config.DistanceLimit = Value
     end
 })
 
@@ -1269,8 +1294,8 @@ EffectsSection:CreateToggle("Normal", {
     Flag = "HighlightEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().HighlightEnabled = Enabled
-        if ESPEnabled then RebuildESP() end
+        Config.HighlightEnabled = Enabled
+        if Config.ESPEnabled then RebuildESP() end
     end
 })
 
@@ -1279,8 +1304,8 @@ EffectsSection:CreateToggle("Normal", {
     Flag = "ChamsEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().ChamsEnabled = Enabled
-        if ESPEnabled then RebuildESP() end
+        Config.ChamsEnabled = Enabled
+        if Config.ESPEnabled then RebuildESP() end
     end
 })
 
@@ -1289,7 +1314,7 @@ EffectsSection:CreateToggle("Normal", {
     Flag = "TracerEnabled",
     CurrentValue = false,
     Callback = function(Enabled)
-        getgenv().TracerEnabled = Enabled
+        Config.TracerEnabled = Enabled
     end
 })
 
@@ -1299,7 +1324,7 @@ EffectsSection:CreateDropdown({
     CurrentOption = "Bottom",
     Flag = "TracerOrigin",
     Callback = function(Selected)
-        getgenv().TracerOrigin = Selected
+        Config.TracerOrigin = Selected
         CurrentTracerOrigin = Selected
     end
 })
@@ -1767,198 +1792,9 @@ Character:CreateSlider({
 SetupCharacterAddedListener()
 
 -- ============================================================
---  UTILITIES TAB – Teleport Spoof, Moderator Detector, Anti AFK
+--  UTILITIES TAB
 -- ============================================================
 
--- ===== Teleport Spoof System =====
-local TeleportSpoof = {
-    Enabled = false,
-    TargetCFrame = nil,
-    CurrentCFrame = nil,
-    Speed = 50,
-}
-
-local realRoot = nil
-local spoofedRoot = nil
-local SpoofLoopConnection = nil
-local SpoofMetatableRestored = false
-
-local function SetupSpoof()
-    if not LocalPlayer.Character then return end
-    realRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not realRoot then return end
-
-    if spoofedRoot then spoofedRoot:Destroy() end
-    spoofedRoot = Instance.new("Part")
-    spoofedRoot.Name = "SpoofedRoot"
-    spoofedRoot.Anchored = true
-    spoofedRoot.CanCollide = false
-    spoofedRoot.Transparency = 1
-    spoofedRoot.Size = Vector3.new(1,1,1)
-    spoofedRoot.Parent = LocalPlayer.Character
-    spoofedRoot.CFrame = realRoot.CFrame
-
-    if not SpoofMetatableRestored then
-        local mt = getrawmetatable(game)
-        local oldIndex = mt.__index
-        local oldNewIndex = mt.__newindex
-
-        mt.__index = function(self, index)
-            if self == realRoot and index == "CFrame" and not checkcaller() then
-                return spoofedRoot.CFrame
-            end
-            return oldIndex(self, index)
-        end
-
-        mt.__newindex = function(self, index, value)
-            if self == realRoot and index == "CFrame" and not checkcaller() then
-                return
-            end
-            return oldNewIndex(self, index, value)
-        end
-
-        setrawmetatable(game, mt)
-        SpoofMetatableRestored = true
-    end
-
-    if not SpoofLoopConnection then
-        SpoofLoopConnection = RunService.Heartbeat:Connect(function()
-            if not TeleportSpoof.Enabled or not realRoot or not spoofedRoot then return end
-            local target = TeleportSpoof.TargetCFrame
-            if target then
-                local current = realRoot.CFrame
-                local diff = target.Position - current.Position
-                local step = TeleportSpoof.Speed * RunService.Heartbeat:Wait()
-                if diff.Magnitude < step then
-                    realRoot.CFrame = target
-                    spoofedRoot.CFrame = target
-                    TeleportSpoof.TargetCFrame = nil
-                else
-                    local newPos = current.Position + diff.Unit * step
-                    realRoot.CFrame = CFrame.new(newPos) * current.Rotation
-                    spoofedRoot.CFrame = realRoot.CFrame
-                end
-            end
-        end)
-    end
-end
-
-local function CleanupSpoof()
-    if SpoofLoopConnection then
-        SpoofLoopConnection:Disconnect()
-        SpoofLoopConnection = nil
-    end
-    if spoofedRoot then
-        spoofedRoot:Destroy()
-        spoofedRoot = nil
-    end
-    if SpoofMetatableRestored then
-        local mt = getrawmetatable(game)
-        mt.__index = nil
-        mt.__newindex = nil
-        setrawmetatable(game, mt)
-        SpoofMetatableRestored = false
-    end
-    realRoot = nil
-end
-
-function TeleportSpoof:TeleportTo(cframe)
-    if not self.Enabled then return end
-    if not realRoot then SetupSpoof() end
-    self.TargetCFrame = cframe
-end
-
-function TeleportSpoof:Enable()
-    if self.Enabled then return end
-    self.Enabled = true
-    SetupSpoof()
-end
-
-function TeleportSpoof:Disable()
-    self.Enabled = false
-    CleanupSpoof()
-end
-
--- ===== Teleport UI =====
-local TeleportSection = UtilitiesTab:CreateSection("Teleport", "Normal")
-
-local TeleportCoordsTextbox
-
-TeleportSection:CreateToggle("Normal", {
-    Name = "Enable Teleport Spoof",
-    Flag = "TeleportSpoofEnabled",
-    CurrentValue = false,
-    Callback = function(Enabled)
-        if Enabled then
-            TeleportSpoof:Enable()
-        else
-            TeleportSpoof:Disable()
-        end
-        print("Teleport Spoof " .. (Enabled and "ON" or "OFF"))
-    end
-})
-
-TeleportCoordsTextbox = TeleportSection:CreateTextbox({
-    Name = "Teleport Coordinates",
-    PlaceholderText = "X, Y, Z (e.g., 0, 50, 0)",
-    Flag = "TeleportCoordinates",
-    Callback = function(Text)
-        -- Just store the text, we'll use it when the button is pressed
-    end
-})
-
-TeleportSection:CreateButton({
-    Name = "Teleport",
-    Callback = function()
-        local coords = TeleportCoordsTextbox and TeleportCoordsTextbox.Text or ""
-        if coords == "" then
-            Matrice.UI:Notify("Error", {
-                Title = "Teleport Error",
-                Content = "Please enter coordinates.",
-                Duration = 3,
-                Image = Matrice.Asset("circle-x.png")
-            })
-            return
-        end
-        local parts = {}
-        for part in string.gmatch(coords, "[^,]+") do
-            local trimmed = part:match("^%s*(.-)%s*$")
-            if trimmed ~= "" then
-                table.insert(parts, trimmed)
-            end
-        end
-        if #parts ~= 3 then
-            Matrice.UI:Notify("Error", {
-                Title = "Teleport Error",
-                Content = "Invalid format. Use X, Y, Z",
-                Duration = 3,
-                Image = Matrice.Asset("circle-x.png")
-            })
-            return
-        end
-        local x = tonumber(parts[1])
-        local y = tonumber(parts[2])
-        local z = tonumber(parts[3])
-        if not x or not y or not z then
-            Matrice.UI:Notify("Error", {
-                Title = "Teleport Error",
-                Content = "Invalid numbers.",
-                Duration = 3,
-                Image = Matrice.Asset("circle-x.png")
-            })
-            return
-        end
-        TeleportSpoof:TeleportTo(CFrame.new(x, y, z))
-        Matrice.UI:Notify("Normal", {
-            Title = "Teleporting",
-            Content = "Teleporting to " .. x .. ", " .. y .. ", " .. z,
-            Duration = 3,
-            Image = Matrice.Asset("globe.png")
-        })
-    end
-})
-
--- ===== Moderator Detector =====
 local Miscellaneous = UtilitiesTab:CreateSection("Miscellaneous", "Normal")
 
 local ModeratorDetectorEnabled = false
