@@ -72,7 +72,7 @@ local SettingsTab = Library:CreateTab("Settings", Matrice.Asset("settings.png"))
 Library:SwitchTab()
 
 -- ============================================================
---  COMBAT TAB – Silent Aim, Hitbox, Auto Trigger, Auto Reload
+--  COMBAT TAB – Silent Aim, Hitbox, Auto Trigger (hold), Auto Reload
 -- ============================================================
 
 -- ===== Silent Aim State & Config =====
@@ -101,11 +101,11 @@ local HitboxData = {
     }
 }
 
--- ===== Auto Trigger State =====
+-- ===== Auto Trigger State (HOLD based) =====
 getgenv().AutoTriggerEnabled = false
 getgenv().TriggerDelay = 50
 local AutoTriggerConnection = nil
-local LastTriggerTime = 0
+local ShootHeld = false
 
 -- ===== Auto Reload State =====
 getgenv().AutoReloadEnabled = false
@@ -418,21 +418,37 @@ local function InstallSilentAimHook()
     return true
 end
 
--- ===== Auto Trigger Functions =====
-local function SimulateShoot()
-    if mouse1click then
-        mouse1click()
+-- ============================================================
+--  AUTO TRIGGER – HOLD‑BASED (fixes jamming)
+-- ============================================================
+
+local function PressShoot()
+    if mouse1press then
+        mouse1press()
         return true
-    elseif keypress and keyrelease then
+    elseif keypress then
         keypress(0x01)
-        task.wait(0.05)
-        keyrelease(0x01)
         return true
     else
         local VIM = game:GetService("VirtualInputManager")
         if VIM then
             VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-            task.wait(0.05)
+            return true
+        end
+    end
+    return false
+end
+
+local function ReleaseShoot()
+    if mouse1release then
+        mouse1release()
+        return true
+    elseif keyrelease then
+        keyrelease(0x01)
+        return true
+    else
+        local VIM = game:GetService("VirtualInputManager")
+        if VIM then
             VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
             return true
         end
@@ -443,13 +459,24 @@ end
 local function StartAutoTrigger()
     if AutoTriggerConnection then return end
     AutoTriggerConnection = RunService.RenderStepped:Connect(function()
-        if not getgenv().AutoTriggerEnabled then return end
+        if not getgenv().AutoTriggerEnabled then
+            if ShootHeld then
+                ReleaseShoot()
+                ShootHeld = false
+            end
+            return
+        end
+
         local target = GetSilentAimTarget()
         if target then
-            local now = tick()
-            if now - LastTriggerTime >= getgenv().TriggerDelay / 1000 then
-                LastTriggerTime = now
-                SimulateShoot()
+            if not ShootHeld then
+                PressShoot()
+                ShootHeld = true
+            end
+        else
+            if ShootHeld then
+                ReleaseShoot()
+                ShootHeld = false
             end
         end
     end)
@@ -460,12 +487,16 @@ local function StopAutoTrigger()
         AutoTriggerConnection:Disconnect()
         AutoTriggerConnection = nil
     end
+    if ShootHeld then
+        ReleaseShoot()
+        ShootHeld = false
+    end
 end
 
--- ===== Auto Reload Functions (raw keypress for 'R') =====
+-- ===== Auto Reload Functions =====
 local function PressRKey()
     if keypress and keyrelease then
-        keypress(0x52)  -- R key virtual key code
+        keypress(0x52)
         task.wait(0.05)
         keyrelease(0x52)
         return true
@@ -698,7 +729,6 @@ Automation:CreateToggle("Normal", {
     Callback = function(Enabled)
         getgenv().AutoTriggerEnabled = Enabled
         if Enabled then
-            LastTriggerTime = 0
             StartAutoTrigger()
         else
             StopAutoTrigger()
@@ -736,7 +766,7 @@ Automation:CreateToggle("Normal", {
 })
 
 -- ============================================================
---  VISUALS TAB – Fully functional ESP
+--  VISUALS TAB – Fully functional ESP (unchanged)
 -- ============================================================
 
 local ESPEnabled = false
@@ -1275,7 +1305,7 @@ EffectsSection:CreateDropdown({
 })
 
 -- ============================================================
---  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly
+--  PLAYER TAB – Walkspeed, JumpPower spoof, NoClip, Fly (unchanged)
 -- ============================================================
 
 local Character = PlayerTab:CreateSection("Character", "Normal")
