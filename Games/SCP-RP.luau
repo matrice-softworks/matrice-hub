@@ -462,26 +462,19 @@ local function StopAutoTrigger()
     end
 end
 
--- ===== Auto Reload Functions (FIXED) =====
-local function SimulateKeyPress(KeyCode)
-    local keyNumber
-    if type(KeyCode) == "EnumItem" then
-        keyNumber = KeyCode.Value
-    else
-        keyNumber = KeyCode
-    end
-
+-- ===== Auto Reload Functions (raw keypress for 'R') =====
+local function PressRKey()
     if keypress and keyrelease then
-        keypress(keyNumber)
+        keypress(0x52)  -- R key virtual key code
         task.wait(0.05)
-        keyrelease(keyNumber)
+        keyrelease(0x52)
         return true
     else
         local VIM = game:GetService("VirtualInputManager")
         if VIM then
-            VIM:SendKeyEvent(true, KeyCode, false, game)
+            VIM:SendKeyEvent(true, Enum.KeyCode.R, false, game)
             task.wait(0.05)
-            VIM:SendKeyEvent(false, KeyCode, false, game)
+            VIM:SendKeyEvent(false, Enum.KeyCode.R, false, game)
             return true
         end
     end
@@ -501,7 +494,7 @@ local function StartAutoReload()
 
         local visible = reloadFrame.Visible
         if visible and not ReloadPressed then
-            SimulateKeyPress(Enum.KeyCode.R)
+            PressRKey()
             ReloadPressed = true
         elseif not visible then
             ReloadPressed = false
